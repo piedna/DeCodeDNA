@@ -36,8 +36,13 @@ bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
 ## Pipeline Workflow Overview
 
 ```mermaid
-%%{init: { "themeVariables": { "fontSize": "12px" } }}%%
 flowchart TB
+%% define a CSS class with a smaller font
+  classDef smallFont font-size:12px;
+
+  %% apply it to every node ID you declared
+  class WetLab,Basecalling,QuickLook,Consensus,Denoise,Taxonomic smallFont;
+
     subgraph WetLab ["Wet Lab"]
         MC[Mock community prep]
         MinION[MinION sequencing]
