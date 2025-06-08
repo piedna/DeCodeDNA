@@ -36,6 +36,7 @@ bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
 ## Pipeline Workflow Overview
 
 ```mermaid
+%%{init: { "themeVariables": { "fontSize": "12px" } }}%%
 flowchart TB
     subgraph WetLab ["Wet Lab"]
         MC[Mock community prep]
