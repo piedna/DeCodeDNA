@@ -37,14 +37,14 @@ bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
 
 ```mermaid
 flowchart TD
-    A[Mock Prep] --> B[MinION]
-    B --> C[Basecall]
-    C --> D[Kraken2]
-    D --> E[Filter]
-    E --> F[Consensus]
-    F --> G[Denoise]
-    G --> H[BLAST]
-    H --> I[Final ID]
+    A[1] --> B[2]
+    B --> C[3]
+    C --> D[4]
+    D --> E[5]
+    E --> F[6]
+    F --> G[7]
+    G --> H[8]
+    H --> I[9]
     
     style A fill:#e1f5fe
     style B fill:#e8f5e8
@@ -57,7 +57,7 @@ flowchart TD
     style I fill:#f1f8e9
 ```
 
-### Pipeline Flow
+### Pipeline Steps
 1. **Mock Prep** - Prepare mock community samples
 2. **MinION** - Oxford Nanopore sequencing  
 3. **Basecall** - SUP basecalling (high accuracy)
@@ -171,7 +171,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-For questions or issues, please contact ednacollab@uw.edu
+For questions or issues, please open an issue on GitHub or contact ednacollab@uw.edu
 
 ---
 
