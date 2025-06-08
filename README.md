@@ -52,3 +52,6 @@ flowchart TB
     LULU --> BLAST[BLAST + LCA]
     LULU --> Kraken2[2nd-Round Kraken2]
   end
+```
+
+---
