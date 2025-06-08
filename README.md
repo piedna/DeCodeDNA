@@ -36,34 +36,33 @@ bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
 ## Pipeline Workflow Overview
 
 ```mermaid
-%%{init: {'theme':'base', 'themeVariables': {'primaryColor': '#ff0000'}}}%%
 flowchart TB
     subgraph WetLab ["Wet Lab"]
-        MC["Mock community<br/>prep"]
-        MinION["MinION<br/>sequencing"]
+        MC[Mock community prep]
+        MinION[MinION sequencing]
         MC --> MinION
     end
     
     subgraph Basecalling ["I. Basecalling"]
-        MinION --> SUP["SUP<br/>Basecalling"]
+        MinION --> SUP[SUP Basecalling]
     end
     
     subgraph QuickLook ["II. Quick Look"]
-        SUP --> Kraken["Raw Kraken2/<br/>Bracken Results"]
-        Kraken --> TestThresh["Test thresholds<br/>c = 0.05-1.0"]
+        SUP --> Kraken[Raw Kraken2/Bracken Results]
+        Kraken --> TestThresh[Test thresholds c = 0.05-1.0]
     end
     
     subgraph Consensus ["III. Consensus / Sort"]
-        TestThresh --> ConsSort["Cons Consensus:<br/>Amplicon_sorter,<br/>ProName, Decona/<br/>CD-HIT/OBITools"]
+        TestThresh --> ConsSort[Cons Consensus: Amplicon_sorter, ProName, Decona/CD-HIT/OBITools]
     end
     
     subgraph Denoise ["IV. Denoise"]
-        ConsSort --> LULU["LULU Self-BLAST<br/>& LULU filter"]
+        ConsSort --> LULU[LULU Self-BLAST & LULU filter]
     end
     
     subgraph Taxonomic ["V. Taxonomic Assignment"]
-        LULU --> BLAST["BLAST BLAST<br/>+ LCA"]
-        BLAST --> Kraken2["Kraken2 2nd-Round<br/>Kraken2"]
+        LULU --> BLAST[BLAST BLAST + LCA]
+        BLAST --> Kraken2[Kraken2 2nd-Round Kraken2]
     end
     
     WetLab --> Basecalling
@@ -176,7 +175,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-For questions or issues, please contact the development team, ednacollab@uw.edu
+For questions or issues, please open an issue on GitHub or contact the development team.
 
 ---
 
