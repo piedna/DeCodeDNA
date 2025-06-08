@@ -23,6 +23,7 @@ conda activate decode-dna
 bash scripts/01_basecall.sh data/example_fast5/ results/fastq/
 
 ---
+
 ## Pipeline Workflow Overview
 
 ```mermaid
@@ -52,6 +53,4 @@ flowchart TB
     LULU --> BLAST[BLAST + LCA]
     LULU --> Kraken2[2nd-Round Kraken2]
   end
-```
 
----
