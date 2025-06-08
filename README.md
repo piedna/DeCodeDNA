@@ -38,38 +38,38 @@ bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
 ```mermaid
 flowchart TB
     subgraph WetLab ["Wet Lab"]
-        MC[Mock community prep]
-        MinION[MinION sequencing]
+        MC[Mock prep]
+        MinION[MinION seq]
         MC --> MinION
     end
     
-    subgraph Basecalling ["I. Basecalling"]
-        MinION --> SUP[SUP Basecalling]
+    subgraph Step1 ["I. Basecalling"]
+        MinION --> SUP[SUP Call]
     end
     
-    subgraph QuickLook ["II. Quick Look"]
-        SUP --> Kraken[Raw Kraken2/Bracken Results]
-        Kraken --> TestThresh[Test thresholds c = 0.05-1.0]
+    subgraph Step2 ["II. Quick Look"]
+        SUP --> Kraken[Kraken2/Bracken]
+        Kraken --> Thresh[Test thresholds]
     end
     
-    subgraph Consensus ["III. Consensus / Sort"]
-        TestThresh --> ConsSort[Cons Consensus: Amplicon_sorter, ProName, Decona/CD-HIT/OBITools]
+    subgraph Step3 ["III. Consensus"]
+        Thresh --> Cons[Amplicon sorter]
     end
     
-    subgraph Denoise ["IV. Denoise"]
-        ConsSort --> LULU[LULU Self-BLAST & LULU filter]
+    subgraph Step4 ["IV. Denoise"]
+        Cons --> LULU[LULU filter]
     end
     
-    subgraph Taxonomic ["V. Taxonomic Assignment"]
-        LULU --> BLAST[BLAST BLAST + LCA]
-        BLAST --> Kraken2[Kraken2 2nd-Round Kraken2]
+    subgraph Step5 ["V. Taxonomy"]
+        LULU --> BLAST[BLAST + LCA]
+        BLAST --> K2[Kraken2 final]
     end
     
-    WetLab --> Basecalling
-    Basecalling --> QuickLook
-    QuickLook --> Consensus
-    Consensus --> Denoise
-    Denoise --> Taxonomic
+    WetLab --> Step1
+    Step1 --> Step2
+    Step2 --> Step3
+    Step3 --> Step4
+    Step4 --> Step5
 ```
 
 ## Pipeline Steps
