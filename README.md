@@ -36,37 +36,42 @@ bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
 ## Pipeline Workflow Overview
 
 ```mermaid
-flowchart TD
-    A[1] --> B[2]
-    B --> C[3]
-    C --> D[4]
-    D --> E[5]
-    E --> F[6]
-    F --> G[7]
-    G --> H[8]
-    H --> I[9]
+%%{init: {'theme':'base', 'themeVariables': {'primaryColor': '#ff0000'}}}%%
+flowchart TB
+    subgraph WetLab ["Wet Lab"]
+        MC["Mock community<br/>prep"]
+        MinION["MinION<br/>sequencing"]
+        MC --> MinION
+    end
     
-    style A fill:#e1f5fe
-    style B fill:#e8f5e8
-    style C fill:#fff3e0
-    style D fill:#fce4ec
-    style E fill:#f3e5f5
-    style F fill:#e0f2f1
-    style G fill:#fff8e1
-    style H fill:#e3f2fd
-    style I fill:#f1f8e9
+    subgraph Basecalling ["I. Basecalling"]
+        MinION --> SUP["SUP<br/>Basecalling"]
+    end
+    
+    subgraph QuickLook ["II. Quick Look"]
+        SUP --> Kraken["Raw Kraken2/<br/>Bracken Results"]
+        Kraken --> TestThresh["Test thresholds<br/>c = 0.05-1.0"]
+    end
+    
+    subgraph Consensus ["III. Consensus / Sort"]
+        TestThresh --> ConsSort["Cons Consensus:<br/>Amplicon_sorter,<br/>ProName, Decona/<br/>CD-HIT/OBITools"]
+    end
+    
+    subgraph Denoise ["IV. Denoise"]
+        ConsSort --> LULU["LULU Self-BLAST<br/>& LULU filter"]
+    end
+    
+    subgraph Taxonomic ["V. Taxonomic Assignment"]
+        LULU --> BLAST["BLAST BLAST<br/>+ LCA"]
+        BLAST --> Kraken2["Kraken2 2nd-Round<br/>Kraken2"]
+    end
+    
+    WetLab --> Basecalling
+    Basecalling --> QuickLook
+    QuickLook --> Consensus
+    Consensus --> Denoise
+    Denoise --> Taxonomic
 ```
-
-### Pipeline Steps
-1. **Mock Prep** - Prepare mock community samples
-2. **MinION** - Oxford Nanopore sequencing  
-3. **Basecall** - SUP basecalling (high accuracy)
-4. **Kraken2** - Initial taxonomic classification
-5. **Filter** - Quality filtering and thresholding
-6. **Consensus** - Sequence clustering and consensus
-7. **Denoise** - LULU filtering to remove artifacts
-8. **BLAST** - BLAST alignment for validation
-9. **Final ID** - Final taxonomic assignment
 
 ## Pipeline Steps
 
@@ -171,7 +176,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-For questions or issues, please open an issue on GitHub or contact ednacollab@uw.edu
+For questions or issues, please contact the development team, ednacollab@uw.edu
 
 ---
 
