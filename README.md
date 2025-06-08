@@ -36,41 +36,37 @@ bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
 ## Pipeline Workflow Overview
 
 ```mermaid
-flowchart TB
-    subgraph WetLab ["Wet Lab"]
-        MC[Mock prep]
-        MinION[MinION seq]
-        MC --> MinION
-    end
+flowchart TD
+    A[Mock Prep] --> B[MinION]
+    B --> C[Basecall]
+    C --> D[Kraken2]
+    D --> E[Filter]
+    E --> F[Consensus]
+    F --> G[Denoise]
+    G --> H[BLAST]
+    H --> I[Final ID]
     
-    subgraph Step1 ["I. Basecalling"]
-        MinION --> SUP[SUP Call]
-    end
-    
-    subgraph Step2 ["II. Quick Look"]
-        SUP --> Kraken[Kraken2/Bracken]
-        Kraken --> Thresh[Test thresholds]
-    end
-    
-    subgraph Step3 ["III. Consensus"]
-        Thresh --> Cons[Amplicon sorter]
-    end
-    
-    subgraph Step4 ["IV. Denoise"]
-        Cons --> LULU[LULU filter]
-    end
-    
-    subgraph Step5 ["V. Taxonomy"]
-        LULU --> BLAST[BLAST + LCA]
-        BLAST --> K2[Kraken2 final]
-    end
-    
-    WetLab --> Step1
-    Step1 --> Step2
-    Step2 --> Step3
-    Step3 --> Step4
-    Step4 --> Step5
+    style A fill:#e1f5fe
+    style B fill:#e8f5e8
+    style C fill:#fff3e0
+    style D fill:#fce4ec
+    style E fill:#f3e5f5
+    style F fill:#e0f2f1
+    style G fill:#fff8e1
+    style H fill:#e3f2fd
+    style I fill:#f1f8e9
 ```
+
+### Pipeline Flow
+1. **Mock Prep** - Prepare mock community samples
+2. **MinION** - Oxford Nanopore sequencing  
+3. **Basecall** - SUP basecalling (high accuracy)
+4. **Kraken2** - Initial taxonomic classification
+5. **Filter** - Quality filtering and thresholding
+6. **Consensus** - Sequence clustering and consensus
+7. **Denoise** - LULU filtering to remove artifacts
+8. **BLAST** - BLAST alignment for validation
+9. **Final ID** - Final taxonomic assignment
 
 ## Pipeline Steps
 
@@ -175,7 +171,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-For questions or issues, please open an issue on GitHub or contact the development team.
+For questions or issues, please contact ednacollab@uw.edu
 
 ---
 
