@@ -37,45 +37,39 @@ bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
 
 ```mermaid
 flowchart TB
-%% define a CSS class with a smaller font
-  classDef smallFont font-size:8px;
+  subgraph WetLab["Wet Lab"]
+    MC["Mock community<br>prep"]
+    MinION["MinION sequencing"]
+    MC --> MinION
+  end
 
-  %% apply it to every node ID you declared
-  class WetLab,Basecalling,QuickLook,Consensus,Denoise,Taxonomic smallFont;
+  subgraph Basecalling["I. Basecalling"]
+    MinION --> SUP["SUP Basecalling"]
+  end
 
-    subgraph WetLab ["Wet Lab"]
-        MC[Mock community prep]
-        MinION[MinION sequencing]
-        MC --> MinION
-    end
-    
-    subgraph Basecalling ["I. Basecalling"]
-        MinION --> SUP[SUP Basecalling]
-    end
-    
-    subgraph QuickLook ["II. Quick Look"]
-        SUP --> Kraken[Raw Kraken2/Bracken Results]
-        Kraken --> TestThresh[Test thresholds c = 0.05-1.0]
-    end
-    
-    subgraph Consensus ["III. Consensus / Sort"]
-        TestThresh --> ConsSort[Cons Consensus: Amplicon_sorter, ProName, Decona/CD-HIT/OBITools]
-    end
-    
-    subgraph Denoise ["IV. Denoise"]
-        ConsSort --> LULU[LULU Self-BLAST & LULU filter]
-    end
-    
-    subgraph Taxonomic ["V. Taxonomic Assignment"]
-        LULU --> BLAST[BLAST BLAST + LCA]
-        BLAST --> Kraken2[Kraken2 2nd-Round Kraken2]
-    end
-    
-    WetLab --> Basecalling
-    Basecalling --> QuickLook
-    QuickLook --> Consensus
-    Consensus --> Denoise
-    Denoise --> Taxonomic
+  subgraph QuickLook["II. Quick Look"]
+    SUP --> Kraken["Raw Kraken2/<br>Bracken Results"]
+    Kraken --> TestThresh["Test thresholds<br>c = 0.05–1.0"]
+  end
+
+  subgraph Consensus["III. Consensus/<br>Sort"]
+    TestThresh --> ConsSort["Consensus:<br>Amplicon_sorter, ProName,<br>Decona/CD-HIT"]
+  end
+
+  subgraph Denoise["IV. Denoise"]
+    ConsSort --> LULU["LULU Self-BLAST &<br>LULU filter"]
+  end
+
+  subgraph Taxonomic["V. Taxonomic<br>Assignment"]
+    LULU --> BLAST["BLAST + LCA"]
+    BLAST --> Kraken2["Kraken2<br>2nd-Round"]
+  end
+
+  WetLab --> Basecalling
+  Basecalling --> QuickLook
+  QuickLook --> Consensus
+  Consensus --> Denoise
+  Denoise --> Taxonomic
 ```
 
 ## Pipeline Steps
@@ -181,7 +175,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Support
 
-For questions or issues, please open an issue on GitHub or contact the development team.
+For questions or issues, please contact the development team at ednacollab@uw.edu
 
 ---
 
