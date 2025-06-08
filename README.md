@@ -36,7 +36,8 @@ bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
 ## Pipeline Workflow Overview
 
 ```mermaid
-flowchart TB
+flowchart LR
+  %% keep boxes compact with manual wraps, but allow them to grow wide
   subgraph WetLab["Wet Lab"]
     MC["Mock community<br>prep"]
     MinION["MinION sequencing"]
@@ -53,7 +54,7 @@ flowchart TB
   end
 
   subgraph Consensus["III. Consensus/<br>Sort"]
-    TestThresh --> ConsSort["Consensus:<br>Amplicon_sorter, ProName,<br>Decona/CD-HIT"]
+    TestThresh --> ConsSort["Consensus:<br>Amplicon_sorter,<br>ProName,<br>Decona/CD-HIT"]
   end
 
   subgraph Denoise["IV. Denoise"]
@@ -65,11 +66,8 @@ flowchart TB
     BLAST --> Kraken2["Kraken2<br>2nd-Round"]
   end
 
-  WetLab --> Basecalling
-  Basecalling --> QuickLook
-  QuickLook --> Consensus
-  Consensus --> Denoise
-  Denoise --> Taxonomic
+  %% chain them together
+  WetLab --> Basecalling --> QuickLook --> Consensus --> Denoise --> Taxonomic
 ```
 
 ## Pipeline Steps
