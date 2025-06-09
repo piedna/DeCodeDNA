@@ -40,16 +40,16 @@ flowchart TB
   %% Top row: Wet lab → Basecalling → Quick Look
   subgraph Pre-screening
     direction LR
-    A["Mock community<br>prep"] 
-    B["MinION sequencing"]
+    A["Sample collection<br>Filtration"] 
+    B["PCR<br>Library Preparation<br>MinION sequencing"]
     C["I. Basecalling/Demultiplex"]
     D["Raw Kraken2/<br>Bracken Results"]
-    E["Test thresholds<br>c = 0.05–1.0"]
+    E["Off-target clean up"]
     A --> B --> C --> D --> E
   end
 
   %% Bottom row: Consensus → Denoise → Taxonomy
-  subgraph Cluster & Classify
+  subgraph Cluster   Classify
     direction LR
     F["III. Consensus/<br>Sort"]
     G["IV. Denoise"]
