@@ -6,16 +6,16 @@
 
 ## What is DeCodeDNA?
 
-DeCodeDNA is a turnkey Nanopore metabarcoding pipeline designed for Friday Harbor Labs’ eDNA course.  
-From raw FAST5 basecalling all the way through LULU‐denoising and dual‐round taxonomic assignment, you get:
+DeCodeDNA is a turnkey Nanopore metabarcoding pipeline designed for Friday Harbor Labs’ eDNA course conducted by the eDNA Collaborative.  
+From raw POD5 basecalling all the way through consensus calling, LULU‐denoising and taxonomic assignment, you get:
 
-- **Ultra-accurate SUP basecalling** via Guppy/Dorado  
-- **Rapid classification** (Kraken2 → Bracken → threshold testing)  
-- **Consensus building** across replicates with Amplicon_sorter & CD-HIT  
+- **Directions on basecalling depending on the local machine's specifications** via Dorado  
+- **Rapid classification and cleanup** (Kraken2 → Bracken → threshold testing and cleanup)  
+- **Consensus building** across replicates with Amplicon_sorter or CD-HIT  
 - **Artifact removal** using the LULU R package  
-- **Final taxonomic calls** with both BLAST+LCA and Kraken2-second-round  
+- **Final taxonomic calls** with both BLAST+LCA and/or Kraken2-second-round  
 
-It handles multiplexed COI or 12S amplicons, works on any modern laptop or server, and ships with a tiny “mock” sample so you can test end-to-end in seconds.
+It runs on command line, handles multiplexed COI or 12S amplicons, works on any modern laptop or server, and ships with a tiny “mock” sample so you can test end-to-end.
 
 ---
 
