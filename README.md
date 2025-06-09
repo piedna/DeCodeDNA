@@ -36,38 +36,29 @@ bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
 ## Pipeline Workflow Overview
 
 ```mermaid
-flowchart LR
-  %% keep boxes compact with manual wraps, but allow them to grow wide
-  subgraph WetLab["Wet Lab"]
-    MC["Mock community<br>prep"]
-    MinION["MinION sequencing"]
-    MC --> MinION
+flowchart TB
+  %% Top row: Wet lab → Basecalling → Quick Look
+  subgraph Row1
+    direction LR
+    A["Mock community<br>prep"] 
+    B["MinION sequencing"]
+    C["I. Basecalling"]
+    D["Raw Kraken2/<br>Bracken Results"]
+    E["Test thresholds<br>c = 0.05–1.0"]
+    A --> B --> C --> D --> E
   end
 
-  subgraph Basecalling["I. Basecalling"]
-    MinION --> SUP["SUP Basecalling"]
+  %% Bottom row: Consensus → Denoise → Taxonomy
+  subgraph Row2
+    direction LR
+    F["III. Consensus/<br>Sort"]
+    G["IV. Denoise"]
+    H["V. Taxonomic<br>Assignment"]
+    F --> G --> H
   end
 
-  subgraph QuickLook["II. Quick Look"]
-    SUP --> Kraken["Raw Kraken2/<br>Bracken Results"]
-    Kraken --> TestThresh["Test thresholds<br>c = 0.05–1.0"]
-  end
-
-  subgraph Consensus["III. Consensus/<br>Sort"]
-    TestThresh --> ConsSort["Consensus:<br>Amplicon_sorter,<br>ProName,<br>Decona/CD-HIT"]
-  end
-
-  subgraph Denoise["IV. Denoise"]
-    ConsSort --> LULU["LULU Self-BLAST &<br>LULU filter"]
-  end
-
-  subgraph Taxonomic["V. Taxonomic<br>Assignment"]
-    LULU --> BLAST["BLAST + LCA"]
-    BLAST --> Kraken2["Kraken2<br>2nd-Round"]
-  end
-
-  %% chain them together
-  WetLab --> Basecalling --> QuickLook --> Consensus --> Denoise --> Taxonomic
+  %% Connect the two rows
+  E --> F
 ```
 
 ## Pipeline Steps
