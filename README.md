@@ -63,21 +63,22 @@ flowchart TB
 
 ## Pipeline Steps
 
-### Step I: Basecalling
+### Step I: Basecalling and demultiplexing
 - **Input**: Raw MinION sequencing data (POD5)
-- **Process**: SUP (Super Accurate) basecalling using Dorado<br>https://github.com/nanoporetech/dorado
+- **Process 1**: SUP (Super Accurate) basecalling and demultiplex native barocdes using Dorado<br>https://github.com/nanoporetech/dorado
+- **Process 2**: Demultiplex custom CCI barcodes with ONTbarcoder2.3, https://github.com/asrivathsan/ONTbarcoder/releases 
 - **Output**: High-quality FASTQ sequences
 
 ### Step II: Quick Look
-- **Input**: Basecalled FASTQ files
+- **Input**: Basecalled and demultiplexed FASTQ files
 - **Process**: Initial taxonomic classification using Kraken2/Bracken
 - **Output**: Preliminary species identification and abundance estimates
-- **Quality Control**: Test multiple confidence thresholds (c = 0.05-1.0)
+- **Target Control**: Off-target clean up, use classified sequences for downstream analyses
 
 ### Step III: Consensus/Sort
 - **Input**: Classified sequences
 - **Process**: Sequence clustering and consensus building
-- **Tools**: Amplicon_sorter, ProName, Decona/CD-HIT/OBITools
+- **Tools**: Amplicon_sorter, Decona/CD-HIT/OBITools4
 - **Output**: Clustered sequences representing species/taxa
 
 ### Step IV: Denoise
@@ -96,9 +97,9 @@ flowchart TB
 
 ## Requirements
 
-- **Conda/Mamba**: For environment management
+- **Conda**: For environment management
 - **MinION data**: FAST5 or POD5 files from Oxford Nanopore sequencing
-- **Reference databases**: Kraken2/Bracken databases for taxonomic classification
+- **Reference databases**: Kraken2)(e.g. Mitofish, core_nt/Bracken databases for taxonomic classification
 - **Computational resources**: Recommended 8+ cores, 32+ GB RAM
 
 ## Installation
