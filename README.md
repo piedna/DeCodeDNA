@@ -4,6 +4,21 @@
 
 ---
 
+## What is DeCodeDNA?
+
+DeCodeDNA is a turnkey Nanopore metabarcoding pipeline designed for Friday Harbor Labs’ eDNA course.  
+From raw FAST5 basecalling all the way through LULU‐denoising and dual‐round taxonomic assignment, you get:
+
+- **Ultra-accurate SUP basecalling** via Guppy/Dorado  
+- **Rapid classification** (Kraken2 → Bracken → threshold testing)  
+- **Consensus building** across replicates with Amplicon_sorter & CD-HIT  
+- **Artifact removal** using the LULU R package  
+- **Final taxonomic calls** with both BLAST+LCA and Kraken2-second-round  
+
+It handles multiplexed COI or 12S amplicons, works on any modern laptop or server, and ships with a tiny “mock” sample so you can test end-to-end in seconds.
+
+---
+
 ## Quick Start
 
 ### 1. Clone the repo
@@ -28,7 +43,7 @@ conda activate decode-dna
 
 ### 5. Run the first step (basecalling) on our example data
 ```bash
-bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
+bash scripts/01_basecall.sh data/example_pod5/ results/pod5/
 ```
 
 ---
@@ -66,7 +81,7 @@ flowchart TB
 ### Step I: Basecalling and demultiplexing
 - **Input**: Raw MinION sequencing data (POD5)
 - **Process 1**: SUP (Super Accurate) basecalling and demultiplex native barocdes using Dorado<br>https://github.com/nanoporetech/dorado
-- **Process 2**: Demultiplex custom CCI barcodes with ONTbarcoder2.3, https://github.com/asrivathsan/ONTbarcoder/releases 
+- **Process 2**: Demultiplex custom CCI barcodes with ONTbarcoder2.3, https://github.com/asrivathsan/ONTbarcoder/releases; see CCI indexing at 
 - **Output**: High-quality FASTQ sequences
 
 ### Step II: Quick Look
