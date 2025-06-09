@@ -15,7 +15,7 @@ From raw POD5 basecalling all the way through consensus calling, LULU‐denoisin
 - **Artifact removal** using the LULU R package  
 - **Final taxonomic calls** with both BLAST+LCA and/or Kraken2-second-round  
 
-It runs on command line, handles multiplexed COI or 12S amplicons, works on any modern laptop or server, and ships with a tiny “mock” sample so you can test end-to-end.
+It starts on GUI, runs on command line, handles multiplexed COI or 12S amplicons, works on any modern laptop or server, and ships with a tiny “mock” sample so you can test end-to-end.
 
 ---
 
@@ -45,6 +45,39 @@ conda activate decode-dna
 ```bash
 bash scripts/01_basecall.sh data/example_pod5/ results/pod5/
 ```
+
+---
+
+## Dependencies
+
+### (A) Automated via Conda
+
+We recommend Conda for a one-line install:
+
+```bash
+conda env create -f environment.yml
+conda activate decode-dna
+```
+
+### (B) Manual installation
+
+| Tool            | Version | Install command                                                          | Purpose                                   |
+|-----------------|:-------:|--------------------------------------------------------------------------|-------------------------------------------|
+| Dorado          |  0.9.1  | `conda install -c bioconda dorado`                                       | SUP basecalling                           |
+| Cutadapt        |   4.8   | `conda install cutadapt`                                                 | Primer trimming                           |
+| NanoFilt        |  2.8.0  | `conda install nanofilt`                                                 | Quality & length filtering                |
+| VSEARCH         | 2.21.0  | `conda install vsearch`                                                  | Clustering & self-BLAST                   |
+| CD-HIT          |  4.8.1  | `conda install cd-hit`                                                   | Sequence clustering                       |
+| Kraken2         |  2.1.2  | `conda install kraken2`                                                  | Taxonomic classification                  |
+| Bracken         |   2.7   | `conda install bracken`                                                  | Abundance re-estimation                   |
+| BLAST           | 2.15.0  | `conda install blast`                                                    | Alignment + Lowest Common Ancestor (LCA)  |
+| TaxonKit        | 0.10.1  | `conda install taxonkit`                                                 | Compute LCA from taxon IDs                |
+| Amplicon_sorter |    —    | `conda install amplicon_sorter`                                          | Consensus sequence calling                |
+| ProName         |    —    | `conda install proname`                                                  | Label consensus clusters                  |
+| OBITools        |    —    | `conda install obitools`                                                 | FASTA/Q utilities (optional)              |
+| SeqKit          |    —    | `conda install seqkit`                                                   | FASTA/Q utilities                         |
+| ONTbarcoder     |   2.3   | Download & unzip from GitHub Releases: <br/>`https://github.com/asrivathsan/ONTbarcoder/releases` | Demultiplex custom CCI barcodes           |
+| MinKNOW         | 25.03.9 | Install via Oxford Nanopore Community site: <br/>`https://community.nanoporetech.com`                | Sequencer control & live basecalling      |
 
 ---
 
