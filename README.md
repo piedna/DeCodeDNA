@@ -77,18 +77,18 @@ flowchart TB
 
 ### Step III: Consensus/Sort
 - **Input**: Classified sequences
-- **Process**: Sequence clustering and consensus building
+- **Process**: Sequence consensus calling and building
 - **Tools**: Amplicon_sorter, Decona/CD-HIT/OBITools4
-- **Output**: Clustered sequences representing species/taxa
+- **Output**: Consensus sequences representing taxa amplicon sequence variants (ASVs)
 
 ### Step IV: Denoise
-- **Input**: Clustered sequences
+- **Input**: Consensus sequences (ASVs)
 - **Process**: Remove sequencing artifacts and low-abundance variants
-- **Method**: LULU algorithm with self-BLAST filtering
-- **Output**: Clean, high-confidence sequence clusters
+- **Method**: LULU algorithm with self-BLAST/VSEARCH filtering
+- **Output**: Clean, high-confidence sequence clusters, operational taxonomic units (OTUs)
 
 ### Step V: Taxonomic Assignment
-- **Input**: Denoised sequence clusters
+- **Input**: Denoised sequence clusters (OTUs)
 - **Process**: Final taxonomic classification using multiple approaches
 - **Methods**: 
   - BLAST + LCA (Lowest Common Ancestor)
