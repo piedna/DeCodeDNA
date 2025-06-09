@@ -43,7 +43,7 @@ flowchart TB
     A["Sample collection<br>Filtration"] 
     B["PCR<br>Library Preparation<br>MinION sequencing"]
     C["I. Basecalling/Demultiplex"]
-    D["Raw Kraken2/<br>Bracken Results"]
+    D["II. Build database<br>Kraken2/Bracken"]
     E["Off-target clean up"]
     A --> B --> C --> D --> E
   end
@@ -64,8 +64,8 @@ flowchart TB
 ## Pipeline Steps
 
 ### Step I: Basecalling
-- **Input**: Raw MinION sequencing data (FAST5/POD5)
-- **Process**: SUP (Super Accurate) basecalling using Guppy or Dorado
+- **Input**: Raw MinION sequencing data (POD5)
+- **Process**: SUP (Super Accurate) basecalling using Dorado<br>https://github.com/nanoporetech/dorado
 - **Output**: High-quality FASTQ sequences
 
 ### Step II: Quick Look
