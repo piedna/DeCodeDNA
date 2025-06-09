@@ -38,18 +38,18 @@ bash scripts/01_basecall.sh data/example_fast5/ results/fast5/
 ```mermaid
 flowchart TB
   %% Top row: Wet lab → Basecalling → Quick Look
-  subgraph Row1
+  subgraph Pre-screening
     direction LR
     A["Mock community<br>prep"] 
     B["MinION sequencing"]
-    C["I. Basecalling"]
+    C["I. Basecalling/Demultiplex"]
     D["Raw Kraken2/<br>Bracken Results"]
     E["Test thresholds<br>c = 0.05–1.0"]
     A --> B --> C --> D --> E
   end
 
   %% Bottom row: Consensus → Denoise → Taxonomy
-  subgraph Row2
+  subgraph Cluster & Classify
     direction LR
     F["III. Consensus/<br>Sort"]
     G["IV. Denoise"]
