@@ -26,7 +26,7 @@
 #        conda create -n lulu-env \
 #          python=3.10 vsearch r-base r-lulu \
 #          r-dplyr r-tidyr r-readr r-tibble r-stringr \
-#          -y
+#          -c conda-forge -y
 #        conda activate lulu-env
 #
 #   2) Ensure you have:
@@ -38,30 +38,32 @@ set -euo pipefail
 ### ── USER CONFIG ─────────────────────────────────────────────────
 BASE_DIR="${1:?Error: need BASE_DIR with your OTU files}"
 THREADS="${2:-8}"   # threads for vsearch self-BLAST
+LOGFILE="${LOGFILE:-04_denoise.log}"
 
 cd "$BASE_DIR"
-echo
-echo "🔹 Base directory: $BASE_DIR"
-echo
+echo "Logging to $LOGFILE"
+echo | tee "$LOGFILE"
+echo "🔹 Base directory: $BASE_DIR" | tee -a "$LOGFILE"
+echo | tee -a "$LOGFILE"
 
 ### ── 1) Self-BLAST OTU reps (optional QC) --------------------------
-echo "▶ Step 1: Self-BLAST OTU representatives"
+echo "▶ Step 1: Self-BLAST OTU representatives" | tee -a "$LOGFILE"
 if [[ -f otu_representatives_combined.fasta ]]; then
   vsearch \
     --allpairs_global otu_representatives_combined.fasta \
     --id 0.84 \
     --blast6out otu_self_blast_combined.out \
-    --threads "$THREADS"
-  echo "    ✓ Created otu_self_blast_combined.out"
+    --threads "$THREADS" 2>&1 | tee -a "$LOGFILE"
+  echo "    ✓ Created otu_self_blast_combined.out" | tee -a "$LOGFILE"
 else
-  echo "⚠️  otu_representatives_combined.fasta not found; skipping self-BLAST"
+  echo "⚠️  otu_representatives_combined.fasta not found; skipping self-BLAST" | tee -a "$LOGFILE"
 fi
 
-echo
+echo | tee -a "$LOGFILE"
 
 ### ── 2) Run LULU algorithm for OTU curation ------------------------
-echo "▶ Step 2: Run LULU to curate OTUs"
-Rscript <<'EOF'
+echo "▶ Step 2: Run LULU to curate OTUs" | tee -a "$LOGFILE"
+Rscript <<'EOF' 2>&1 | tee -a "$LOGFILE"
 # Load required libraries
 library(lulu)
 library(dplyr)
@@ -108,11 +110,11 @@ write_csv(as.data.frame(res$curated_table) %>% rownames_to_column('OTU'),
 cat('    ✓ Wrote lulu_filtered_otu_table_combined.csv\n')
 EOF
 
-echo
+echo | tee -a "$LOGFILE"
 
 ### ── 3) Sanity checks on retention & clustering --------------------
-echo "▶ Step 3: Sanity checks on retention & cluster metrics"
-Rscript <<'EOF'
+echo "▶ Step 3: Sanity checks on retention & cluster metrics" | tee -a "$LOGFILE"
+Rscript <<'EOF' 2>&1 | tee -a "$LOGFILE"
 library(readr)
 library(dplyr)
 library(tidyr)
@@ -149,5 +151,5 @@ cat('  • Retention min/med/max (%): ',
     max(check_df$pct_retained), '\n')
 EOF
 
-echo
-echo " Step IV complete: lulu_filtered_otu_table_combined.csv generated"
+echo | tee -a "$LOGFILE"
+echo "Step IV complete: lulu_filtered_otu_table_combined.csv generated" | tee -a "$LOGFILE"
