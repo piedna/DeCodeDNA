@@ -6,18 +6,20 @@ channels:
 dependencies:
   - python=3.9
   - dorado=0.9.1        # SUP basecalling (Oxford Nanopore)
-  - cutadapt=4.8         # primer trimming
-  - nanofilt=2.8.0       # quality & length filtering
-  - vsearch=2.21.0       # clustering & self-BLAST
-  - cd-hit=4.8.1         # clustering
-  - kraken2=2.1.2        # taxonomic classification
-  - bracken=2.7          # abundance re-estimation
-  - blast=2.15.0         # alignment + Lowest Common Ancestor
-  - taxonkit=0.10.1      # LCA from taxon IDs
-  - r-base=4.2           # R for LULU & plotting
-  - r-lulu=0.1.0         # denoising algorithm
-  - r-tidyverse          # data shaping & plotting
-  - amplicon_sorter      # consensus building
-  - proname              # consensus labeling
-  - obitools4             # FASTA/Q utilities
-  - seqkit               # FASTA/Q utilities
+  - pod5                   # FAST5→POD5 conversion
+  - cutadapt=4.8           # primer trimming
+  - nanofilt=2.8.0         # quality & length filtering
+  - seqkit                # FASTQ/FASTA utilities
+  - kraken2=2.1.2          # taxonomic classification
+  - bracken=2.7            # abundance re-estimation
+  - krona                  # KronaTools for interactive charts
+  - vsearch=2.21.0         # clustering & self-BLAST
+  - cd-hit=4.8.1           # sequence clustering
+  - amplicon_sorter        # consensus building
+  - proname                # consensus labeling
+  - obitools               # FASTA/Q utilities (optional)
+  - blast=2.15.0           # alignment + LCA
+  - taxonkit=0.10.1        # LCA from taxon IDs
+  - r-base=4.2             # R for LULU & plotting
+  - r-lulu=0.1.0           # denoising algorithm
+  - r-tidyverse            # data shaping & plotting
