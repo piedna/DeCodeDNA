@@ -1,40 +1,37 @@
-name: decod-e-dna
+name: decode-dna
 channels:
-  - defaults
-  - bioconda
   - conda-forge
-
+  - bioconda
+  - defaults
 dependencies:
-  # core languages
-  - python=3.9
-  - pip
+  - python>=3.11          # modern Python that Bioconda supports
+  - pip                   # to run pip installs
+  - nanofilt=2.8.0        # to filter quality and length if needed
+  - cutadapt              # primer trimming
+  - kraken2               # quick look taxonomic classification
+  - vsearch               # clustering / dereplication
+  - cd-hit                # sequence clustering
+  - blast                 # NCBI BLAST+
+  - taxonkit              # taxonomy utilities
+  - seqkit                # FASTA/Q utilities
+  - krona                 # interactive HTML taxonomic charts
+  - pod5                  # convert legacy fast5 to pod5
+  - clang_osx-64          # for building Bracken on macOS
+  - llvm-openmp           # OpenMP support for clang
 
-  # sequencing & filtering
-  - cutadapt=4.8
-  - seqkit=0.16.3
-  - pod5=0.6.*           # FAST5⇄POD5 converter
-  - nanofilt=2.8.0
-
-  # clustering & OTU/ASV handling
-  - vsearch=2.21.0
-  - cd-hit=4.8.1
-  - amplicon_sorter    # via Bioconda if available; else pip below
-
-  # taxonomic classification
-  - kraken2=2.1.2
-  - bracken=2.7
-  - blast=2.15.0
-
-  # LCA & visualization
-  - taxonkit=0.10.1
-  - krona=2.7.1
-
-  # R & denoising
-  - r-base=4.2
-  - r-tidyverse
-  - r-lulu=0.1.0
-
-  # pip installs
+  # everything below will be installed by pip:
   - pip:
-    - pod5>=0.6
-    - git+https://github.com/avierstr/amplicon_sorter.git@main
+    - edlib
+    - biopython
+    - matplotlib
+
+# Usage:
+#   conda env create -f environment.yml
+#   conda activate decode-dna
+
+# The following will be installed manually (outside Conda):
+  # - r-base
+  # - r-tidyverse
+  # - dorado
+  # - amplicon_sorter
+  # - ONTBarcoder
