@@ -149,6 +149,7 @@ Rscript -e '
 
 	3.	Save & exit
 	•	Press Ctrl+X, then Y, then Enter.
+	
 	4.	Make it executable
 
 chmod +x install_R.sh
