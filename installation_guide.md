@@ -66,13 +66,41 @@ which pod5
 
 2. Populate Krona’s taxonomy
 
+All ktImportTaxonomy or ktImportText runs will produce fully-labeled HTML charts.
+
 KronaTools ships only the binaries; you must fetch NCBI’s taxonomy dump yourself:
 
+# 1) Make the taxonomy folder
 mkdir -p $CONDA_PREFIX/opt/krona/taxonomy
 cd        $CONDA_PREFIX/opt/krona/taxonomy
+
+# 2) Download the raw NCBI taxonomy dump
+#    - on Linux:
+wget ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
+#    - on macOS:
+curl -O https://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
+
+# 3) Extract the dump
+tar zxvf taxdump.tar.gz
+
+# 4) Generate the Krona files
 ktUpdateTaxonomy.sh
 
-You should now see files like names.dmp, nodes.dmp, merged.dmp in that folder. All subsequent ktImportTaxonomy or ktImportText runs will produce fully-labeled HTML charts.
+# 5) Confirm you now have:
+ls
+# → citations.dmp  division.dmp  gencode.dmp  merged.dmp  names.dmp
+#   nodes.dmp      images.dmp    readme.txt   taxonomy.tab
+
+# 6) Test with a tiny example 
+
+	# Create a mock counts file:
+	echo -e "taxid\tcount\n9606\t10\n562\t5" > test.tsv
+
+	# Build a mini-Krona chart:
+	ktImportText -o test.html test.tsv
+
+	# Open it in your browser:
+	open test.html   # or `xdg-open test.html` on Linux
 
 ⸻
 
