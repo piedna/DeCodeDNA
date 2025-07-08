@@ -106,45 +106,102 @@ ls
 
 3. Manual post-Conda installs
 
-Some tools aren’t present in Bioconda. We install these once inside the decode-dna env so that every conda activate decode-dna puts them on your $PATH.
+Some of our one-off tools don’t live in Bioconda.  We install them once inside the decode-dna env so that any time you do conda activate decode-dna they’re immediately on your PATH (or— in the case of LULU—available in R).
 
 A) R + LULU
+	1.	Create the installer script
+From your project root (e.g. ~/Downloads/test_fhl/DeCodeDNA):
 
-# install R + the Tidyverse
-conda install -c conda-forge \
+nano install_R.sh
+
+
+	2.	Paste in the following (no edits):
+
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 1) Make sure we're in the right env
+conda activate decode-dna
+
+# 2) Install R, the Tidyverse, and remotes
+conda install -y -c conda-forge \
   r-base=4.2 \
   r-tidyverse \
-  r-biocmanager
+  r-remotes
 
-# install LULU from Bioconductor
-R --quiet <<'EOF'
-if (!requireNamespace("BiocManager", quietly=TRUE))
-  install.packages("BiocManager")
-BiocManager::install("lulu")
-quit(save="no")
-EOF
+# 3) Install lulu from GitHub via remotes
+Rscript -e '
+  if (!requireNamespace("remotes", quietly=TRUE)) {
+    install.packages("remotes", repos="https://cloud.r-project.org")
+  }
+  remotes::install_github("tobiasgf/lulu", upgrade = FALSE)
+'
 
-Your R-based denoise script can now library(lulu) without errors.
+# 4) Verify the install
+Rscript -e '
+  if (!"lulu" %in% rownames(installed.packages())) {
+    stop("lulu did not install correctly")
+  } else {
+    cat("lulu version", as.character(packageVersion("lulu")), "installed\n")
+  }
+'
+
+
+	3.	Save & exit
+	•	Press Ctrl+X, then Y, then Enter.
+	4.	Make it executable
+
+chmod +x install_R.sh
+
+
+	5.	Run it
+
+./install_R.sh
+
+You should see something like:
+
+Collecting package metadata (…)
+…
+lulu version 0.1-3 installed
+
+And now, in any R session inside decode-dna:
+
+library(lulu)
+
+will work without error.
 
 ⸻
 
 B) Amplicon_sorter
 
-# grab the single-script sorter
+# Grab the single-script sorter
 cd $HOME/Downloads
-git clone https://github.com/avierstr/amplicon_sorter.git
+#Clone the sorter repo (do this only once)
+git clone https://github.com/avierstr/amplicon_sorter.git 
 
-# install into your conda bin/
-cp amplicon_sorter/amplicon_sorter.py \
+# Copy the script into your Conda env’s bin/ so it “belongs” to decode-dna
+cp ~/Downloads/amplicon_sorter/amplicon_sorter.py \
    $CONDA_PREFIX/bin/amplicon_sorter
+
+# Fix line endings (strip any CRLF ‘\r’ so the she-bang works correctly)
+# Option A: if you have dos2unix installed
+dos2unix $CONDA_PREFIX/bin/amplicon_sorter
+
+# Option B: with built-in sed on macOS/BSD
+sed -i '' -e $'s/\\r$//' $CONDA_PREFIX/bin/amplicon_sorter
+
+# Make it executable
 chmod +x $CONDA_PREFIX/bin/amplicon_sorter
 
-# cleanup (optional)
-rm -rf amplicon_sorter
+# (Optional) remove the cloned repo cleanup
+rm -rf ~/Downloads/amplicon_sorter
 
-# test
+# Verify everything is on your PATH
 which amplicon_sorter
+# → /Users/you/miniconda3/envs/decode-dna/bin/amplicon_sorter
+
 amplicon_sorter --help
+# → usage screen appears
 
 
 ⸻
@@ -177,14 +234,8 @@ curl -L -o ONTbarcoder2.3_OSX.zip \
 
 unzip ONTbarcoder2.3_OSX.zip
 
-# install into your conda bin/
-cp ONTbarcoder2.3_OSX/bin/ontbarcoder \
-   $CONDA_PREFIX/bin/
-chmod +x $CONDA_PREFIX/bin/ontbarcoder
-
-# test
-which ontbarcoder
-ontbarcoder --help
+# open the ONTbarcoder2.3 app, or just open the app in Finder
+open ONTbarcoder2.3.app
 
 
 ⸻
