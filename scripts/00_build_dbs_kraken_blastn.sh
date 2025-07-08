@@ -1,124 +1,144 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ─── 0) Point at your decode-dna env (no activate hooks) ───
+# ────────────────────────────────────────────────────────────────────
+# 00_build_dbs_kraken_blastn.sh
+# Builds three Kraken 2 DBs (12s, coi, mitofish) with fresh NCBI taxonomy,
+# then three BLAST DBs (same markers) with cleaned FASTA headers.
+# ────────────────────────────────────────────────────────────────────
+
+# 0) Force using your decode-dna conda env no matter how this script is invoked
 ENV_ROOT="$HOME/miniconda/envs/decode-dna"
 export PATH="$ENV_ROOT/bin:$PATH"
 
-# ─── 1) Configurable paths & threads ───
+# 1) User‐configurable paths & threads
 WORK="$HOME/Downloads/test_fhl"
 FASTA_ROOT="$WORK/db_fasta"
+BLAST_CLEAN="$WORK/db_fasta_clean"
 KRAKEN_DB="$WORK/kraken2_db"
 BLAST_DB="$WORK/blast_db"
 THREADS=15
 
-# ─── 2) Prepare directory structure ───
+# 2) Prepare directory structure
 mkdir -p \
   "$FASTA_ROOT" \
-  "$KRAKEN_DB/common_taxonomy" \
-  "$KRAKEN_DB"/{12s,coi,mitofish}/taxonomy \
+  "$BLAST_CLEAN" \
+  "$KRAKEN_DB"/{12s,coi,mitofish} \
   "$BLAST_DB"/{12s,coi,mitofish}
 
-# ─── 3) Download & unpack FASTAs ───
+# 3) Download & unpack the three FASTA sources
 cd "$FASTA_ROOT"
 
-## 3a) 12S (srRNA) from MIDORI UNIQUE
-curl -L -o midori_12s.zip \
+echo ">>> Downloading FASTAs"
+curl -sL -o midori_12s.zip  \
   "https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta.zip"
 unzip -q midori_12s.zip && rm midori_12s.zip
-mv MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta 12s.fasta
+mv MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta midori_12s.fasta
 
-## 3b) COI from MIDORI UNIQUE
-curl -L -o midori_coi.zip \
+curl -sL -o midori_coi.zip  \
   "https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta.zip"
 unzip -q midori_coi.zip && rm midori_coi.zip
-mv MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta coi.fasta
+mv MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta  midori_coi.fasta
 
-## 3c) MiFish mitogenomes
-curl -L -o mifish.zip \
+curl -sL -o mifish.zip \
   "https://mitofish.aori.u-tokyo.ac.jp/species/detail/download/?filename=download%2F/complete_partial_mitogenomes.zip"
 unzip -q mifish.zip && rm mifish.zip
-mv mito-all mitofish.fasta
+mv mito-all mifish.fasta
 
-# ─── 4) Fetch & extract NCBI taxonomy (once) ───
-cd "$KRAKEN_DB/common_taxonomy"
+echo "✔ FASTAs ready in $FASTA_ROOT"
+echo
 
-## 4a) Download taxonomy dump
-curl -L -o taxdump.tar.gz \
-  https://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz
-tar -xzf taxdump.tar.gz && rm taxdump.tar.gz
-
-## 4b) Download accession→taxid map
-curl -L -o nucl_gb.accession2taxid.gz \
-  ftp://ftp.ncbi.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz
-gunzip nucl_gb.accession2taxid.gz
-mv nucl_gb.accession2taxid accession2taxid.map
-
-# ─── 5) Build each Kraken 2 DB ───
+# 4) Build each Kraken 2 DB with **fresh** NCBI taxonomy
+#    (avoids accession2taxid complaints)
 for DB in 12s coi mitofish; do
-  echo
-  echo "=== Building Kraken2 DB: $DB ==="
+  echo ">>> Building Kraken2 DB for marker: $DB"
   TARGET="$KRAKEN_DB/$DB"
+  mkdir -p "$TARGET"
 
-  # 5a) Symlink shared taxonomy dumps
-  ln -sf "$KRAKEN_DB/common_taxonomy/"*.dmp "$TARGET/taxonomy/"
+  # a) download NCBI taxonomy here
+  echo "  • Downloading NCBI taxonomy into $TARGET/taxonomy/"
+  kraken2-build --download-taxonomy \
+                --db "$TARGET"
 
-  # 5b) Symlink accession→taxid map
-  ln -sf "$KRAKEN_DB/common_taxonomy/accession2taxid.map" \
-        "$TARGET/accession2taxid.map"
-
-  # 5c) Add the correct FASTA library
+  # b) add our library
   FASTA="$FASTA_ROOT/${DB}.fasta"
-  echo "--> Adding library: $FASTA"
-  kraken2-build --add-to-library "$FASTA" --db "$TARGET"
+  echo "  • Adding FASTA library: $FASTA"
+  kraken2-build --add-to-library "$FASTA" \
+                --db "$TARGET" \
+                --no-masking
 
-  # 5d) Build with threads
-  echo "--> Building $DB with $THREADS threads"
-  kraken2-build --build --db "$TARGET" --threads "$THREADS"
+  # c) build the DB
+  echo "  • Building database with $THREADS threads"
+  kraken2-build --build \
+                --db "$TARGET" \
+                --threads "$THREADS" \
+                --no-masking
 
-  echo "✅ Finished Kraken2 DB: $DB"
+  echo "  Kraken2 DB $DB done."
+  echo
 done
 
-# ─── 6) Sanity‐check Kraken2 12S ───
-echo -e "taxid\tcount\n2759\t10\n4932\t5" > "$WORK"/test_kraken2_12s.tsv
-kraken2 --db "$KRAKEN_DB/12s" --report "$WORK"/kraken2_12s.report "$WORK"/test_kraken2_12s.tsv
-
-# ─── 7) Build three BLAST DBs with makeblastdb ───
+# 5) Sanity‐check one Kraken2 DB (12S)
+echo ">>> Sanity‐check Kraken2 12s"
+echo -e "taxid\tcount\n2759\t10\n4932\t5" > "$WORK/test_kraken2_12s.tsv"
+kraken2 --db "$KRAKEN_DB/12s" \
+        --report "$WORK/kraken2_12s.report" \
+        "$WORK/test_kraken2_12s.tsv"
+echo "  ✔ report in $WORK/kraken2_12s.report"
 echo
-echo "=== Building BLAST DBs ==="
 
-## 7a) 12S
-makeblastdb \
-  -in "$FASTA_ROOT/12s.fasta" \
-  -dbtype nucl \
-  -out "$BLAST_DB/12s/12s" \
-  -parse_seqids \
-  -title "MIDORI 12S"
+# 6) Clean headers & build BLAST DBs
+#    We rewrite each header to MARK_N, strip non-ACGT, to satisfy makeblastdb limits.
+for MARK in 12s coi mitofish; do
+  echo ">>> Cleaning & building BLAST DB for marker: $MARK"
 
-## 7b) COI
-makeblastdb \
-  -in "$FASTA_ROOT/coi.fasta" \
-  -dbtype nucl \
-  -out "$BLAST_DB/coi/coi" \
-  -parse_seqids \
-  -title "MIDORI COI"
+  # pick inputs
+  case "$MARK" in
+    12s)      IN="$FASTA_ROOT/midori_12s.fasta"; TITLE="MIDORI 12S" ;;
+    coi)      IN="$FASTA_ROOT/midori_coi.fasta"; TITLE="MIDORI COI" ;;
+    mitofish) IN="$FASTA_ROOT/mifish.fasta";     TITLE="MiFish mitogenomes" ;;
+  esac
 
-## 7c) MiFish
-makeblastdb \
-  -in "$FASTA_ROOT/mitofish.fasta" \
-  -dbtype nucl \
-  -out "$BLAST_DB/mitofish/mitofish" \
-  -parse_seqids \
-  -title "MiFish mitogenomes"
+  CLEAN="$BLAST_CLEAN/${MARK}.fasta"
+  OUT="$BLAST_DB/$MARK"
+  mkdir -p "$OUT"
 
-# ─── 8) Sanity-check BLAST 12S ───
-echo -e ">test\nACGTACGTACGT" > "$WORK"/test_blast_query.fasta
+  echo "  • Rewriting headers → $CLEAN"
+  awk -v mark="$MARK" '
+    BEGIN { RS=">"; ORS="" ; count=0 }
+    NR>1 {
+      count++
+      header = ">" mark "_" count "\n"
+      seq="" 
+      # join & strip to ACGT only
+      for(i=2;i<=NF;i++) {
+        gsub(/[^ACGT]/,"",$i)
+        seq=seq $i
+      }
+      if(length(seq)) print header seq "\n"
+    }
+  ' "$IN" > "$CLEAN"
+
+  echo "  • Running makeblastdb → $OUT/$MARK"
+  makeblastdb \
+    -in "$CLEAN" \
+    -dbtype nucl \
+    -parse_seqids \
+    -title "$TITLE" \
+    -out "$OUT/$MARK"
+
+  echo "  BLAST DB $MARK built."
+  echo
+done
+
+# 7) Sanity‐check BLAST 12S
+echo ">>> Sanity‐check BLAST 12S"
+echo -e ">test\nACGTACGTACGT" > "$WORK/test_blast_query.fasta"
 blastn \
   -db "$BLAST_DB/12s/12s" \
-  -query "$WORK"/test_blast_query.fasta \
+  -query "$WORK/test_blast_query.fasta" \
   -outfmt "6 qseqid sseqid pident length" | head
-
 echo
-echo "🎉 All Kraken2 & BLAST DBs built under:"
-echo "    Kraken2: $KRAKEN_DB/{12s,coi,mitofish}"
-echo "    BLAST:   $BLAST_DB/{12s,coi,mitofish}"
+
+echo " All Kraken2 DBs:    $KRAKEN_DB/{12s,coi,mitofish}"
+echo " All BLAST   DBs:    $BLAST_DB/{12s,coi,mitofish}"
