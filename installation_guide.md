@@ -2,10 +2,10 @@
 
 This document will get you from zero to a fully-working DeCodeDNA pipeline on macOS or Linux. It covers:
 
-1. Cloning the repo  
-2. Building the primary Conda environment  
-3. Populating Krona’s taxonomy  
-4. Installing the “one-off” tools (R/LULU, Dorado, Amplicon_sorter, ONTbarcoder)  
+1. Cloning the repo; Building the primary Conda environment  
+2. Populating Krona’s taxonomy  
+3. Installing the “one-off” tools (R/LULU, Dorado, Amplicon_sorter, ONTbarcoder)  
+4. Building your Kraken2 & BLAST reference databases  
 5. Running the five-step pipeline end-to-end  
 
 ---  
@@ -240,7 +240,36 @@ open ONTbarcoder2.3.app
 
 ⸻
 
-4. Run the full five-step pipeline
+4. Build Reference Databases (Kraken 2 + BLAST)
+
+We have provided a single wrapper script in `scripts/00_build_dbs_kraken_blastn.sh` that:
+
+- Downloads and unpacks the three FASTA sets (MIDORI 12S, MIDORI COI, MitoFish mitogenomes)  
+- Fetches NCBI taxonomy dump once  
+- Builds three Kraken 2 DBs (`12s`, `coi`, `mitofish`) under `~/HOME/kraken2_db`  
+- Builds three BLAST DBs under `~/HOME/blast_db`  
+
+### Usage
+
+```bash
+# From your project root:
+cd DeCodeDNA
+
+# Make the script executable (once):
+chmod +x scripts/00_build_dbs_kraken_blastn.sh
+
+# Run it in foreground, capturing output:
+./scripts/00_build_dbs_kraken_blastn.sh 2>&1 | tee build_all_dbs.log
+
+# …or in the background:
+nohup scripts/00_build_dbs_kraken_blastn.sh > build_all_dbs.log 2>&1 &
+
+# Then watch with:
+tail -f build_all_dbs.log
+
+⸻
+
+5. Run the full five-step pipeline
 
 Everything is now on your $PATH.  From DeCodeDNA/ simply:
 
@@ -273,7 +302,7 @@ bash run_all.sh mock results
 
 ⸻
 
-5. Tips & Troubleshooting
+X. Tips & Troubleshooting
 	•	Missing command not found?
 Re-run the cp … $CONDA_PREFIX/bin/… steps after you conda activate decode-dna.
 	•	Krona charts missing names?
