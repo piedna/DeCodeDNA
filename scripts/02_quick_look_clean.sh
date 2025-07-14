@@ -90,5 +90,5 @@ for fq in "$FASTQ_DIR"/*.fastq "$FASTQ_DIR"/*.fastq.gz; do
 done
 
 echo
-echo "✅ Quick look complete!"
+echo " Quick look complete!"
 echo " Results under: $OUTPUT_DIR/{${DBS[*]}}"
