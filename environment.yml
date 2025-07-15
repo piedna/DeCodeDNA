@@ -6,6 +6,8 @@ channels:
 dependencies:
   - python>=3.11          # modern Python that Bioconda supports
   - pip                   # to run pip installs
+  - r-base                # R for LULU package
+  - r-devtools            # R devtools for installing LULU
   - nanofilt=2.8.0        # to filter quality and length if needed
   - cutadapt              # primer trimming
   - kraken2               # quick look taxonomic classification
@@ -32,9 +34,6 @@ dependencies:
 #   conda activate decode-dna
 
 # The following will be installed manually (outside Conda):
-  # - r-base
-  # - r-tidyverse
-  # - r-devtools
   # - Dorado (basecaller) - Download from Dorado Oxford Nanopore GitHub
   # - amplicon_sorter - Git clone + copy to PATH
   # - ONTBarcoder2.3  - Download GUI application
