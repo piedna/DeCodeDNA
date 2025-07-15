@@ -24,6 +24,8 @@ dependencies:
     - edlib
     - biopython
     - matplotlib
+    - pandas
+    - numpy
 
 # Usage:
 #   conda env create -f environment.yml
@@ -32,6 +34,8 @@ dependencies:
 # The following will be installed manually (outside Conda):
   # - r-base
   # - r-tidyverse
-  # - dorado
-  # - amplicon_sorter
-  # - ONTBarcoder
+  # - r-devtools
+  # - Dorado (basecaller) - Download from Dorado Oxford Nanopore GitHub
+  # - amplicon_sorter - Git clone + copy to PATH
+  # - ONTBarcoder2.3  - Download GUI application
+  # - LULU R package - Install via devtools::install_github("tobiasgf/lulu")
