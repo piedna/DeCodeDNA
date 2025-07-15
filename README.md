@@ -90,19 +90,19 @@ flowchart TB
   subgraph wetlab ["Wet Lab, Initial Processing"]
     direction LR
     A["Sample Collection<br/>& Filtration"] 
-    B["PCR Amplification<br/>Library Prep<br/>MinION Sequencing"]
-    C["00,Basecalling<br/>& Demultiplexing"]
-    D["01,Database Building<br/>Kraken2 & BLAST"]
-    E["02,Quality Control<br/>& Classification"]
+    B["PCR, Library Prep<br/>MinION Sequencing"]
+    C["00: Basecalling<br/>& Demultiplexing"]
+    D["01: Database Building<br/>Kraken2 & BLAST"]
+    E["02: Quality Control<br/>& Classification"]
     A --> B --> C --> D --> E
   end
 
   %% Bottom row: Consensus → Denoise → Taxonomy
   subgraph analysis ["🔬 Clustering & Classification"]
     direction LR
-    F["03,Consensus<br/>Building"]
-    G["04,Denoising<br/>(LULU)"]
-    H["05,Taxonomic<br/>Assignment"]
+    F["03: Consensus<br/>Building"]
+    G["04: Denoising<br/>(LULU)"]
+    H["05: Taxonomic<br/>Assignment"]
     F --> G --> H
   end
 
