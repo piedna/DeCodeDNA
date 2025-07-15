@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script 04: Denoise consensus sequences using LULU - WORKING VERSION
+# Script 04: Denoise consensus sequences using LULU - UPDATED FOR MULTI-DATABASE
 # Usage: bash scripts/04_denoise.sh <consensus_dir> <output_dir>
 
 # Check arguments
@@ -13,6 +13,9 @@ fi
 CONSENSUS_DIR="$1"
 OUTPUT_DIR="$2"
 
+# Which databases to process
+DATABASES="${DATABASES:-12s coi mitofish}"
+
 # Create log file
 LOG_FILE="04_denoise.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
@@ -21,6 +24,7 @@ echo "Logging to $LOG_FILE"
 echo ""
 echo "🔹 Consensus input:  $CONSENSUS_DIR"
 echo "🔹 Output directory: $OUTPUT_DIR"
+echo "🔹 Processing databases: $DATABASES"
 echo ""
 
 # Store absolute paths before changing directory - macOS compatible
@@ -38,151 +42,177 @@ command -v vsearch >/dev/null 2>&1 && echo "✅ vsearch found" || { echo "❌ vs
 command -v Rscript >/dev/null 2>&1 && echo "✅ Rscript found" || { echo "❌ Rscript not found"; exit 1; }
 echo ""
 
-# Detect consensus sequence files
-echo "▶ Detecting consensus sequence files..."
-VSEARCH_CONSENSUS=""
-AMPLICON_SORTER_CONSENSUS=""
+# ═══════════════════════════════════════════════════════════════════════════
+# ─── PROCESS EACH DATABASE SEPARATELY ─────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 
-# Look for vsearch consensus
-if ls "$CONSENSUS_DIR_ABS"/vsearch_clustering/*_vsearch_consensus.fasta 1> /dev/null 2>&1; then
-    VSEARCH_CONSENSUS=$(ls "$CONSENSUS_DIR_ABS"/vsearch_clustering/*_vsearch_consensus.fasta | head -1)
-    echo "  ✅ Found vsearch consensus: $VSEARCH_CONSENSUS"
-    seqkit stats "$VSEARCH_CONSENSUS"
-fi
-
-# Look for amplicon_sorter consensus
-if [ -f "$CONSENSUS_DIR_ABS/amplicon_sorter_consensus.fasta" ]; then
-    AMPLICON_SORTER_CONSENSUS="$CONSENSUS_DIR_ABS/amplicon_sorter_consensus.fasta"
-    echo "  ✅ Found amplicon_sorter consensus: $AMPLICON_SORTER_CONSENSUS"
-    seqkit stats "$AMPLICON_SORTER_CONSENSUS"
-fi
-
-# Show available files
-echo "  📋 Available files in consensus directory:"
-find "$CONSENSUS_DIR_ABS" -name "*.fasta" 2>/dev/null | head -10
-echo ""
-
-# Step 1: Create standardized OTU files - BACK TO WORKING LOGIC
-echo "▶ Step 1: Creating standardized OTU files (using working approach)"
-
-# Initialize combined files - Create multi-sample table for LULU
-echo "OTU_ID,Sample1,Sample2,Sample3" > otu_table_combined.csv
-> otu_representatives_combined.fasta
-
-# Process vsearch consensus if available - FAST sed approach
-if [ -n "$VSEARCH_CONSENSUS" ] && [ -f "$VSEARCH_CONSENSUS" ]; then
-    echo "  • Processing vsearch consensus sequences..."
+for DATABASE in $DATABASES; do
+    echo "════════════════════════════════════════════════════════════════"
+    echo "🗄️ Processing Database: $DATABASE"
+    echo "════════════════════════════════════════════════════════════════"
     
-    # Create multi-sample abundance data - remove ;size= and clean IDs, no prefixes
-    grep "^>" "$VSEARCH_CONSENSUS" | sed 's/^>//' | sed 's/;size=[0-9]*//g' | sed 's/ .*//' | sed 's/$/,1,1,1/' >> otu_table_combined.csv
+    # Create database-specific output directory
+    DB_OUTPUT_DIR="$OUTPUT_DIR/$DATABASE"
+    mkdir -p "$DB_OUTPUT_DIR"
+    cd "$DB_OUTPUT_DIR"
     
-    # Copy representatives - remove ;size= from headers
-    sed 's/;size=[0-9]*//g' "$VSEARCH_CONSENSUS" >> otu_representatives_combined.fasta
-    
-    vsearch_count=$(grep -c "^>" "$VSEARCH_CONSENSUS")
-    echo "    ✓ Added vsearch OTUs ($vsearch_count sequences) across 3 samples"
-fi
+    # Detect consensus sequence files for this database
+    echo "▶ Detecting $DATABASE consensus sequence files..."
+    VSEARCH_CONSENSUS=""
+    AMPLICON_SORTER_CONSENSUS=""
 
-# Process amplicon_sorter consensus if available - FAST sed approach
-if [ -n "$AMPLICON_SORTER_CONSENSUS" ] && [ -f "$AMPLICON_SORTER_CONSENSUS" ]; then
-    echo "  • Processing amplicon_sorter consensus sequences..."
-    
-    # Create multi-sample abundance data - clean IDs, no prefixes
-    grep "^>" "$AMPLICON_SORTER_CONSENSUS" | sed 's/^>//' | sed 's/;size=[0-9]*//g' | sed 's/ .*//' | sed 's/$/,1,1,1/' >> otu_table_combined.csv
-    
-    # Copy representatives - clean headers
-    sed 's/;size=[0-9]*//g' "$AMPLICON_SORTER_CONSENSUS" >> otu_representatives_combined.fasta
-    
-    amplicon_count=$(grep -c "^>" "$AMPLICON_SORTER_CONSENSUS")
-    echo "    ✓ Added amplicon_sorter OTUs ($amplicon_count sequences) across 3 samples"
-fi
+    # Look for vsearch consensus files for this database
+    VSEARCH_DB_DIR="$CONSENSUS_DIR_ABS/vsearch_clustering/$DATABASE"
+    if [[ -d "$VSEARCH_DB_DIR" ]] && ls "$VSEARCH_DB_DIR"/*_${DATABASE}_vsearch_consensus.fasta 1> /dev/null 2>&1; then
+        # Combine all vsearch consensus files for this database
+        VSEARCH_CONSENSUS="combined_${DATABASE}_vsearch_consensus.fasta"
+        cat "$VSEARCH_DB_DIR"/*_${DATABASE}_vsearch_consensus.fasta > "$VSEARCH_CONSENSUS"
+        echo "  ✅ Found and combined vsearch consensus for $DATABASE: $VSEARCH_CONSENSUS"
+        seqkit stats "$VSEARCH_CONSENSUS"
+    else
+        echo "  ⚠️  No vsearch consensus files found for $DATABASE in $VSEARCH_DB_DIR"
+    fi
 
-echo "    ✓ Created otu_representatives_combined.fasta"
-echo "    ✓ Created otu_table_combined.csv (3-sample format for LULU)"
+    # Look for amplicon_sorter consensus (still combined across databases)
+    if [ -f "$CONSENSUS_DIR_ABS/amplicon_sorter_consensus.fasta" ]; then
+        AMPLICON_SORTER_CONSENSUS="$CONSENSUS_DIR_ABS/amplicon_sorter_consensus.fasta"
+        echo "  ✅ Found amplicon_sorter consensus (all databases): $AMPLICON_SORTER_CONSENSUS"
+        seqkit stats "$AMPLICON_SORTER_CONSENSUS"
+    else
+        echo "  ⚠️  No amplicon_sorter consensus found"
+    fi
 
-# Remove duplicate OTU IDs (happens when combining multiple identical samples)
-echo "  • Removing duplicate OTU IDs..."
-initial_count=$(tail -n +2 otu_table_combined.csv | wc -l)
-awk '!seen[$1]++' FS=',' otu_table_combined.csv > otu_table_unique.csv
-mv otu_table_unique.csv otu_table_combined.csv
-final_count=$(tail -n +2 otu_table_combined.csv | wc -l)
-duplicates_removed=$((initial_count - final_count))
-echo "    ✓ Removed $duplicates_removed duplicate OTU IDs"
+    # Skip this database if no consensus files found
+    if [[ -z "$VSEARCH_CONSENSUS" ]] && [[ -z "$AMPLICON_SORTER_CONSENSUS" ]]; then
+        echo "  ❌ No consensus files found for $DATABASE - skipping"
+        echo ""
+        continue
+    fi
 
-# Show combined statistics
-echo "  Combined OTU statistics:"
-seqkit stats otu_representatives_combined.fasta
-otu_count=$(tail -n +2 otu_table_combined.csv | wc -l)
-echo "    OTU table rows: $otu_count"
-echo "    🎓 TEACHING NOTE: Created clean OTU files"
-echo "       • Removed ;size= annotations for clean matching"
-echo "       • Sample1, Sample2, Sample3 = identical mock community replicates"
-echo "       • Perfect ID matching between table and FASTA for script 05"
-echo "       • Removed $duplicates_removed duplicates from combining samples"
-echo ""
-
-# Step 2: Self-BLAST OTU representatives
-echo "▶ Step 2: Self-BLAST OTU representatives"
-
-# Count total sequences
-total_seqs=$(grep -c "^>" otu_representatives_combined.fasta)
-echo "    • Total OTU sequences: $total_seqs"
-
-# Check if we need to subset for teaching purposes
-if [ "$total_seqs" -gt 2000 ]; then
-    echo "    🎓 TEACHING NOTE: Large sequence set detected!"
-    echo "       • vsearch creates many sequences (conservative clustering)"
-    echo "       • All-pairs comparison of $total_seqs sequences would take hours"
-    echo "       • This demonstrates the trade-off: vsearch is fast locally but"
-    echo "         creates many clusters requiring extensive downstream processing"
-    echo "       • amplicon_sorter is slower locally but creates fewer, cleaner clusters"
-    echo "       • For teaching: subsetting to 2000 sequences"
+    # Show available files for this database
+    echo "  📋 Available files for $DATABASE:"
+    if [[ -n "$VSEARCH_CONSENSUS" ]]; then
+        echo "    • vsearch: $VSEARCH_CONSENSUS"
+    fi
+    if [[ -n "$AMPLICON_SORTER_CONSENSUS" ]]; then
+        echo "    • amplicon_sorter: $AMPLICON_SORTER_CONSENSUS"
+    fi
     echo ""
-    echo "    • Creating subset for manageable compute time..."
-    
-    # Create subset
-    seqkit sample -n 2000 otu_representatives_combined.fasta > otu_representatives_subset.fasta
-    echo "    • Subset created: 2000 sequences"
-    seqkit stats otu_representatives_subset.fasta
-    
-    # Use subset for alignment
-    INPUT_FILE="otu_representatives_subset.fasta"
-else
-    INPUT_FILE="otu_representatives_combined.fasta"
-fi
 
-# Run vsearch all-pairs alignment
-echo "    • Running vsearch all-pairs alignment on $INPUT_FILE..."
-echo "      (This may take 2-10 minutes depending on sequence count)"
+    # Step 1: Create standardized OTU files for this database
+    echo "▶ Step 1: Creating standardized OTU files for $DATABASE"
 
-vsearch --allpairs_global "$INPUT_FILE" \
-    --id 0.84 \
-    --iddef 1 \
-    --qmask none \
-    --blast6out otu_self_blast_combined.out \
-    --threads 4
+    # Initialize combined files - Create multi-sample table for LULU
+    echo "OTU_ID,Sample1,Sample2,Sample3" > "otu_table_${DATABASE}_combined.csv"
+    > "otu_representatives_${DATABASE}_combined.fasta"
 
-echo "    ✓ Created otu_self_blast_combined.out"
-echo ""
+    # Process vsearch consensus if available
+    if [ -n "$VSEARCH_CONSENSUS" ] && [ -f "$VSEARCH_CONSENSUS" ]; then
+        echo "  • Processing vsearch consensus sequences for $DATABASE..."
+        
+        # Create multi-sample abundance data - remove ;size= and clean IDs, add database prefix
+        grep "^>" "$VSEARCH_CONSENSUS" | sed 's/^>//' | sed 's/;size=[0-9]*//g' | sed 's/ .*//' | sed "s/^/${DATABASE}_/" | sed 's/$/,1,1,1/' >> "otu_table_${DATABASE}_combined.csv"
+        
+        # Copy representatives - remove ;size= from headers, add database prefix
+        sed 's/;size=[0-9]*//g' "$VSEARCH_CONSENSUS" | sed "s/^>/>${DATABASE}_/" >> "otu_representatives_${DATABASE}_combined.fasta"
+        
+        vsearch_count=$(grep -c "^>" "$VSEARCH_CONSENSUS")
+        echo "    ✓ Added $DATABASE vsearch OTUs ($vsearch_count sequences) across 3 samples"
+    fi
 
-# Step 3: Run LULU to curate OTUs
-echo "▶ Step 3: Run LULU to curate OTUs"
-echo "    🎓 TEACHING NOTE: LULU removes likely sequencing errors"
-echo "       • Identifies parent-daughter relationships between OTUs"
-echo "       • Removes low-abundance OTUs that are likely errors of high-abundance ones"
-echo "       • Uses co-occurrence patterns and sequence similarity"
-echo "       • Works best with multi-sample data (like our 3-sample setup)"
-echo ""
+    # Process amplicon_sorter consensus if available (but only sequences relevant to this database)
+    if [ -n "$AMPLICON_SORTER_CONSENSUS" ] && [ -f "$AMPLICON_SORTER_CONSENSUS" ]; then
+        echo "  • Processing amplicon_sorter consensus sequences for $DATABASE..."
+        
+        # For amplicon_sorter, we use all sequences but prefix them with database name
+        grep "^>" "$AMPLICON_SORTER_CONSENSUS" | sed 's/^>//' | sed 's/;size=[0-9]*//g' | sed 's/ .*//' | sed "s/^/${DATABASE}_amplicon_/" | sed 's/$/,1,1,1/' >> "otu_table_${DATABASE}_combined.csv"
+        
+        # Copy representatives - clean headers, add database prefix
+        sed 's/;size=[0-9]*//g' "$AMPLICON_SORTER_CONSENSUS" | sed "s/^>/>${DATABASE}_amplicon_/" >> "otu_representatives_${DATABASE}_combined.fasta"
+        
+        amplicon_count=$(grep -c "^>" "$AMPLICON_SORTER_CONSENSUS")
+        echo "    ✓ Added $DATABASE amplicon_sorter OTUs ($amplicon_count sequences) across 3 samples"
+    fi
 
-# Check if the R script exists
-if [ ! -f "../../scripts/run_lulu.R" ]; then
-    echo "    📝 Creating LULU R script..."
-    
-    # Ensure scripts directory exists
-    mkdir -p ../../scripts
-    
-    # Create the R script
-    cat > ../../scripts/run_lulu.R << 'EOF'
+    echo "    ✓ Created otu_representatives_${DATABASE}_combined.fasta"
+    echo "    ✓ Created otu_table_${DATABASE}_combined.csv (3-sample format for LULU)"
+
+    # Remove duplicate OTU IDs
+    echo "  • Removing duplicate OTU IDs for $DATABASE..."
+    initial_count=$(tail -n +2 "otu_table_${DATABASE}_combined.csv" | wc -l)
+    awk '!seen[$1]++' FS=',' "otu_table_${DATABASE}_combined.csv" > "otu_table_${DATABASE}_unique.csv"
+    mv "otu_table_${DATABASE}_unique.csv" "otu_table_${DATABASE}_combined.csv"
+    final_count=$(tail -n +2 "otu_table_${DATABASE}_combined.csv" | wc -l)
+    duplicates_removed=$((initial_count - final_count))
+    echo "    ✓ Removed $duplicates_removed duplicate OTU IDs for $DATABASE"
+
+    # Show combined statistics for this database
+    echo "  $DATABASE OTU statistics:"
+    seqkit stats "otu_representatives_${DATABASE}_combined.fasta"
+    otu_count=$(tail -n +2 "otu_table_${DATABASE}_combined.csv" | wc -l)
+    echo "    OTU table rows: $otu_count"
+    echo "    🎓 TEACHING NOTE: Created clean $DATABASE OTU files"
+    echo "       • Database-specific prefixes prevent ID conflicts"
+    echo "       • Sample1, Sample2, Sample3 = identical mock community replicates"
+    echo "       • Perfect ID matching between table and FASTA for script 05"
+    echo ""
+
+    # Step 2: Self-BLAST OTU representatives for this database
+    echo "▶ Step 2: Self-BLAST OTU representatives for $DATABASE"
+
+    # Count total sequences for this database
+    total_seqs=$(grep -c "^>" "otu_representatives_${DATABASE}_combined.fasta")
+    echo "    • Total $DATABASE OTU sequences: $total_seqs"
+
+    # Check if we need to subset for teaching purposes
+    if [ "$total_seqs" -gt 1000 ]; then
+        echo "    🎓 TEACHING NOTE: Large $DATABASE sequence set detected!"
+        echo "       • Subsetting to 1000 sequences for manageable compute time"
+        echo "       • Real analysis would process all sequences"
+        echo ""
+        echo "    • Creating subset for manageable compute time..."
+        
+        # Create subset
+        seqkit sample -n 1000 "otu_representatives_${DATABASE}_combined.fasta" > "otu_representatives_${DATABASE}_subset.fasta"
+        echo "    • Subset created: 1000 sequences"
+        seqkit stats "otu_representatives_${DATABASE}_subset.fasta"
+        
+        # Use subset for alignment
+        INPUT_FILE="otu_representatives_${DATABASE}_subset.fasta"
+    else
+        INPUT_FILE="otu_representatives_${DATABASE}_combined.fasta"
+    fi
+
+    # Run vsearch all-pairs alignment for this database
+    echo "    • Running vsearch all-pairs alignment on $INPUT_FILE..."
+    echo "      (This may take 2-10 minutes depending on sequence count)"
+
+    vsearch --allpairs_global "$INPUT_FILE" \
+        --id 0.84 \
+        --iddef 1 \
+        --qmask none \
+        --blast6out "otu_self_blast_${DATABASE}_combined.out" \
+        --threads 4
+
+    echo "    ✓ Created otu_self_blast_${DATABASE}_combined.out"
+    echo ""
+
+    # Step 3: Run LULU to curate OTUs for this database
+    echo "▶ Step 3: Run LULU to curate $DATABASE OTUs"
+    echo "    🎓 TEACHING NOTE: LULU removes likely sequencing errors for $DATABASE"
+    echo "       • Database-specific processing ensures clean results"
+    echo "       • Each database gets independent error correction"
+    echo ""
+
+    # Check if the R script exists
+    if [ ! -f "../../../scripts/run_lulu.R" ]; then
+        echo "    📝 Creating LULU R script..."
+        
+        # Ensure scripts directory exists
+        mkdir -p ../../../scripts
+        
+        # Create the R script (same as before)
+        cat > "../../../scripts/run_lulu.R" << 'EOF'
 #!/usr/bin/env Rscript
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -281,61 +311,102 @@ tryCatch({
 })
 EOF
 
-    chmod +x ../../scripts/run_lulu.R
-    echo "    ✓ Created ../../scripts/run_lulu.R"
-fi
-
-# Run LULU with proper syntax
-echo "    • Running LULU curation..."
-if Rscript ../../scripts/run_lulu.R otu_table_combined.csv otu_self_blast_combined.out; then
-    echo "    ✅ LULU step completed!"
-else
-    echo "    ⚠️  LULU had issues - check output above"
-fi
-
-# Show final statistics
-echo ""
-echo "📊 Final denoising results:"
-if [ -f "otu_table_lulu_curated.csv" ]; then
-    curated_count=$(tail -n +2 otu_table_lulu_curated.csv | wc -l)
-    
-    if [ -f "otu_table_lulu_discarded.csv" ]; then
-        discarded_count=$(tail -n +2 otu_table_lulu_discarded.csv | wc -l)
-    else
-        discarded_count=0
+        chmod +x ../../../scripts/run_lulu.R
+        echo "    ✓ Created ../../../scripts/run_lulu.R"
     fi
-    
-    original_count=$((curated_count + discarded_count))
-    
-    if command -v bc >/dev/null 2>&1 && [ "$original_count" -gt 0 ]; then
-        reduction=$(echo "scale=1; (1 - $curated_count/$original_count) * 100" | bc -l)
+
+    # Run LULU for this database
+    echo "    • Running LULU curation for $DATABASE..."
+    if Rscript ../../../scripts/run_lulu.R "otu_table_${DATABASE}_combined.csv" "otu_self_blast_${DATABASE}_combined.out"; then
+        echo "    ✅ LULU step completed for $DATABASE!"
     else
-        reduction="0.0"
+        echo "    ⚠️  LULU had issues for $DATABASE - check output above"
     fi
-    
-    echo "    • Original OTUs: $original_count"
-    echo "    • Curated OTUs: $curated_count"
-    echo "    • Discarded OTUs: $discarded_count"
-    echo "    • Reduction: ${reduction}%"
+
+    # Show final statistics for this database
     echo ""
-    echo "    🎓 TEACHING INSIGHT: LULU removed ${reduction}% of OTUs as likely sequencing errors!"
-    echo "       • This demonstrates the importance of error correction in metabarcoding"
-    echo "       • Multi-sample data enables better error detection through co-occurrence"
-    echo "       • Clean IDs ensure perfect matching for taxonomic assignment"
-    echo "       • Ready for script 05 taxonomic assignment"
-fi
+    echo "📊 Final $DATABASE denoising results:"
+    if [ -f "otu_table_lulu_curated.csv" ]; then
+        curated_count=$(tail -n +2 otu_table_lulu_curated.csv | wc -l)
+        
+        if [ -f "otu_table_lulu_discarded.csv" ]; then
+            discarded_count=$(tail -n +2 otu_table_lulu_discarded.csv | wc -l)
+        else
+            discarded_count=0
+        fi
+        
+        original_count=$((curated_count + discarded_count))
+        
+        if command -v bc >/dev/null 2>&1 && [ "$original_count" -gt 0 ]; then
+            reduction=$(echo "scale=1; (1 - $curated_count/$original_count) * 100" | bc -l)
+        else
+            reduction="0.0"
+        fi
+        
+        echo "    • Original $DATABASE OTUs: $original_count"
+        echo "    • Curated $DATABASE OTUs: $curated_count"
+        echo "    • Discarded $DATABASE OTUs: $discarded_count"
+        echo "    • $DATABASE Reduction: ${reduction}%"
+        echo ""
+        echo "    🎓 TEACHING INSIGHT: LULU removed ${reduction}% of $DATABASE OTUs as likely sequencing errors!"
+        
+        # Rename files to include database name for clarity
+        mv "otu_table_lulu_curated.csv" "otu_table_${DATABASE}_lulu_curated.csv"
+        mv "otu_table_lulu_discarded.csv" "otu_table_${DATABASE}_lulu_discarded.csv"
+        
+        echo "    ✓ Renamed files with $DATABASE prefix for clarity"
+    fi
+
+    echo ""
+    echo "✅ $DATABASE denoising completed!"
+    echo ""
+    
+    # Return to main output directory for next database
+    cd "$OUTPUT_DIR_ABS"
+done
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ─── FINAL SUMMARY ────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo "════════════════════════════════════════════════════════════════"
+echo "🎉 MULTI-DATABASE DENOISING PIPELINE COMPLETED!"
+echo "════════════════════════════════════════════════════════════════"
+echo ""
+echo "📁 Output organized by database:"
+
+for DATABASE in $DATABASES; do
+    DB_OUTPUT_DIR="$OUTPUT_DIR/$DATABASE"
+    if [[ -d "$DB_OUTPUT_DIR" ]]; then
+        echo ""
+        echo "🗄️ $DATABASE Database Results → $DB_OUTPUT_DIR/"
+        if [[ -f "$DB_OUTPUT_DIR/otu_representatives_${DATABASE}_combined.fasta" ]]; then
+            echo "   • otu_representatives_${DATABASE}_combined.fasta (all representative sequences)"
+        fi
+        if [[ -f "$DB_OUTPUT_DIR/otu_table_${DATABASE}_combined.csv" ]]; then
+            echo "   • otu_table_${DATABASE}_combined.csv (3-sample OTU abundance table)"
+        fi
+        if [[ -f "$DB_OUTPUT_DIR/otu_self_blast_${DATABASE}_combined.out" ]]; then
+            echo "   • otu_self_blast_${DATABASE}_combined.out (BLAST similarity results)"
+        fi
+        if [[ -f "$DB_OUTPUT_DIR/otu_table_${DATABASE}_lulu_curated.csv" ]]; then
+            echo "   • otu_table_${DATABASE}_lulu_curated.csv (final curated OTU table)"
+        fi
+        if [[ -f "$DB_OUTPUT_DIR/otu_table_${DATABASE}_lulu_discarded.csv" ]]; then
+            echo "   • otu_table_${DATABASE}_lulu_discarded.csv (discarded OTUs)"
+        fi
+    fi
+done
 
 echo ""
-echo "🎉 Denoising pipeline completed!"
-echo "📁 Output files:"
-echo "    • otu_representatives_combined.fasta (all representative sequences)"
-echo "    • otu_table_combined.csv (3-sample OTU abundance table)"
-echo "    • otu_self_blast_combined.out (BLAST similarity results)"
-echo "    • otu_table_lulu_curated.csv (final curated OTU table)"
-echo "    • otu_table_lulu_discarded.csv (discarded OTUs)"
+echo "🎓 Teaching Benefits of Multi-Database Processing:"
+echo "   • Each database processed independently for clean results"
+echo "   • Database-specific prefixes prevent ID conflicts"
+echo "   • Compare denoising effectiveness across databases"
+echo "   • Ready for database-specific taxonomic assignment"
 echo ""
 echo "🔬 Next steps:"
-echo "    • Taxonomic assignment with clean ID matching"
-echo "    • Species identification and abundance analysis"
-echo "    • Community composition visualization"
+echo "   • Run script 05 with multi-database structure"
+echo "   • Compare species identification across databases"
+echo "   • Analyze database-specific community patterns"
 echo ""
