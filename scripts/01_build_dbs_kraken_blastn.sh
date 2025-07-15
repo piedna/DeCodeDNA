@@ -1,53 +1,147 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ─── Configurable paths & threads ───────────────────────────────────────────
-WORK="$HOME/Downloads/test_fhl"
+# ─── DeCodeDNA Database Builder ────────────────────────────────────────────
+# Builds Kraken2 and BLAST databases within project structure
+# Usage: ./scripts/01_build_dbs_kraken_blastn.sh
+# ────────────────────────────────────────────────────────────────────────
+
+# ─── PROJECT STRUCTURE PATHS (SELF-CONTAINED) ──────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Create databases directory outside project (keeps git repo clean)
+WORK="${PROJECT_ROOT}/../databases"
 FASTA_ROOT="$WORK/db_fasta"
-BLAST_DB="$WORK/blast_db"
-THREADS="${THREADS:-15}"
-
-# ─── Prepare directory structure ────────────────────────────────────────────
-mkdir -p "$FASTA_ROOT" "$BLAST_DB"
-
-# ─── Kraken2 build (now enabled for teaching class!) ─────────────────────
-COMMON_TAX="$WORK/kraken2_db/common_taxonomy"
+FASTA_CLEAN="$WORK/db_fasta_clean"
 KRAKEN_DB="$WORK/kraken2_db"
+BLAST_DB="$WORK/blast_db"
 
-echo
-echo "=== Building Kraken2 DBs ==="
-echo "🔍 Checking for Kraken2..."
+# Default number of threads
+THREADS="${THREADS:-8}"
+
+echo "🗄️ DeCodeDNA Database Builder"
+echo "═══════════════════════════════════════════"
+echo "🔹 Project root:    $PROJECT_ROOT"
+echo "🔹 Database root:   $WORK"
+echo "🔹 Threads:         $THREADS"
+echo "🔹 Platform:        $(uname -m) ($(uname -s))"
+echo ""
+
+# ─── PREPARE DIRECTORY STRUCTURE ───────────────────────────────────────────
+echo "📁 Creating directory structure..."
+mkdir -p "$FASTA_ROOT" "$FASTA_CLEAN" "$KRAKEN_DB" "$BLAST_DB"
+echo "   ✅ Directories created"
+echo ""
+
+# ─── CHECK REQUIRED TOOLS ──────────────────────────────────────────────────
+echo "🔍 Checking required tools..."
+REQUIRED_TOOLS=(curl wget unzip kraken2-build makeblastdb python3)
+MISSING_TOOLS=()
+
+for tool in "${REQUIRED_TOOLS[@]}"; do
+  if command -v "$tool" &>/dev/null; then
+    echo "   ✅ $tool found"
+  else
+    echo "   ❌ $tool not found"
+    MISSING_TOOLS+=("$tool")
+  fi
+done
+
+if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
+  echo ""
+  echo "❌ Missing required tools: ${MISSING_TOOLS[*]}"
+  echo "   Please install missing tools and try again"
+  exit 1
+fi
+echo ""
+
+# ─── DOWNLOAD FASTA DATABASES ──────────────────────────────────────────────
+echo "📥 STEP 1: Downloading Reference FASTA Files"
+echo "─────────────────────────────────────────────────"
+
+cd "$FASTA_ROOT"
+
+# Download MIDORI 12S
+if [[ ! -f "midori_12s.fasta" ]]; then
+  echo "   • Downloading MIDORI 12S rRNA sequences..."
+  curl -sL -o midori_12s.zip \
+    "https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta.zip"
+  
+  if [[ -f "midori_12s.zip" ]]; then
+    unzip -q midori_12s.zip
+    mv MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta midori_12s.fasta
+    rm midori_12s.zip
+    echo "     ✅ MIDORI 12S downloaded"
+  else
+    echo "     ❌ Failed to download MIDORI 12S"
+  fi
+else
+  echo "   ✅ MIDORI 12S already exists"
+fi
+
+# Download MIDORI COI
+if [[ ! -f "midori_coi.fasta" ]]; then
+  echo "   • Downloading MIDORI COI sequences..."
+  curl -sL -o midori_coi.zip \
+    "https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta.zip"
+  
+  if [[ -f "midori_coi.zip" ]]; then
+    unzip -q midori_coi.zip
+    mv MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta midori_coi.fasta
+    rm midori_coi.zip
+    echo "     ✅ MIDORI COI downloaded"
+  else
+    echo "     ❌ Failed to download MIDORI COI"
+  fi
+else
+  echo "   ✅ MIDORI COI already exists"
+fi
+
+# Download MitoFish
+if [[ ! -f "mifish.fasta" ]]; then
+  echo "   • Downloading MitoFish mitogenomes..."
+  curl -sL -o mifish.zip \
+    "https://mitofish.aori.u-tokyo.ac.jp/species/detail/download/?filename=download%2F/complete_partial_mitogenomes.zip"
+  
+  if [[ -f "mifish.zip" ]]; then
+    unzip -q mifish.zip
+    mv complete_partial_mitogenomes.fasta mifish.fasta 2>/dev/null || \
+    mv mito-all mifish.fasta 2>/dev/null || \
+    find . -name "*.fasta" -not -name "midori*" -not -name "mifish*" | head -1 | xargs -I {} mv {} mifish.fasta
+    rm mifish.zip
+    echo "     ✅ MitoFish downloaded"
+  else
+    echo "     ❌ Failed to download MitoFish"
+  fi
+else
+  echo "   ✅ MitoFish already exists"
+fi
+
+# Show download summary
+echo ""
+echo "📊 Downloaded FASTA files:"
+for fasta in midori_12s.fasta midori_coi.fasta mifish.fasta; do
+  if [[ -f "$fasta" ]]; then
+    size=$(du -h "$fasta" | cut -f1)
+    seqs=$(grep -c "^>" "$fasta" 2>/dev/null || echo "0")
+    echo "   • $fasta: $size ($seqs sequences)"
+  else
+    echo "   ❌ $fasta: Missing"
+  fi
+done
+echo ""
+
+# ─── BUILD KRAKEN2 DATABASES ───────────────────────────────────────────────
+echo "🦠 STEP 2: Building Kraken2 Databases"
+echo "─────────────────────────────────────────────"
 
 if command -v kraken2-build >/dev/null 2>&1; then
-  echo "✅ kraken2-build found"
-  
-  # Create common taxonomy directory if it doesn't exist
-  mkdir -p "$COMMON_TAX"
-  
-  # Check if taxonomy files exist
-  if [[ ! -f "$COMMON_TAX/names.dmp" ]] || [[ ! -f "$COMMON_TAX/nodes.dmp" ]]; then
-    echo "📥 Downloading NCBI taxonomy files..."
-    cd "$COMMON_TAX"
-    wget -q ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz
-    tar -xzf taxdump.tar.gz
-    rm taxdump.tar.gz
-    cd - >/dev/null
-    echo "✅ Taxonomy files downloaded"
-  else
-    echo "✅ Taxonomy files already exist"
-  fi
-  
-  # Create accession2taxid mapping (simplified for teaching)
-  if [[ ! -f "$COMMON_TAX/accession2taxid.map" ]]; then
-    echo "📝 Creating simplified accession2taxid mapping..."
-    # Create a basic mapping file for teaching purposes
-    echo -e "accession\taccession.version\ttaxid" > "$COMMON_TAX/accession2taxid.map"
-    echo "✅ Basic mapping created"
-  fi
+  echo "   ✅ kraken2-build found"
   
   for DB in 12s coi mitofish; do
     TARGET="$KRAKEN_DB/$DB"
-    echo
+    echo ""
     echo "🔨 Building Kraken2 DB for $DB..."
     
     if [[ -f "$TARGET/taxo.k2d" ]]; then
@@ -55,48 +149,54 @@ if command -v kraken2-build >/dev/null 2>&1; then
       continue
     fi
     
-    mkdir -p "$TARGET/taxonomy"
+    # Create database directory
+    mkdir -p "$TARGET"
     
-    # Link taxonomy files
-    ln -sf "$COMMON_TAX"/*.dmp "$TARGET/taxonomy/" 2>/dev/null || true
-    ln -sf "$COMMON_TAX/accession2taxid.map" "$TARGET/accession2taxid.map" 2>/dev/null || true
+    # Download NCBI taxonomy for this database
+    echo "   • Downloading NCBI taxonomy..."
+    kraken2-build --download-taxonomy --db "$TARGET"
     
-    # Use the cleaned FASTA files we created for BLAST
-    CLEAN_FASTA="$CLEAN_DIR/${DB}.fasta"
+    # Map database name to FASTA file
+    case "$DB" in
+      12s)      FASTA_FILE="$FASTA_ROOT/midori_12s.fasta" ;;
+      coi)      FASTA_FILE="$FASTA_ROOT/midori_coi.fasta" ;;
+      mitofish) FASTA_FILE="$FASTA_ROOT/mifish.fasta" ;;
+    esac
     
-    if [[ -f "$CLEAN_FASTA" ]]; then
+    if [[ -f "$FASTA_FILE" ]]; then
       echo "   • Adding sequences to library..."
-      kraken2-build --add-to-library "$CLEAN_FASTA" --db "$TARGET" --no-masking
+      kraken2-build --add-to-library "$FASTA_FILE" --db "$TARGET" --no-masking
       
       echo "   • Building database (this may take 5-15 minutes)..."
       kraken2-build --build --db "$TARGET" --threads "$THREADS" --no-masking
       
       echo "   ✅ Kraken2 DB built for $DB"
     else
-      echo "   ❌ Cleaned FASTA not found: $CLEAN_FASTA"
-      echo "      Make sure BLAST databases are built first"
+      echo "   ❌ FASTA file not found: $FASTA_FILE"
     fi
   done
   
+  echo ""
   echo "✅ All Kraken2 DBs completed"
   
 else
   echo "❌ kraken2-build not found - skipping Kraken2 databases"
   echo "   Install with: conda install -c bioconda kraken2"
-  echo "   Kraken2 analysis in script 05 will be skipped"
+  echo "   Kraken2 analysis in downstream scripts will be skipped"
 fi
 
-# ─── Build BLAST DBs with taxonomic names preserved ─────────────────────────
-echo
-echo "=== Building BLAST DBs with taxonomic names ==="
-CLEAN_DIR="$WORK/db_fasta_clean"
-mkdir -p "$CLEAN_DIR"
+echo ""
+
+# ─── BUILD BLAST DATABASES ─────────────────────────────────────────────────
+echo "🧬 STEP 3: Building BLAST Databases"
+echo "─────────────────────────────────────────────"
 
 for MARK in 12s coi mitofish; do
+  # Map marker to input file and title
   case "$MARK" in
     12s)
       IN_FASTA="$FASTA_ROOT/midori_12s.fasta"
-      TITLE="MIDORI 12S"
+      TITLE="MIDORI 12S rRNA"
       ;;
     coi)
       IN_FASTA="$FASTA_ROOT/midori_coi.fasta"
@@ -104,40 +204,55 @@ for MARK in 12s coi mitofish; do
       ;;
     mitofish)
       IN_FASTA="$FASTA_ROOT/mifish.fasta"
-      TITLE="MiFish mitogenomes"
+      TITLE="MitoFish mitogenomes"
       ;;
   esac
 
-  CLEAN_FASTA="$CLEAN_DIR/${MARK}.fasta"
+  CLEAN_FASTA="$FASTA_CLEAN/${MARK}.fasta"
   OUT_DIR="$BLAST_DB/$MARK"
   mkdir -p "$OUT_DIR"
 
-  echo
-  echo "=== Cleaning & building BLAST DB for $MARK ==="
-  echo "  Original FASTA: $IN_FASTA"
-  echo "  Cleaned FASTA:  $CLEAN_FASTA"
-  echo "  Output DB dir:  $OUT_DIR"
-  echo "  • Processing sequences and creating unique headers..."
+  echo ""
+  echo "=== Processing BLAST DB for $MARK ==="
+  echo "  • Input FASTA:  $IN_FASTA"
+  echo "  • Clean FASTA:  $CLEAN_FASTA"
+  echo "  • Output DB:    $OUT_DIR/$MARK"
 
-  # Create Python script to process FASTA files
-  cat > process_fasta.py << 'EOF'
+  if [[ ! -f "$IN_FASTA" ]]; then
+    echo "  ❌ Input FASTA not found, skipping $MARK"
+    continue
+  fi
+
+  # Check if BLAST DB already exists
+  if [[ -f "$OUT_DIR/${MARK}.nsq" ]]; then
+    echo "  ⚠️  BLAST DB already exists for $MARK - skipping"
+    continue
+  fi
+
+  echo "  • Processing sequences and creating clean headers..."
+
+  # Create Python script to clean FASTA files
+  cat > "$FASTA_CLEAN/process_fasta_${MARK}.py" << 'EOF'
 import sys
 import re
 import os
 
-input_file = os.environ['IN_FASTA']
-output_file = os.environ['CLEAN_FASTA']
-marker = os.environ['MARK']
+input_file = sys.argv[1]
+output_file = sys.argv[2]
+marker = sys.argv[3]
 
 counter = 0
 seen_headers = set()
 processed_count = 0
+
+print(f"Processing {marker} sequences from {input_file}")
 
 with open(input_file, 'r') as f:
     content = f.read()
 
 # Split by '>' and remove empty first element
 sequences = [s for s in content.split('>') if s.strip()]
+print(f"Found {len(sequences)} raw sequences")
 
 with open(output_file, 'w') as out:
     for seq_block in sequences:
@@ -165,9 +280,9 @@ with open(output_file, 'w') as out:
                 species = parts[2]
                 species = re.sub(r'\s*\(.*', '', species)  # Remove everything after (
                 
-                # Clean up species name - remove any problematic characters
+                # Clean up species name
                 species = re.sub(r'[^\w_]', '_', species)
-                species = re.sub(r'_+', '_', species)  # Collapse multiple underscores
+                species = re.sub(r'_+', '_', species)
                 species = species.strip('_')
                 
                 base_header = f'{accession_prefix}_{accession_number}_{species}'
@@ -177,9 +292,9 @@ with open(output_file, 'w') as out:
             # MIDORI format: MH910097.1.49461.51216###...;Genus_species_taxid
             accession = header.split('###')[0] if '###' in header else f'unknown_acc_{counter}'
             
-            # Clean accession - remove commas and other problematic characters
+            # Clean accession
             accession = re.sub(r'[^\w.-]', '_', accession)
-            accession = re.sub(r'_+', '_', accession)  # Collapse multiple underscores
+            accession = re.sub(r'_+', '_', accession)
             accession = accession.strip('_')
             
             # Extract species from taxonomy string
@@ -196,12 +311,12 @@ with open(output_file, 'w') as out:
             
             base_header = f'{accession}_{species}'
         
-        # Clean the entire header - remove commas, pipes, and other BLAST-problematic characters
+        # Clean header - remove problematic characters
         base_header = re.sub(r'[,|;()<>[\]{}]', '_', base_header)
-        base_header = re.sub(r'_+', '_', base_header)  # Collapse multiple underscores
+        base_header = re.sub(r'_+', '_', base_header)
         base_header = base_header.strip('_')
         
-        # Make header unique if we've seen it before
+        # Make header unique
         unique_header = base_header
         suffix = 1
         while unique_header in seen_headers:
@@ -210,25 +325,12 @@ with open(output_file, 'w') as out:
         
         # Truncate if too long for BLAST (50 char limit)
         if len(unique_header) > 50:
-            # Keep some space for the suffix if needed
             if suffix > 1:
                 suffix_part = f'_{suffix}'
                 max_base_len = 50 - len(suffix_part)
                 unique_header = f'{base_header[:max_base_len]}{suffix_part}'
             else:
                 unique_header = unique_header[:50]
-        
-        # Final check - ensure this exact header hasn't been used
-        original_unique = unique_header
-        suffix = 1
-        while unique_header in seen_headers:
-            suffix += 1
-            if len(original_unique) + len(f'_{suffix}') <= 50:
-                unique_header = f'{original_unique}_{suffix}'
-            else:
-                # Truncate more to fit suffix
-                max_len = 50 - len(f'_{suffix}')
-                unique_header = f'{original_unique[:max_len]}_{suffix}'
         
         seen_headers.add(unique_header)
         processed_count += 1
@@ -239,27 +341,14 @@ print(f'Processed {counter} input sequences, wrote {processed_count} clean seque
 print(f'Unique headers created: {len(seen_headers)}')
 EOF
 
-  # Set environment variables and run the Python script
-  export IN_FASTA="$IN_FASTA"
-  export CLEAN_FASTA="$CLEAN_FASTA"
-  export MARK="$MARK"
-  python3 process_fasta.py
+  # Run the Python script
+  python3 "$FASTA_CLEAN/process_fasta_${MARK}.py" "$IN_FASTA" "$CLEAN_FASTA" "$MARK"
 
   # Show sample headers
-  echo "  Sample headers created:"
-  head -5 "$CLEAN_FASTA" | grep "^>" || echo "  No headers to show"
+  echo "  • Sample cleaned headers:"
+  head -5 "$CLEAN_FASTA" | grep "^>" | sed 's/^/    /' || echo "    No headers to show"
 
-  # Check for duplicates before building DB
-  echo "  • Checking for duplicate headers..."
-  duplicate_count=$(grep "^>" "$CLEAN_FASTA" | sort | uniq -d | wc -l)
-  if [ "$duplicate_count" -gt 0 ]; then
-    echo "  ⚠️  Found $duplicate_count duplicate headers - this shouldn't happen!"
-    grep "^>" "$CLEAN_FASTA" | sort | uniq -d | head -3
-  else
-    echo "  ✅ No duplicate headers found"
-  fi
-
-  # Build the BLAST DB
+  # Build the BLAST database
   echo "  • Building BLAST database..."
   if makeblastdb \
     -in "$CLEAN_FASTA" \
@@ -268,28 +357,53 @@ EOF
     -title "$TITLE" \
     -out "$OUT_DIR/$MARK" \
     -max_file_sz 3GB; then
-    echo "✅ BLAST DB built for $MARK at $OUT_DIR/$MARK"
+    echo "  ✅ BLAST DB built for $MARK at $OUT_DIR/$MARK"
   else
-    echo "❌ BLAST DB build failed for $MARK"
-    echo "  Checking first few headers for issues:"
-    head -10 "$CLEAN_FASTA"
+    echo "  ❌ BLAST DB build failed for $MARK"
     exit 1
   fi
   
-  # Clean up
-  rm -f process_fasta.py
-  unset IN_FASTA CLEAN_FASTA MARK
+  # Clean up temporary Python script
+  rm -f "$FASTA_CLEAN/process_fasta_${MARK}.py"
 done
 
-echo
-echo "🎉 All BLAST DBs with species names are now built under:"
-echo "   $BLAST_DB/{12s,coi,mitofish}"
-echo
+echo ""
+
+# ─── FINAL SUMMARY ─────────────────────────────────────────────────────────
+echo "🎉 DATABASE BUILDING COMPLETE!"
+echo "═══════════════════════════════════════════"
+echo ""
+echo "📁 Database locations:"
+echo "   🦠 Kraken2 DBs → $KRAKEN_DB/{12s,coi,mitofish}"
+echo "   🧬 BLAST DBs   → $BLAST_DB/{12s,coi,mitofish}"
+echo ""
+
 echo "📊 Database summary:"
+echo ""
+echo "🦠 Kraken2 databases:"
 for db in 12s coi mitofish; do
-  if [ -f "$BLAST_DB/$db/$db.nsq" ]; then
-    echo "  ✅ $db database: Ready"
+  if [[ -f "$KRAKEN_DB/$db/taxo.k2d" ]]; then
+    echo "   ✅ $db: Ready for classification"
   else
-    echo "  ❌ $db database: Failed"
+    echo "   ❌ $db: Failed or not built"
   fi
 done
+
+echo ""
+echo "🧬 BLAST databases:"
+for db in 12s coi mitofish; do
+  if [[ -f "$BLAST_DB/$db/$db.nsq" ]]; then
+    echo "   ✅ $db: Ready for similarity search"
+  else
+    echo "   ❌ $db: Failed or not built"
+  fi
+done
+
+echo ""
+echo "🔗 Next steps:"
+echo "   • Databases are ready for taxonomic classification"
+echo "   • Scripts 02-05 will automatically find these databases"
+echo "   • Run quality control and classification with script 02"
+echo ""
+echo "✅ All databases built successfully!"
+echo ""
