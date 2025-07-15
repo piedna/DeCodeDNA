@@ -402,15 +402,17 @@ results/
 ---
 
 ## 💡 Citation
+
 If you use DeCodeDNA in your research:
-bibtex@software{decodedna2025,
+
+```bibtex
+@software{decodedna2025,
   title={DeCodeDNA: Oxford Nanopore eDNA Metabarcoding Pipeline},
   author={Friday Harbor Labs eDNA Collaborative},
   year={2025},
   url={https://github.com/piedna/DeCodeDNA},
   note={Educational bioinformatics pipeline for environmental DNA analysis}
 }
-Written by Aden IP (C)
 ```
 
 ---
