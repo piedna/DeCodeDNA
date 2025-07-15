@@ -87,7 +87,7 @@ conda activate decode-dna
 ```mermaid
 flowchart TB
   %% Top row: Wet lab → Basecalling → Database → Classification
-  subgraph wetlab ["🧪 Wet Lab &<br>Initial Processing"]
+  subgraph wetlab ["🧪 Wet Lab &<br/>Initial Processing"]
     direction LR
     A["Sample Collection<br/>& Filtration"] 
     B["PCR Amplification<br/>Library Prep<br/>MinION Sequencing"]
