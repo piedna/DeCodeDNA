@@ -1,220 +1,373 @@
 # DeCodeDNA
 
-**Nanopore eDNA bioinformatics pipeline for FHL class 2025**
+**Oxford Nanopore eDNA Metabarcoding Pipeline for FHL Class 2025**
+
+A complete, educational bioinformatics pipeline for analyzing environmental DNA (eDNA) using Oxford Nanopore long-read sequencing technology. Designed for Friday Harbor Labs' eDNA course conducted by the eDNA Collaborative.
 
 ---
 
-## What is DeCodeDNA?
+## 🧬 What is DeCodeDNA?
 
-DeCodeDNA is a turnkey Nanopore metabarcoding pipeline designed for Friday Harbor Labs’ eDNA course conducted by the eDNA Collaborative.  
-From raw POD5 basecalling all the way through consensus calling, LULU‐denoising and taxonomic assignment, you get:
+DeCodeDNA is a turnkey Nanopore metabarcoding pipeline that transforms raw Oxford Nanopore sequencing data into species identification and abundance estimates. From raw POD5 basecalling all the way through consensus calling, LULU‐denoising and taxonomic assignment, you get:
 
-- **Directions on basecalling depending on the local machine's specifications** via Dorado  
-- **Rapid classification and cleanup** (Kraken2 → Bracken → threshold testing and cleanup)  
-- **Consensus building** across replicates with Amplicon_sorter or CD-HIT  
-- **Artifact removal** using the LULU R package  
-- **Final taxonomic calls** with both BLAST+LCA and/or Kraken2-second-round  
+- **Smart basecalling workflows** adapted to local machine specifications via Dorado  
+- **Rapid classification and cleanup** using Kraken2 with interactive Krona visualizations
+- **Consensus building** with both fast (vsearch) and thorough (amplicon_sorter) approaches
+- **Artifact removal** using the LULU R package with co-occurrence filtering
+- **Comprehensive taxonomic assignment** with BLAST and Kraken2 comparison
 
-It starts on GUI, runs on command line, handles multiplexed COI or 12S amplicons, works on any modern laptop or server, and ships with a tiny “mock” sample so you can test end-to-end.
+It handles multiplexed COI or 12S amplicons, works on any modern laptop or server, and ships with complete mock community data for hands-on learning.
 
 ---
 
-## Quick Start
+## 🚀 Quick Start
 
-### 1. Clone the repo
+### 1. Clone the repo & setup workspace
 ```bash
-git clone https://github.com/pjedna/DeCodeDNA.git
-```
-
-### 2. Enter the project directory
-```bash
+mkdir ~/eDNA_workshop && cd ~/eDNA_workshop
+git clone https://github.com/piedna/DeCodeDNA.git
 cd DeCodeDNA
 ```
 
-### 3. Create the Conda environment
+### 2. Make scripts executable & create environment
 ```bash
-conda env create -f environment.yml
-```
-
-### 4. Activate the environment
-```bash
-conda activate decode-dna
-```
-
-### 5. Run the first step (basecalling) on our example data
-```bash
-bash scripts/01_basecall.sh data/example_pod5/ results/pod5/
-```
-
----
-
-## Dependencies
-
-### (A) Automated via Conda
-
-We recommend Conda for a one-line install:
-
-```bash
+chmod +x scripts/*.sh
 conda env create -f environment.yml
 conda activate decode-dna
 ```
 
-### (B) Manual installation
+### 3. Install R package for denoising
+```bash
+Rscript -e 'if(!require(devtools)) install.packages("devtools"); devtools::install_github("tobiasgf/lulu")'
+```
 
-| Tool            | Version | Install command                                                          | Purpose                                   |
-|-----------------|:-------:|--------------------------------------------------------------------------|-------------------------------------------|
-| Dorado          |  0.9.1  | `conda install -c bioconda dorado`                                       | SUP basecalling                           |
-| Cutadapt        |   4.8   | `conda install cutadapt`                                                 | Primer trimming                           |
-| NanoFilt        |  2.8.0  | `conda install nanofilt`                                                 | Quality & length filtering                |
-| VSEARCH         | 2.21.0  | `conda install vsearch`                                                  | Clustering & self-BLAST                   |
-| CD-HIT          |  4.8.1  | `conda install cd-hit`                                                   | Sequence clustering                       |
-| Kraken2         |  2.1.2  | `conda install kraken2`                                                  | Taxonomic classification                  |
-| Bracken         |   2.7   | `conda install bracken`                                                  | Abundance re-estimation                   |
-| BLAST           | 2.15.0  | `conda install blast`                                                    | Alignment + Lowest Common Ancestor (LCA)  |
-| TaxonKit        | 0.10.1  | `conda install taxonkit`                                                 | Compute LCA from taxon IDs                |
-| Amplicon_sorter |    —    | `conda install amplicon_sorter`                                          | Consensus sequence calling                |
-| ProName         |    —    | `conda install proname`                                                  | Label consensus clusters                  |
-| OBITools        |    —    | `conda install obitools`                                                 | FASTA/Q utilities (optional)              |
-| SeqKit          |    —    | `conda install seqkit`                                                   | FASTA/Q utilities                         |
-| ONTbarcoder     |   2.3   | Download & unzip from GitHub Releases: <br/>`https://github.com/asrivathsan/ONTbarcoder/releases` | Demultiplex custom CCI barcodes           |
-| MinKNOW         | 25.03.9 | Install via Oxford Nanopore Community site: <br/>`https://community.nanoporetech.com`                | Sequencer control & live basecalling      |
+### 4. Test with mock data (15 minutes)
+```bash
+bash scripts/02_quick_look_clean.sh mock/basecalled_fastq/ results/02_quicklook
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise
+bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
+```
+
+**🎉 Check results in `results/05_taxonomy/04_krona_plots/*.html`!**
 
 ---
 
-## Pipeline Workflow Overview
+## 📋 Dependencies
+
+| Tool            | Purpose                                   |
+|-----------------|-------------------------------------------|
+| **Dorado**      | SUP basecalling for Oxford Nanopore data |
+| **Cutadapt**    | Primer trimming and adapter removal      |
+| **NanoFilt**    | Quality & length filtering                |
+| **SeqKit**      | FASTA/Q utilities and statistics         |
+| **Kraken2**     | Rapid taxonomic classification            |
+| **VSEARCH**     | Fast clustering & sequence comparison     |
+| **CD-HIT**      | Alternative sequence clustering           |
+| **BLAST**       | Sequence alignment & taxonomic assignment|
+| **TaxonKit**    | Taxonomy database utilities              |
+| **Krona**       | Interactive HTML taxonomic visualizations|
+| **Amplicon_sorter** | Advanced consensus sequence calling   |
+| **LULU (R)**    | Post-clustering error correction          |
+| **ONTbarcoder** | Demultiplex custom CCI barcodes          |
+| **MinKNOW**     | Sequencer control & live basecalling     |
+
+### Automated Installation
+```bash
+conda env create -f environment.yml
+conda activate decode-dna
+```
+
+*External tools (Dorado, amplicon_sorter, ONTbarcoder) require manual installation - see `installation_guide.md` for details.*
+
+---
+
+## 🔄 Pipeline Workflow Overview
 
 ```mermaid
 flowchart TB
-  %% Top row: Wet lab → Basecalling → Quick Look
-  subgraph Pre-screening
+  %% Sample to sequencing
+  subgraph wet ["🧪 Wet Lab"]
     direction LR
-    A["Sample collection<br>Filtration"] 
-    B["PCR<br>Library Preparation<br>MinION sequencing"]
-    C["I. Basecalling/Demultiplex"]
-    D["II. Build database<br>Kraken2/Bracken"]
-    E["Off-target clean up"]
-    A --> B --> C --> D --> E
+    A["Sample Collection<br/>& Filtration"] 
+    B["PCR Amplification<br/>Library Prep"]
+    C["MinION Sequencing<br/>POD5 Output"]
+    A --> B --> C
   end
 
-  %% Bottom row: Consensus → Denoise → Taxonomy
-  subgraph Cluster   Classify
+  %% Bioinformatics pipeline  
+  subgraph bio ["💻 Bioinformatics Pipeline"]
     direction LR
-    F["III. Consensus/<br>Sort"]
-    G["IV. Denoise"]
-    H["V. Taxonomic<br>Assignment"]
-    F --> G --> H
+    D["00. Basecalling<br/>& Demultiplexing"]
+    E["02. Quality Control<br/>& Classification"]
+    F["03. Consensus<br/>Building"]
+    G["04. Denoising<br/>(LULU)"]
+    H["05. Taxonomic<br/>Assignment"]
+    D --> E --> F --> G --> H
   end
 
-  %% Connect the two rows
-  E --> F
+  %% Connect wet lab to bioinformatics
+  C --> D
+
+  %% Outputs
+  subgraph out ["📊 Results"]
+    direction LR
+    I["Species Lists"]
+    J["Abundance Tables"] 
+    K["Krona Plots"]
+    H --> I
+    H --> J  
+    H --> K
+  end
 ```
-
-## Pipeline Steps
-
-### Step I: Basecalling and demultiplexing
-- **Input**: Raw MinION sequencing data (POD5)
-- **Process 1**: SUP (Super Accurate) basecalling and demultiplex native barocdes using Dorado<br>https://github.com/nanoporetech/dorado
-- **Process 2**: Demultiplex custom CCI barcodes with ONTbarcoder2.3, https://github.com/asrivathsan/ONTbarcoder/releases; see CCI indexing at 
-- **Output**: High-quality FASTQ sequences
-
-### Step II: Quick Look
-- **Input**: Basecalled and demultiplexed FASTQ files
-- **Process**: Initial taxonomic classification using Kraken2/Bracken
-- **Output**: Preliminary species identification and abundance estimates
-- **Target Control**: Off-target clean up, use classified sequences for downstream analyses
-
-### Step III: Consensus/Sort
-- **Input**: Classified sequences
-- **Process**: Sequence consensus calling and building
-- **Tools**: Amplicon_sorter, Decona/CD-HIT/OBITools4
-- **Output**: Consensus sequences representing taxa amplicon sequence variants (ASVs)
-
-### Step IV: Denoise
-- **Input**: Consensus sequences (ASVs)
-- **Process**: Remove sequencing artifacts and low-abundance variants
-- **Method**: LULU algorithm with self-BLAST/VSEARCH filtering
-- **Output**: Clean, high-confidence sequence clusters, operational taxonomic units (OTUs)
-
-### Step V: Taxonomic Assignment
-- **Input**: Denoised sequence clusters (OTUs)
-- **Process**: Final taxonomic classification using multiple approaches
-- **Methods**: 
-  - BLAST + LCA (Lowest Common Ancestor)
-  - Kraken2 second-round classification
-- **Output**: Final species identification and abundance matrix
-
-## Requirements
-
-- **Conda**: For environment management
-- **MinION data**: FAST5 or POD5 files from Oxford Nanopore sequencing
-- **Reference databases**: Kraken2)(e.g. Mitofish, core_nt/Bracken databases for taxonomic classification
-- **Computational resources**: Recommended 8+ cores, 32+ GB RAM
-
-## Installation
-
-1. Clone this repository
-2. Create the conda environment using the provided `environment.yml`
-3. Activate the environment
-4. Download required databases (instructions in `/databases/README.md`)
-
-## Usage
-
-Run the pipeline step by step using the provided scripts in the `/scripts/` directory:
-
-```bash
-# Step 1: Basecalling
-bash scripts/01_basecall.sh [input_directory] [output_directory]
-
-# Step 2: Quick taxonomic look
-bash scripts/02_quick_look.sh [fastq_directory] [output_directory]
-
-# Step 3: Consensus and sorting
-bash scripts/03_consensus.sh [input_directory] [output_directory]
-
-# Step 4: Denoising
-bash scripts/04_denoise.sh [input_directory] [output_directory]
-
-# Step 5: Final taxonomic assignment
-bash scripts/05_taxonomy.sh [input_directory] [output_directory]
-```
-
-## Output Structure
-
-```
-results/
-├── 01_basecalling/     # FASTQ files from basecalling
-├── 02_quick_look/      # Initial Kraken2/Bracken results
-├── 03_consensus/       # Clustered sequences
-├── 04_denoised/        # Clean sequence clusters
-├── 05_taxonomy/        # Final taxonomic assignments
-└── final_report/       # Summary statistics and visualizations
-```
-
-## Citation
-
-If you use DeCodeDNA in your research, please cite:
-
-```
-DeCodeDNA: Nanopore eDNA bioinformatics pipeline
-FHL Class 2025
-GitHub: https://github.com/pjedna/DeCodeDNA
-```
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## Support
-
-For questions or issues, please contact the development team at ednacollab@uw.edu
 
 ---
 
-**Developed for Friday Harbor Labs eDNA Course 2025**
+## 📖 Pipeline Steps
+
+### Step 00: Basecalling and Demultiplexing
+- **Input**: Raw MinION sequencing data (POD5 files)
+- **Process 1**: SUP (Super Accurate) basecalling using Dorado  
+  *https://github.com/nanoporetech/dorado*
+- **Process 2**: Demultiplex custom CCI barcodes with ONTbarcoder2.3  
+  *https://github.com/asrivathsan/ONTbarcoder/releases*
+- **Output**: High-quality FASTQ sequences organized by sample
+- **Teaching note**: Scripts handle both GPU and CPU basecalling for different systems
+
+### Step 02: Quality Control & Initial Classification  
+- **Input**: Basecalled and demultiplexed FASTQ files
+- **Process**: Quality filtering (Q≥12, 100-500bp) + initial Kraken2 classification
+- **Target control**: Remove off-target sequences, retain fish-classified reads
+- **Output**: Filtered sequences + preliminary species identification
+- **Visualization**: Length distribution plots + classification rate summaries
+
+### Step 03: Consensus Building & Clustering
+- **Input**: Quality-filtered, fish-classified sequences  
+- **Process**: Two complementary approaches for educational comparison
+  - **vsearch**: Fast local clustering (97% similarity, runs immediately)
+  - **amplicon_sorter**: Advanced clustering (server-optimized, pre-computed results provided)
+- **Tools**: vsearch, amplicon_sorter, seqkit
+- **Output**: Representative consensus sequences (ASVs) from both methods
+
+### Step 04: Denoising & Error Correction
+- **Input**: Consensus sequences (ASVs) from clustering
+- **Process**: Remove sequencing artifacts using LULU algorithm
+- **Method**: 
+  - Self-BLAST alignment of all sequences
+  - Co-occurrence analysis across sample replicates  
+  - Parent-daughter relationship detection
+  - Removal of likely PCR/sequencing errors
+- **Output**: Clean, high-confidence sequence clusters (OTUs)
+
+### Step 05: Taxonomic Assignment & Visualization
+- **Input**: Denoised sequence clusters (OTUs)
+- **Process**: Comprehensive taxonomic classification using multiple approaches
+- **Methods**: 
+  - **BLAST**: Sequence similarity search against curated databases (12S, COI, MitoFish)
+  - **Kraken2**: K-mer based classification with confidence scoring
+  - **Database comparison**: Cross-validation between methods
+- **Output**: 
+  - Final species identification matrices
+  - Abundance tables per sample
+  - Interactive Krona plots for visualization
+  - Method comparison statistics
+
+---
+
+## 🎓 Educational Features
+
+### 📁 Mock Data Included
+The `mock/` directory contains a complete 12S fish community dataset:
+
+```
+mock/
+├── basecalled_fastq/              # Ready-to-use sequences (START HERE)
+│   ├── test_fhl_200k_1.fastq     # Sample replicate 1 (~200k reads)
+│   ├── test_fhl_200k_2.fastq     # Sample replicate 2  
+│   └── test_fhl_200k_3.fastq     # Sample replicate 3
+├── pod5_barcode50/               # Modern POD5 files (for basecalling demo)
+├── fast5/                        # Legacy format (educational reference)
+└── mock_amplicon_sorter_*.fasta  # Pre-computed server results
+```
+
+### 🔬 Method Comparisons Built-In
+- **Clustering**: vsearch (fast) vs amplicon_sorter (thorough)
+- **Classification**: BLAST (similarity) vs Kraken2 (k-mer)  
+- **Visualization**: Multiple interactive Krona plots
+- **Performance**: GPU vs CPU basecalling timing
+
+### ⏱️ Realistic Timing Estimates
+- **Complete setup**: 30-45 minutes (one-time)
+- **Pipeline execution**: 15-25 minutes on mock data
+- **Individual steps**: 3-10 minutes each for focused learning
+
+---
+
+## 💻 System Requirements
+
+- **Operating System**: macOS (Intel/Apple Silicon) or Linux
+- **RAM**: 8GB minimum, 16GB+ recommended for large datasets
+- **Storage**: 10GB+ free space for databases and results
+- **CPU**: 4+ cores recommended (pipeline scales with available cores)
+- **Network**: Stable internet for database downloads (~2GB one-time)
+
+---
+
+## 🛠️ Installation
+
+### Quick Setup (Students)
+```bash
+# Complete minimal setup in 5 minutes
+mkdir ~/eDNA_workshop && cd ~/eDNA_workshop
+git clone https://github.com/piedna/DeCodeDNA.git && cd DeCodeDNA
+chmod +x scripts/*.sh
+conda env create -f environment.yml
+conda activate decode-dna
+Rscript -e 'devtools::install_github("tobiasgf/lulu")'
+```
+
+### Complete Setup (Instructors)
+For full pipeline including basecalling and database building, see detailed instructions in `installation_guide.md`.
+
+---
+
+## 🔬 Usage
+
+### Classroom Workflow (Mock Data)
+```bash
+# Activate environment
+conda activate decode-dna
+
+# Run complete pipeline (15 minutes)
+bash scripts/02_quick_look_clean.sh mock/basecalled_fastq/ results/02_quicklook
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise
+bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
+```
+
+### Real Data Workflow
+```bash
+# 1. Build databases (one-time, 20-30 minutes)
+./scripts/01_build_dbs_kraken_blastn.sh
+
+# 2. Basecalling (if starting from POD5 files)  
+bash scripts/00_basecall_and_demux.sh
+
+# 3. Continue with steps 2-5 using your FASTQ directory
+bash scripts/02_quick_look_clean.sh your_fastq_dir/ results/02_quicklook
+# ... continue as above
+```
+
+### Customization Options
+```bash
+# Faster processing for teaching
+export SUBSET_COUNT=1000
+export THREADS=4
+
+# Different quality thresholds  
+export QUALITY_THRESHOLD=15
+export MIN_LENGTH=200
+
+# Force local amplicon_sorter execution (may hang)
+RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh ...
+```
+
+---
+
+## 📊 Output Structure
+
+```
+results/
+├── 02_quicklook/           # Quality control & initial classification
+│   ├── filtered/           # Quality-filtered sequences
+│   └── mitofish/          # Fish-classified sequences + Krona plots
+├── 03_consensus/           # Sequence clustering results  
+│   ├── vsearch_clustering/ # Fast local clustering
+│   └── amplicon_sorter_consensus.fasta  # High-quality consensus
+├── 04_denoise/            # Error-corrected sequences
+│   ├── otu_table_lulu_curated.csv      # Final OTU abundance table
+│   └── otu_representatives_combined.fasta  # Representative sequences  
+└── 05_taxonomy/           # Final species identification
+    ├── 01_blast_results/   # BLAST taxonomic assignments
+    ├── 02_kraken2_results/ # Kraken2 classifications
+    ├── 03_final_taxonomy/  # Species abundance matrices
+    └── 04_krona_plots/     # Interactive HTML visualizations ⭐
+```
+
+### Key Result Files
+- **Species tables**: `results/05_taxonomy/03_final_taxonomy/*_classified_species.csv`
+- **Interactive plots**: `results/05_taxonomy/04_krona_plots/*.html` 
+- **Method comparison**: `results/05_taxonomy/03_final_taxonomy/method_comparison_summary.csv`
+
+---
+
+## 🧪 Troubleshooting
+
+### Common Issues
+- **"Command not found"**: Ensure `conda activate decode-dna` is run first
+- **"Permission denied"**: Run `chmod +x scripts/*.sh` after cloning
+- **"Database not found"**: Build databases with `./scripts/01_build_dbs_kraken_blastn.sh`
+- **"pod5 illegal instruction"**: Expected on ARM64 Macs, handled gracefully
+
+### Performance Tips
+- Use `SUBSET_COUNT=1000` for faster classroom demonstrations
+- Monitor system resources with `top` during large dataset processing
+- Clean temporary files with `rm -rf results/*/00_temp_files/`
+
+---
+
+## 📚 Scientific Background
+
+### Key Publications
+- **Kraken2**: Wood & Langmead (2019) - Improved metagenomic analysis  
+- **LULU**: Frøslev et al. (2017) - Post-clustering curation algorithm
+- **BLAST**: Altschul et al. (1990) - Basic local alignment search tool
+- **amplicon_sorter**: Vierstraete et al. (2022) - ONT amplicon processing
+
+### Pipeline Philosophy
+- **Educational transparency**: All parameters documented and adjustable
+- **Method comparison**: Multiple approaches for validation and learning
+- **Quality focus**: Rigorous filtering and error correction throughout
+- **Reproducibility**: Version-controlled environments and clear workflows
+
+---
+
+## 💡 Citation
+
+If you use DeCodeDNA in your research:
+
+```bibtex
+@software{decodedna2025,
+  title={DeCodeDNA: Oxford Nanopore eDNA Metabarcoding Pipeline},
+  author={Friday Harbor Labs eDNA Collaborative},
+  year={2025},
+  url={https://github.com/piedna/DeCodeDNA},
+  note={Educational bioinformatics pipeline for environmental DNA analysis}
+}
+```
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-improvement`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)  
+4. Push to branch (`git push origin feature/amazing-improvement`)
+5. Open a Pull Request
+
+## 📞 Support
+
+For questions or issues:
+- **Check the `installation_guide.md`** for detailed setup instructions
+- **Review script comments** for step-specific guidance  
+- **Contact course instructors**: `ednacollab@uw.edu`
+
+---
+
+**Developed for Friday Harbor Labs eDNA Course 2025**  
+*Making eDNA analysis accessible, educational, and reproducible*
