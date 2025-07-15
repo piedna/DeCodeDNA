@@ -1,528 +1,513 @@
 #!/usr/bin/env bash
-# scripts/05_taxonomic_assignment.sh
-#
-# Step V: Taxonomic Assignment - Updated for Clean Script 04
-#
-# Input (from Step IV):
-#   • otu_table_lulu_curated.csv        (curated OTU counts with clean IDs)
-#   • otu_representatives_combined.fasta (all representative sequences with clean IDs)
-#
-# Process:
-#   1) Extract sequences for LULU-curated OTUs (perfect ID matching now!)
-#   2) BLAST against local databases (12s, coi, mitofish)
-#   3) Parse BLAST results and create species abundance matrix
-#
-# Output:
-#   • final_taxon_table_combined.csv     (species × sample abundance matrix)
-#   • blast_results_summary.csv          (detailed BLAST hit information)
-#   • taxonomic_assignment_stats.csv     (assignment success rates)
-#
 set -euo pipefail
 
-### ── USER CONFIG ─────────────────────────────────────────────────
-DENOISE_DIR="${1:?Error: need DENOISE_DIR (e.g., results/04_denoise)}"
-OUTPUT_DIR="${2:-results/05_taxonomy}"
-THREADS="${THREADS:-8}"              # threads for BLAST
-MAX_SEQS="${MAX_SEQS:-5000}"         # maximum sequences to BLAST (for teaching)
+# ─── usage ────────────────────────────────────────────────────────────────
+if [[ $# -ne 2 ]]; then
+  echo "Usage: $0 <DENOISE_DIR> <OUTPUT_DIR>"
+  exit 1
+fi
+DENOISE_DIR="$1"
+OUTPUT_DIR="$2"
 
-# Database configuration (from script 00 setup)
-BLAST_DB_ROOT="${BLAST_DB_ROOT:-$HOME/Downloads/test_fhl/blast_db}"
+# ─── locate project & databases ──────────────────────────────────────────
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+BLAST_DB_ROOT="${BLAST_DB_ROOT:-$PROJECT_ROOT/../blast_db}"
+KRAKEN_DB_ROOT="${KRAKEN_DB_ROOT:-$PROJECT_ROOT/../kraken2_db}"
 
-# BLAST parameters
-BLAST_PERC_IDENTITY="${BLAST_PERC_IDENTITY:-85}"  # Lowered for better hits
-BLAST_EVALUE="${BLAST_EVALUE:-1e-10}"             # Less stringent
-BLAST_MAX_TARGETS="${BLAST_MAX_TARGETS:-10}"      # More targets
-
-# Store current directory
-SCRIPT_DIR="$(pwd)"
-
-# Create output directory
+# ─── sanity checks ───────────────────────────────────────────────────────
+if [[ ! -d "$DENOISE_DIR" ]]; then
+  echo "❌ Error: DENOISE_DIR not found: $DENOISE_DIR"
+  exit 1
+fi
 mkdir -p "$OUTPUT_DIR"
 
-# Create log file in output directory
-LOG_FILE="$OUTPUT_DIR/05_taxonomic_assignment.log"
-exec > >(tee -a "$LOG_FILE") 2>&1
+# ─── organize output directories ─────────────────────────────────────────
+BLAST_DIR="$OUTPUT_DIR/01_blast_results"
+KRAKEN_DIR="$OUTPUT_DIR/02_kraken2_results"
+TAXONOMY_DIR="$OUTPUT_DIR/03_final_taxonomy"
+KRONA_DIR="$OUTPUT_DIR/04_krona_plots"
+TEMP_DIR="$OUTPUT_DIR/00_temp_files"
 
-echo "Logging to $LOG_FILE"
+mkdir -p "$BLAST_DIR" "$KRAKEN_DIR" "$TAXONOMY_DIR" "$KRONA_DIR" "$TEMP_DIR"
+
+echo "📁 Organized output structure:"
+echo "   • BLAST results    → $BLAST_DIR"
+echo "   • Kraken2 results  → $KRAKEN_DIR"
+echo "   • Final taxonomy   → $TAXONOMY_DIR" 
+echo "   • Krona plots      → $KRONA_DIR"
+echo "   • Temp files       → $TEMP_DIR"
 echo ""
-echo "🔹 Script directory:    $SCRIPT_DIR"
-echo "🔹 Input directory:     $DENOISE_DIR"
-echo "🔹 Output directory:    $OUTPUT_DIR"
-echo "🔹 BLAST DB root:       $BLAST_DB_ROOT"
-echo "🔹 BLAST parameters:    ${BLAST_PERC_IDENTITY}% identity, E-value ${BLAST_EVALUE}"
-echo "🔹 Max sequences:       $MAX_SEQS (for teaching purposes)"
+
+# ─── find input files ────────────────────────────────────────────────────
+REP_FASTA=$(find "$DENOISE_DIR" -maxdepth 1 -type f -iname "*.fasta" | head -n1 || true)
+if [[ -z "$REP_FASTA" ]]; then
+  echo "❌ Error: no .fasta file found in $DENOISE_DIR"
+  exit 1
+fi
+echo "✔ Found reps FASTA: $REP_FASTA"
+
+OTU_TABLE=$(find "$DENOISE_DIR" -maxdepth 1 -type f \( -iname "*.csv" -o -iname "*.tsv" \) \
+  | grep -v -i discarded | head -n1 || true)
+if [[ -z "$OTU_TABLE" ]]; then
+  echo "❌ Error: no .csv or .tsv OTU table found in $DENOISE_DIR"
+  exit 1
+fi
+echo "✔ Found OTU table: $OTU_TABLE"
+
+# ─── subset sequences for teaching speed ─────────────────────────────────
+SUBSET_COUNT="${SUBSET_COUNT:-2000}"
+SUBSET_FASTA="$TEMP_DIR/query_sequences_subset${SUBSET_COUNT}.fasta"
+echo "🎓 Creating subset of $SUBSET_COUNT sequences for classroom speed"
+awk -v N="$SUBSET_COUNT" '
+  BEGIN { RS=">"; ORS="" }
+  NR>1 && N-->0 { print ">" $0 }
+' "$REP_FASTA" > "$SUBSET_FASTA"
+
+subset_count=$(grep -c "^>" "$SUBSET_FASTA")
+echo "   ✓ Using $subset_count sequences for analysis"
 echo ""
 
-### ── SANITY CHECKS ────────────────────────────────────────────────
-echo "🔍 Checking required programs..."
+# ─── blast parameters ────────────────────────────────────────────────────
+THREADS="${THREADS:-8}"
+EVALUE="${EVALUE:-1e-20}"
+MAX_HITS="${MAX_HITS:-5}"
 
-# Check required tools
-for cmd in seqkit blastn; do
-  if ! command -v "$cmd" &>/dev/null; then
-    echo "❌ Error: $cmd not found."
-    exit 1
-  else
-    echo "✅ $cmd found"
+# ═══════════════════════════════════════════════════════════════════════════
+# ─── PART 1: BLAST ANALYSIS ───────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo "🧬 PART 1: BLAST TAXONOMIC ASSIGNMENT"
+echo "════════════════════════════════════════"
+
+# ─── run BLAST against each database ─────────────────────────────────────
+for DB in 12s coi mitofish; do
+  echo "=== BLAST against $DB database ==="
+  DB_PATH="$BLAST_DB_ROOT/$DB/$DB"
+  
+  if [[ ! -f "${DB_PATH}.nsq" && ! -f "${DB_PATH}.nin" ]]; then
+    echo "❌ BLAST DB not found: $DB_PATH"
+    continue
   fi
+
+  BLAST_OUT="$BLAST_DIR/${DB}_blast_hits.tsv"
+  
+  echo "   • Running BLAST (top $MAX_HITS hits)..."
+  blastn -task megablast \
+         -db "$DB_PATH" \
+         -query "$SUBSET_FASTA" \
+         -max_target_seqs "$MAX_HITS" \
+         -evalue "$EVALUE" \
+         -outfmt "6 qseqid sseqid pident length bitscore staxids stitle" \
+         -num_threads "$THREADS" \
+         -out "$BLAST_OUT"
+
+  hit_count=$(wc -l < "$BLAST_OUT" 2>/dev/null || echo "0")
+  echo "   ✓ Found $hit_count BLAST hits → $BLAST_OUT"
 done
 
-# Check R
-if ! command -v Rscript &>/dev/null; then
-  echo "❌ Error: Rscript not found."
-  exit 1
-else
-  echo "✅ Rscript found"
-fi
-
 echo ""
 
-### ── INPUT FILE DETECTION ─────────────────────────────────────────
-echo "▶ Detecting input files from Step IV..."
+# ═══════════════════════════════════════════════════════════════════════════
+# ─── PART 2: KRAKEN2 ANALYSIS ─────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
 
-# Handle both relative and absolute paths properly
-if [[ "$DENOISE_DIR" = /* ]]; then
-  # Absolute path
-  DENOISE_DIR_ABS="$DENOISE_DIR"
+echo "🦠 PART 2: KRAKEN2 TAXONOMIC CLASSIFICATION"
+echo "═══════════════════════════════════════════════"
+
+# Check for Kraken2 and KronaTools
+echo "🔍 Checking required tools..."
+if command -v kraken2 >/dev/null 2>&1; then
+  echo "✅ kraken2 found"
 else
-  # Relative path - resolve from script directory
-  DENOISE_DIR_ABS="$SCRIPT_DIR/$DENOISE_DIR"
+  echo "❌ kraken2 not found - skipping Kraken2 analysis"
+  echo "   Install with: conda install -c bioconda kraken2"
+  SKIP_KRAKEN=true
 fi
 
-echo "  • Checking directory: $DENOISE_DIR_ABS"
-
-# Verify directory exists
-if [[ ! -d "$DENOISE_DIR_ABS" ]]; then
-  echo "  ❌ Directory not found: $DENOISE_DIR_ABS"
-  echo "  🔍 Available directories:"
-  ls -la "$SCRIPT_DIR" 2>/dev/null | grep "^d" || echo "    No directories found"
-  exit 1
-fi
-
-# Check for required files
-LULU_TABLE="$DENOISE_DIR_ABS/otu_table_lulu_curated.csv"
-OTU_REPS="$DENOISE_DIR_ABS/otu_representatives_combined.fasta"
-
-if [[ -f "$LULU_TABLE" ]]; then
-  echo "  ✅ Found OTU table: $LULU_TABLE"
-  curated_otus=$(tail -n +2 "$LULU_TABLE" | wc -l)
-  echo "    • Total OTUs in table: $curated_otus"
+if command -v ktImportTaxonomy >/dev/null 2>&1; then
+  echo "✅ KronaTools found"
 else
-  echo "  ❌ OTU table not found: $LULU_TABLE"
-  echo "  🔍 Available files in directory:"
-  ls -la "$DENOISE_DIR_ABS" 2>/dev/null || echo "    Cannot list directory contents"
-  exit 1
+  echo "❌ KronaTools not found - plots will be skipped"
+  echo "   Install with: conda install -c bioconda krona"
+  SKIP_KRONA=true
 fi
 
-if [[ -f "$OTU_REPS" ]]; then
-  echo "  ✅ Found OTU representatives: $OTU_REPS"
-  seqkit stats "$OTU_REPS" | tail -n +2 | sed 's/^/    /'
-else
-  echo "  ❌ OTU representatives not found: $OTU_REPS"
-  echo "  🔍 Available FASTA files in directory:"
-  find "$DENOISE_DIR_ABS" -name "*.fasta" 2>/dev/null || echo "    No FASTA files found"
-  exit 1
-fi
-
-echo ""
-
-# Change to output directory for processing
-cd "$OUTPUT_DIR"
-
-### ── STEP 1: Extract LULU-curated sequences with perfect ID matching ──
-echo "▶ Step 1: Extracting LULU-curated sequences (perfect ID matching!)"
-
-# Extract OTU IDs from LULU curated table
-echo "  • Extracting curated OTU IDs..."
-cut -d',' -f1 "$LULU_TABLE" | tail -n +2 > curated_otu_ids.txt
-curated_count=$(wc -l < curated_otu_ids.txt)
-echo "    ✓ Found $curated_count curated OTU IDs"
-
-# Extract corresponding sequences - this should work perfectly now with clean IDs
-echo "  • Extracting representative sequences for curated OTUs..."
-seqkit grep \
-  --pattern-file curated_otu_ids.txt \
-  "$OTU_REPS" \
-  > curated_sequences_all.fasta
-
-extracted_seqs=$(grep -c "^>" curated_sequences_all.fasta 2>/dev/null || echo "0")
-echo "    ✓ Extracted $extracted_seqs representative sequences"
-
-# Check if extraction worked well
-if [ "$extracted_seqs" -eq "$curated_count" ]; then
-  echo "    🎉 Perfect match! All curated OTUs have representative sequences"
-elif [ "$extracted_seqs" -gt 0 ]; then
-  echo "    ⚠️  Partial match: $extracted_seqs/$curated_count sequences extracted"
-  echo "    🔍 This is common when sequences are subsampled in previous steps"
-else
-  echo "    ❌ No sequences extracted - ID matching failed"
-  echo "    🔍 Debugging info:"
-  echo "    First few OTU IDs from table:"
-  head -3 curated_otu_ids.txt
-  echo "    First few FASTA headers:"
-  grep "^>" "$OTU_REPS" | head -3
-  echo "    🔧 Attempting alternative extraction..."
-  
-  # Try alternative approach - extract all sequences and work with what we have
-  cp "$OTU_REPS" curated_sequences_all.fasta
-  extracted_seqs=$(grep -c "^>" curated_sequences_all.fasta)
-  echo "    ✓ Using all available sequences: $extracted_seqs"
-fi
-
-# Check if we need to subsample for teaching purposes
-if [ "$extracted_seqs" -gt "$MAX_SEQS" ]; then
-  echo "    🎓 TEACHING NOTE: Large sequence set detected!"
-  echo "       • Found $extracted_seqs curated sequences for BLAST"
-  echo "       • Local BLAST with >$MAX_SEQS sequences would take hours"
-  echo "       • For teaching: subsampling to $MAX_SEQS sequences"
-  echo "       • In real analysis: use HPC cluster for full dataset"
-  echo ""
-  echo "    • Creating subset for manageable BLAST time..."
-  
-  # Create subset
-  seqkit sample -n "$MAX_SEQS" curated_sequences_all.fasta > query_sequences.fasta
-  sampled_seqs=$(grep -c "^>" query_sequences.fasta)
-  echo "    ✓ Subsampled to $sampled_seqs sequences for BLAST"
-  
-  # Save the full set for reference
-  mv curated_sequences_all.fasta curated_sequences_full.fasta
-else
-  echo "    • Sequence count manageable for local BLAST"
-  mv curated_sequences_all.fasta query_sequences.fasta
-fi
-
-# Show final query set stats
-echo "  • Query sequences for BLAST:"
-seqkit stats query_sequences.fasta | tail -n +2 | sed 's/^/    /'
-echo ""
-
-### ── STEP 2: Database detection ─────────────────────────────────
-echo "▶ Step 2: Detecting available BLAST databases"
-
-# Check for available databases
-DATABASES=()
-DB_NAMES=()
-
-# Check for databases built by script 00
-for db_name in mitofish 12s coi; do
-  db_path="$BLAST_DB_ROOT/$db_name/$db_name"
-  echo "  • Checking database: $db_path"
-  if [[ -f "${db_path}.nhr" && -f "${db_path}.nin" && -f "${db_path}.nsq" ]]; then
-    echo "  ✅ Found BLAST database: $db_name at $db_path"
-    DATABASES+=("$db_path")
-    DB_NAMES+=("$db_name")
-  else
-    echo "  ⚠️  BLAST database not found: $db_name at $db_path"
-    echo "      Looking for files:"
-    ls -la "${db_path}"* 2>/dev/null || echo "      No files found with prefix $db_path"
-  fi
-done
-
-if [[ ${#DATABASES[@]} -eq 0 ]]; then
-  echo "  ❌ No BLAST databases found in $BLAST_DB_ROOT"
-  echo "     Available directories in $BLAST_DB_ROOT:"
-  ls -la "$BLAST_DB_ROOT" 2>/dev/null || echo "     Directory $BLAST_DB_ROOT not found"
-  echo ""
-  echo "     Run script 00 to build databases first:"
-  echo "     bash scripts/00_build_dbs_kraken_blastn.sh"
-  exit 1
-fi
-
-echo "  • Will use ${#DATABASES[@]} database(s): ${DB_NAMES[*]}"
-echo ""
-
-### ── STEP 3: Run BLAST against available databases ──────────────
-echo "▶ Step 3: Running BLAST against available databases"
-
-query_count=$(grep -c "^>" query_sequences.fasta)
-echo "  • BLASTing $query_count sequences against ${#DATABASES[@]} databases"
-echo "  • Estimated time: 2-10 minutes depending on sequence count"
-echo ""
-
-# Run BLAST against each available database
-for i in "${!DATABASES[@]}"; do
-  db_path="${DATABASES[$i]}"
-  db_name="${DB_NAMES[$i]}"
-  blast_output="${db_name}_blast_results.txt"
-  
-  echo "  • BLASTing against $db_name database..."
-  
-  if [[ -f "$blast_output" && -s "$blast_output" ]]; then
-    echo "    ⚠️  $blast_output already exists; skipping BLAST"
-    hit_count=$(wc -l < "$blast_output")
-    echo "    • Existing results: $hit_count hits"
-  else
-    echo "    • Running BLAST (this may take a few minutes)..."
-    blastn \
-      -query query_sequences.fasta \
-      -db "$db_path" \
-      -num_threads "$THREADS" \
-      -perc_identity "$BLAST_PERC_IDENTITY" \
-      -evalue "$BLAST_EVALUE" \
-      -max_target_seqs "$BLAST_MAX_TARGETS" \
-      -outfmt '6 qseqid sseqid pident length qcovs evalue bitscore' \
-      -out "$blast_output"
+if [[ "${SKIP_KRAKEN:-false}" != "true" ]]; then
+  # ─── run Kraken2 against available databases ────────────────────────────
+  for DB in 12s coi mitofish; do
+    echo ""
+    echo "=== Kraken2 classification against $DB database ==="
+    KRAKEN_DB_PATH="$KRAKEN_DB_ROOT/$DB"
     
-    if [[ -s "$blast_output" ]]; then
-      hit_count=$(wc -l < "$blast_output")
-      echo "    ✓ BLAST complete: $hit_count hits found"
-    else
-      echo "    ⚠️  No BLAST hits found for $db_name"
-      touch "$blast_output"
+    if [[ ! -d "$KRAKEN_DB_PATH" ]] || [[ ! -f "$KRAKEN_DB_PATH/taxo.k2d" ]]; then
+      echo "❌ Kraken2 DB not found: $KRAKEN_DB_PATH"
+      echo "   Run script 00 with Kraken2 enabled to build databases"
+      continue
     fi
-  fi
-done
 
-echo ""
-
-### ── STEP 4: Process BLAST results and create final table ────────
-echo "▶ Step 4: Processing BLAST results and creating taxonomic table"
-
-# Create R script for processing
-cat > process_taxonomy.R << 'EOF'
-# Load required libraries
-suppressPackageStartupMessages({
-  library(dplyr)
-  library(tidyr)
-  library(readr)
-  library(stringr)
-  library(tibble)
-})
-
-cat("  • Processing BLAST results and creating taxonomic assignments...\n")
-
-# Read LULU curated OTU table - use absolute path
-lulu_table_path <- file.path("..", list.files("../", pattern = "otu_table_lulu_curated.csv", recursive = TRUE)[1])
-
-# Alternative search if not found
-if (is.na(lulu_table_path) || !file.exists(lulu_table_path)) {
-  # Search more broadly
-  possible_paths <- c(
-    "../results/04_denoise/otu_table_lulu_curated.csv",
-    "../../results/04_denoise/otu_table_lulu_curated.csv",
-    "../04_denoise/otu_table_lulu_curated.csv"
-  )
-  
-  for (path in possible_paths) {
-    if (file.exists(path)) {
-      lulu_table_path <- path
-      break
-    }
-  }
-}
-
-if (!file.exists(lulu_table_path)) {
-  cat("❌ Error: Could not find otu_table_lulu_curated.csv\n")
-  cat("    Searched paths:\n")
-  for (path in c(lulu_table_path, possible_paths)) {
-    cat("    -", path, ifelse(file.exists(path), "(exists)", "(not found)"), "\n")
-  }
-  quit(status = 1)
-}
-
-cat("  • Loading LULU-curated OTU table from:", lulu_table_path, "\n")
-otu_table <- read_csv(lulu_table_path, show_col_types = FALSE)
-
-# Handle different column name formats
-if ("OTU_ID" %in% colnames(otu_table)) {
-  otu_table <- otu_table %>% rename(Hash = OTU_ID)
-} else if (names(otu_table)[1] %in% c("X", "...1", "")) {
-  names(otu_table)[1] <- "Hash"
-}
-
-# Convert to long format for analysis
-otu_long <- otu_table %>%
-  pivot_longer(-Hash, names_to = 'Sample', values_to = 'Count') %>%
-  filter(Count > 0)
-
-cat("    ✓ Loaded", nrow(otu_long), "OTU abundance records\n")
-cat("    • Unique OTUs:", n_distinct(otu_long$Hash), "\n")
-cat("    • Samples:", n_distinct(otu_long$Sample), "\n")
-
-# Find and process BLAST result files
-blast_files <- list.files(".", pattern = "*_blast_results.txt", full.names = FALSE)
-cat("  • Found", length(blast_files), "BLAST result files\n")
-
-if (length(blast_files) == 0) {
-  cat("    ⚠️  No BLAST results found\n")
-  
-  # Create table with all unassigned
-  final_taxa <- otu_long %>%
-    mutate(Species = 'unassigned') %>%
-    group_by(Species, Sample) %>%
-    summarise(Count = sum(Count), .groups = 'drop') %>%
-    pivot_wider(names_from = Sample, values_from = Count, values_fill = 0)
-  
-} else {
-  # Process BLAST results
-  all_blast_results <- data.frame()
-  
-  for (blast_file in blast_files) {
-    cat("    • Processing", blast_file, "\n")
-    db_name <- str_remove(blast_file, "_blast_results.txt")
+    KRAKEN_OUT="$KRAKEN_DIR/${DB}_kraken2_output.txt"
+    KRAKEN_REPORT="$KRAKEN_DIR/${DB}_kraken2_report.txt"
     
-    if (file.size(blast_file) > 0) {
-      # Read BLAST results with simplified format (no species names from our custom DBs)
-      blast_df <- read_tsv(blast_file,
-        col_names = c('Hash','sseqid','pident','length','qcovs','evalue','bitscore'),
-        col_types = cols(), show_col_types = FALSE
-      ) %>%
-        mutate(Database = db_name) %>%
-        # Extract database prefix as species proxy
-        mutate(Species = paste0(db_name, "_hit")) %>%
-        # Clean up any issues
-        mutate(Hash = str_trim(Hash))
+    echo "   • Running Kraken2 classification..."
+    kraken2 --db "$KRAKEN_DB_PATH" \
+            --threads "$THREADS" \
+            --output "$KRAKEN_OUT" \
+            --report "$KRAKEN_REPORT" \
+            "$SUBSET_FASTA"
+
+    # Count classifications
+    classified_count=$(grep -c "^C" "$KRAKEN_OUT" 2>/dev/null || echo "0")
+    total_count=$(wc -l < "$KRAKEN_OUT" 2>/dev/null || echo "0")
+    
+    if [[ "$total_count" -gt 0 ]]; then
+      classification_rate=$(echo "scale=1; $classified_count * 100 / $total_count" | bc -l 2>/dev/null || echo "0")
+    else
+      classification_rate="0"
+    fi
+    
+    echo "   ✓ Classified $classified_count/$total_count sequences (${classification_rate}%)"
+    echo "   ✓ Results → $KRAKEN_OUT"
+    echo "   ✓ Report  → $KRAKEN_REPORT"
+
+    # ─── create Krona plot ───────────────────────────────────────────────
+    if [[ "${SKIP_KRONA:-false}" != "true" ]] && [[ -s "$KRAKEN_REPORT" ]]; then
+      echo "   • Creating Krona plot..."
+      KRONA_HTML="$KRONA_DIR/${DB}_krona_plot.html"
       
-      cat("      ✓ Loaded", nrow(blast_df), "hits from", db_name, "\n")
-      all_blast_results <- bind_rows(all_blast_results, blast_df)
-    } else {
-      cat("      • No hits in", blast_file, "\n")
-    }
-  }
-  
-  if (nrow(all_blast_results) > 0) {
-    cat("  • Total BLAST hits processed:", nrow(all_blast_results), "\n")
-    
-    # Select best hit per OTU (prioritize by bitscore, then database preference)
-    database_priority <- c("mitofish", "12s", "coi")
-    
-    blast_top <- all_blast_results %>%
-      mutate(db_priority = match(Database, database_priority, nomatch = 999)) %>%
-      group_by(Hash) %>%
-      arrange(desc(bitscore), db_priority, desc(pident)) %>%
-      slice_head(n = 1) %>%
-      ungroup() %>%
-      select(Hash, Species, pident, length, qcovs, evalue, bitscore, Database)
-    
-    cat("  • Best hits selected for", n_distinct(blast_top$Hash), "OTUs\n")
-    
-    # Database usage summary
-    db_usage <- blast_top %>%
-      count(Database, name = "OTUs_assigned") %>%
-      arrange(desc(OTUs_assigned))
-    
-    cat("  • Assignment by database:\n")
-    for (i in 1:nrow(db_usage)) {
-      cat("    •", db_usage$Database[i], ":", db_usage$OTUs_assigned[i], "OTUs\n")
-    }
-    
-    # Save detailed BLAST results
-    write_csv(blast_top, 'blast_results_summary.csv')
-    cat("    ✓ Saved detailed results: blast_results_summary.csv\n")
-    
-    # Join taxonomic assignments with abundance data
-    cat("  • Merging taxonomic assignments with abundance data...\n")
-    
-    otu_taxa <- otu_long %>%
-      left_join(blast_top %>% select(Hash, Species, Database), by = 'Hash') %>%
-      replace_na(list(Species = 'unassigned', Database = 'none'))
-    
-    # Create assignment statistics
-    assignment_stats <- otu_taxa %>%
-      group_by(Sample) %>%
-      summarise(
-        Total_OTUs = n_distinct(Hash),
-        Assigned_OTUs = n_distinct(Hash[Species != 'unassigned']),
-        Total_Reads = sum(Count),
-        Assigned_Reads = sum(Count[Species != 'unassigned']),
-        .groups = 'drop'
-      ) %>%
-      mutate(
-        OTU_Assignment_Rate = round(100 * Assigned_OTUs / Total_OTUs, 1),
-        Read_Assignment_Rate = round(100 * Assigned_Reads / Total_Reads, 1)
-      )
-    
-    cat("  • Assignment success rates:\n")
-    for (i in 1:nrow(assignment_stats)) {
-      cat("    •", assignment_stats$Sample[i], ":\n")
-      cat("      - OTUs:", assignment_stats$Assigned_OTUs[i], "/", assignment_stats$Total_OTUs[i], 
-          "(", assignment_stats$OTU_Assignment_Rate[i], "%)\n")
-      cat("      - Reads:", assignment_stats$Assigned_Reads[i], "/", assignment_stats$Total_Reads[i], 
-          "(", assignment_stats$Read_Assignment_Rate[i], "%)\n")
-    }
-    
-    # Save assignment statistics
-    write_csv(assignment_stats, 'taxonomic_assignment_stats.csv')
-    cat("    ✓ Saved assignment statistics: taxonomic_assignment_stats.csv\n")
-    
-    # Create final species abundance matrix
-    final_taxa <- otu_taxa %>%
-      group_by(Species, Sample) %>%
-      summarise(Count = sum(Count), .groups = 'drop') %>%
-      pivot_wider(names_from = Sample, values_from = Count, values_fill = 0)
-    
-  } else {
-    cat("  ⚠️  No BLAST hits found in any database\n")
-    final_taxa <- otu_long %>%
-      mutate(Species = 'unassigned') %>%
-      group_by(Species, Sample) %>%
-      summarise(Count = sum(Count), .groups = 'drop') %>%
-      pivot_wider(names_from = Sample, values_from = Count, values_fill = 0)
-  }
-}
+      # Convert Kraken2 report to Krona format
+      cat > "$TEMP_DIR/kraken2_to_krona.py" << 'EOF'
+import sys
+import re
 
-# Write final taxonomic table
-write_csv(final_taxa, 'final_taxon_table_combined.csv')
-cat("  ✓ Saved final taxonomic table: final_taxon_table_combined.csv\n")
+def kraken2_to_krona(report_file, output_file):
+    """Convert Kraken2 report to Krona input format"""
+    with open(report_file, 'r') as f, open(output_file, 'w') as out:
+        for line in f:
+            parts = line.strip().split('\t')
+            if len(parts) >= 6:
+                percentage = float(parts[0])
+                clade_reads = int(parts[1])
+                taxon_reads = int(parts[2])
+                rank_code = parts[3]
+                taxid = parts[4]
+                name = parts[5].strip()
+                
+                # Only output entries with actual reads
+                if taxon_reads > 0:
+                    # Clean up taxonomy name
+                    clean_name = re.sub(r'^\s+', '', name)
+                    out.write(f"{taxon_reads}\t{clean_name}\n")
 
-# Summary of final table
-cat("\n📊 Final taxonomic table summary:\n")
-cat("    • Taxa identified:", nrow(final_taxa), "\n")
-cat("    • Sample columns:", ncol(final_taxa) - 1, "\n")
-
-# Show top taxa by abundance
-if (nrow(final_taxa) > 0) {
-  final_taxa_summary <- final_taxa %>%
-    mutate(Total_Count = rowSums(select(., -Species))) %>%
-    arrange(desc(Total_Count))
-  
-  cat("  • Top taxa by abundance:\n")
-  for (i in 1:min(10, nrow(final_taxa_summary))) {
-    cat("    ", i, ".", final_taxa_summary$Species[i], 
-        " (", final_taxa_summary$Total_Count[i], " total counts)\n")
-  }
-}
-
-cat("\n✅ Taxonomic assignment processing complete!\n")
+if __name__ == "__main__":
+    kraken2_to_krona(sys.argv[1], sys.argv[2])
 EOF
 
-# Run the R script
-echo "  • Running taxonomic assignment analysis..."
-Rscript process_taxonomy.R
-
-echo ""
-
-### ── FINAL SUMMARY ────────────────────────────────────────────────
-echo "📊 STEP V COMPLETE - TAXONOMIC ASSIGNMENT SUMMARY"
-echo "────────────────────────────────────────────────────────────────"
-
-echo "📁 Output files created:"
-for file in final_taxon_table_combined.csv blast_results_summary.csv taxonomic_assignment_stats.csv; do
-  if [[ -f "$file" ]]; then
-    echo "  ✅ $file"
-  else
-    echo "  ⚠️  $file (not created)"
-  fi
-done
-
-echo ""
-echo "🔬 Pipeline Summary:"
-echo "   • Input: LULU-curated OTU table with clean ID matching"
-echo "   • Process: BLAST taxonomic assignment against local databases"
-echo "   • Output: Species-level abundance matrix across samples"
-echo "   • Methods: Combined vsearch + amplicon_sorter results"
-
-# Show final file preview if it exists
-if [[ -f final_taxon_table_combined.csv ]]; then
-  echo ""
-  echo "📋 Final Taxonomic Table Preview:"
-  head -10 final_taxon_table_combined.csv
+      # Convert and create Krona plot
+      krona_input="$TEMP_DIR/${DB}_krona_input.txt"
+      python3 "$TEMP_DIR/kraken2_to_krona.py" "$KRAKEN_REPORT" "$krona_input"
+      
+      if [[ -s "$krona_input" ]]; then
+        ktImportText -o "$KRONA_HTML" "$krona_input"
+        echo "   ✓ Krona plot → $KRONA_HTML"
+      else
+        echo "   ⚠️  No data for Krona plot (no classifications)"
+      fi
+    fi
+  done
+else
+  echo "⚠️  Skipping Kraken2 analysis - kraken2 not found"
 fi
 
 echo ""
-echo "✅ Step V complete: Taxonomic assignment with abundance data!"
-echo "🔬 Results:"
-echo "   • Species abundance across 3 mock community samples"
-echo "   • Database assignment statistics saved"
-echo "   • Ready for community analysis and method comparison"
-echo "   • Perfect for classroom demonstration!"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ─── PART 3: PROCESS AND COMBINE RESULTS ─────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo "📊 PART 3: PROCESSING TAXONOMIC RESULTS"
+echo "═══════════════════════════════════════════"
+
+# ─── create comprehensive taxonomy processing script ─────────────────────
+cat > "$TEMP_DIR/process_complete_taxonomy.R" << 'EOF'
+library(dplyr)
+library(readr)
+library(tidyr)
+
+# Read command line arguments
+args <- commandArgs(trailingOnly = TRUE)
+otu_file <- args[1]
+blast_dir <- args[2] 
+kraken_dir <- args[3]
+taxonomy_dir <- args[4]
+
+cat("📊 Processing comprehensive taxonomic results...\n\n")
+
+# Read OTU table
+cat("Reading OTU table:", otu_file, "\n")
+otu_data <- read_csv(otu_file, show_col_types = FALSE)
+
+# Clean column names and remove quotes
+names(otu_data)[1] <- "OTU_ID"
+otu_data$OTU_ID <- gsub('"', '', otu_data$OTU_ID)
+
+# Convert to long format
+otu_long <- otu_data %>%
+  pivot_longer(-OTU_ID, names_to = "Sample", values_to = "Count") %>%
+  filter(Count > 0)
+
+cat("Processing", nrow(otu_long), "OTU abundance records\n\n")
+
+# ═══ PROCESS BLAST RESULTS ═══
+cat("🧬 Processing BLAST results...\n")
+blast_summary <- data.frame()
+
+for (db in c("12s", "coi", "mitofish")) {
+  blast_file <- file.path(blast_dir, paste0(db, "_blast_hits.tsv"))
+  
+  if (file.exists(blast_file) && file.size(blast_file) > 0) {
+    # Read BLAST results
+    blast_data <- read_tsv(blast_file, 
+      col_names = c("OTU_ID", "hit_id", "pct_identity", "length", "bitscore", "staxids", "stitle"),
+      col_types = cols(), show_col_types = FALSE)
+    
+    # Take best hit per OTU (highest bitscore)
+    best_hits <- blast_data %>%
+      group_by(OTU_ID) %>%
+      arrange(desc(bitscore), desc(pct_identity)) %>%
+      slice_head(n = 1) %>%
+      ungroup() %>%
+      mutate(
+        species = hit_id,
+        database = db,
+        method = "BLAST",
+        assignment_status = "classified"
+      ) %>%
+      select(OTU_ID, species, pct_identity, bitscore, database, method, assignment_status)
+    
+    cat("  •", db, ":", nrow(best_hits), "OTUs classified\n")
+    
+    # Merge with abundance data
+    taxonomy_result <- otu_long %>%
+      left_join(best_hits, by = "OTU_ID") %>%
+      mutate(
+        species = ifelse(is.na(species), "unclassified", species),
+        database = db,
+        method = "BLAST",
+        assignment_status = ifelse(is.na(assignment_status), "unclassified", assignment_status)
+      ) %>%
+      select(OTU_ID, Sample, Count, species, pct_identity, bitscore, database, method, assignment_status)
+    
+    # Create species abundance matrix for BLAST
+    blast_species_matrix <- taxonomy_result %>%
+      filter(assignment_status == "classified") %>%
+      group_by(species, Sample) %>%
+      summarise(Count = sum(Count), .groups = "drop") %>%
+      pivot_wider(names_from = Sample, values_from = Count, values_fill = 0) %>%
+      arrange(desc(rowSums(select(., -species))))
+    
+    # Save BLAST results
+    blast_classified_file <- file.path(taxonomy_dir, paste0("BLAST_", db, "_classified_species.csv"))
+    blast_full_file <- file.path(taxonomy_dir, paste0("BLAST_", db, "_full_taxonomy.csv"))
+    
+    if (nrow(blast_species_matrix) > 0) {
+      write_csv(blast_species_matrix, blast_classified_file)
+    } else {
+      empty_df <- data.frame(species = character(0), Sample1 = numeric(0), Sample2 = numeric(0), Sample3 = numeric(0))
+      write_csv(empty_df, blast_classified_file)
+    }
+    
+    write_csv(taxonomy_result, blast_full_file)
+    
+    # Add to summary
+    classified_otus <- sum(taxonomy_result$assignment_status == "classified")
+    total_otus <- nrow(taxonomy_result)
+    classification_rate <- round(100 * classified_otus / total_otus, 1)
+    
+    blast_summary <- bind_rows(blast_summary, data.frame(
+      database = db,
+      method = "BLAST",
+      total_otus = total_otus,
+      classified_otus = classified_otus,
+      classification_rate = classification_rate,
+      unique_species = nrow(blast_species_matrix)
+    ))
+  }
+}
+
+# ═══ PROCESS KRAKEN2 RESULTS ═══
+cat("\n🦠 Processing Kraken2 results...\n")
+kraken_summary <- data.frame()
+
+for (db in c("12s", "coi", "mitofish")) {
+  kraken_file <- file.path(kraken_dir, paste0(db, "_kraken2_output.txt"))
+  kraken_report_file <- file.path(kraken_dir, paste0(db, "_kraken2_report.txt"))
+  
+  if (file.exists(kraken_file) && file.size(kraken_file) > 0) {
+    # Read Kraken2 output
+    kraken_data <- read_tsv(kraken_file,
+      col_names = c("classified", "OTU_ID", "taxid", "length", "lca_mapping"),
+      col_types = cols(), show_col_types = FALSE)
+    
+    # Read Kraken2 report for taxonomic names
+    if (file.exists(kraken_report_file)) {
+      kraken_taxa <- read_tsv(kraken_report_file,
+        col_names = c("percentage", "clade_reads", "direct_reads", "rank", "taxid", "name"),
+        col_types = cols(), show_col_types = FALSE) %>%
+        mutate(name = trimws(name)) %>%
+        filter(rank %in% c("S", "G")) %>%  # Species and Genus level
+        select(taxid, name)
+      
+      # Join classifications with taxonomic names
+      kraken_classified <- kraken_data %>%
+        filter(classified == "C") %>%  # Only classified sequences
+        left_join(kraken_taxa, by = "taxid") %>%
+        mutate(
+          species = ifelse(is.na(name), paste0("taxid_", taxid), name),
+          database = db,
+          method = "Kraken2",
+          assignment_status = "classified"
+        ) %>%
+        select(OTU_ID, species, taxid, database, method, assignment_status)
+      
+      cat("  •", db, ":", nrow(kraken_classified), "OTUs classified\n")
+      
+      # Merge with abundance data
+      kraken_taxonomy_result <- otu_long %>%
+        left_join(kraken_classified, by = "OTU_ID") %>%
+        mutate(
+          species = ifelse(is.na(species), "unclassified", species),
+          database = db,
+          method = "Kraken2",
+          assignment_status = ifelse(is.na(assignment_status), "unclassified", assignment_status)
+        ) %>%
+        select(OTU_ID, Sample, Count, species, taxid, database, method, assignment_status)
+      
+      # Create species abundance matrix for Kraken2
+      kraken_species_matrix <- kraken_taxonomy_result %>%
+        filter(assignment_status == "classified") %>%
+        group_by(species, Sample) %>%
+        summarise(Count = sum(Count), .groups = "drop") %>%
+        pivot_wider(names_from = Sample, values_from = Count, values_fill = 0) %>%
+        arrange(desc(rowSums(select(., -species))))
+      
+      # Save Kraken2 results
+      kraken_classified_file <- file.path(taxonomy_dir, paste0("Kraken2_", db, "_classified_species.csv"))
+      kraken_full_file <- file.path(taxonomy_dir, paste0("Kraken2_", db, "_full_taxonomy.csv"))
+      
+      if (nrow(kraken_species_matrix) > 0) {
+        write_csv(kraken_species_matrix, kraken_classified_file)
+      } else {
+        empty_df <- data.frame(species = character(0), Sample1 = numeric(0), Sample2 = numeric(0), Sample3 = numeric(0))
+        write_csv(empty_df, kraken_classified_file)
+      }
+      
+      write_csv(kraken_taxonomy_result, kraken_full_file)
+      
+      # Add to summary
+      classified_otus <- sum(kraken_taxonomy_result$assignment_status == "classified")
+      total_otus <- nrow(kraken_taxonomy_result)
+      classification_rate <- round(100 * classified_otus / total_otus, 1)
+      
+      kraken_summary <- bind_rows(kraken_summary, data.frame(
+        database = db,
+        method = "Kraken2",
+        total_otus = total_otus,
+        classified_otus = classified_otus,
+        classification_rate = classification_rate,
+        unique_species = nrow(kraken_species_matrix)
+      ))
+    }
+  }
+}
+
+# ═══ CREATE COMPARISON SUMMARY ═══
+cat("\n📈 Creating method comparison summary...\n")
+method_comparison <- bind_rows(blast_summary, kraken_summary)
+
+if (nrow(method_comparison) > 0) {
+  write_csv(method_comparison, file.path(taxonomy_dir, "method_comparison_summary.csv"))
+  
+  cat("\n📊 Method Comparison Summary:\n")
+  print(method_comparison)
+} else {
+  cat("⚠️  No results to compare\n")
+}
+
+cat("\n✅ Comprehensive taxonomy processing complete!\n")
+EOF
+
+# Run the comprehensive R script
+echo "   • Processing BLAST and Kraken2 results..."
+Rscript "$TEMP_DIR/process_complete_taxonomy.R" "$OTU_TABLE" "$BLAST_DIR" "$KRAKEN_DIR" "$TAXONOMY_DIR"
+
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ─── FINAL SUMMARY AND RESULTS ────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo "🎉 COMPREHENSIVE TAXONOMIC ASSIGNMENT COMPLETE!"
+echo "════════════════════════════════════════════════════"
+echo ""
+echo "📁 Results organized in:"
+echo "   🧬 BLAST results      → $BLAST_DIR/"
+echo "   🦠 Kraken2 results    → $KRAKEN_DIR/"
+echo "   📊 Final taxonomy     → $TAXONOMY_DIR/"
+echo "   🍩 Krona plots        → $KRONA_DIR/"
+echo "   🗂️  Temp files        → $TEMP_DIR/"
+echo ""
+
+echo "📋 Key output files:"
+
+echo ""
+echo "🧬 BLAST Results:"
+for db in 12s coi mitofish; do
+  blast_classified_file="$TAXONOMY_DIR/BLAST_${db}_classified_species.csv"
+  if [[ -f "$blast_classified_file" ]]; then
+    species_count=$(tail -n +2 "$blast_classified_file" | wc -l 2>/dev/null || echo "0")
+    echo "   • BLAST_${db}_classified_species.csv - $species_count species"
+  fi
+done
+
+if [[ "${SKIP_KRAKEN:-false}" != "true" ]]; then
+  echo ""
+  echo "🦠 Kraken2 Results:"
+  for db in 12s coi mitofish; do
+    kraken_classified_file="$TAXONOMY_DIR/Kraken2_${db}_classified_species.csv"
+    if [[ -f "$kraken_classified_file" ]]; then
+      species_count=$(tail -n +2 "$kraken_classified_file" | wc -l 2>/dev/null || echo "0")
+      echo "   • Kraken2_${db}_classified_species.csv - $species_count species"
+    fi
+  done
+fi
+
+if [[ "${SKIP_KRONA:-false}" != "true" ]]; then
+  echo ""
+  echo "🍩 Krona Plots:"
+  for db in 12s coi mitofish; do
+    krona_file="$KRONA_DIR/${db}_krona_plot.html"
+    if [[ -f "$krona_file" ]]; then
+      echo "   • ${db}_krona_plot.html - Open in browser for interactive visualization"
+    fi
+  done
+fi
+
+echo ""
+echo "📈 Method Comparison:"
+if [[ -f "$TAXONOMY_DIR/method_comparison_summary.csv" ]]; then
+  echo "   • method_comparison_summary.csv - Compare BLAST vs Kraken2 performance"
+fi
+
+echo ""
+echo "🎓 For the class:"
+echo "   • Compare BLAST vs Kraken2 classification methods"
+echo "   • Visualize taxonomic composition with Krona plots"
+echo "   • Understand why COI = 0 for 12S mock community data"
+echo "   • See effects of quality filtering on taxonomic assignments"
+echo ""
+echo "🔗 Next steps:"
+echo "   • Open Krona HTML files in browser for interactive exploration"
+echo "   • Analyze species abundance patterns across samples"
+echo "   • Compare classification rates between methods and databases"
 echo ""
