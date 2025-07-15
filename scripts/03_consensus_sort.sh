@@ -19,8 +19,8 @@ set -euo pipefail
 KRAKEN_RESULTS_DIR="${1:?Error: need KRAKEN_RESULTS_DIR (e.g., results/02_quicklook)}"
 OUTPUT_DIR="${2:?Error: need OUTPUT_DIR}"
 
-# Which Kraken2 database to use for consensus building
-DATABASE="${DATABASE:-mitofish}"  # Use mitofish by default (best classification rate)
+# Which Kraken2 databases to process (updated to handle multiple databases)
+DATABASES="${DATABASES:-12s coi mitofish}"  # Process all three databases by default
 
 # Clustering parameters
 VSEARCH_SIMILARITY="${VSEARCH_SIMILARITY:-0.97}"  # 97% similarity for vsearch
@@ -63,149 +63,168 @@ else
   AMPLICON_AVAILABLE=0
 fi
 
-# Check if Kraken2 results exist
-KRAKEN_DB_DIR="$KRAKEN_RESULTS_DIR/$DATABASE"
-if [[ ! -d "$KRAKEN_DB_DIR" ]]; then
-  echo "❌ Error: Kraken2 results not found at $KRAKEN_DB_DIR"
-  echo "Available databases:"
-  ls -la "$KRAKEN_RESULTS_DIR/"
-  exit 1
-fi
-
 echo
-echo "🔹 Kraken2 results:    $KRAKEN_DB_DIR"
-echo "🔹 Using database:     $DATABASE"
+echo "🔹 Kraken2 results:    $KRAKEN_RESULTS_DIR"
+echo "🔹 Processing databases: $DATABASES"
 echo "🔹 vsearch similarity: $VSEARCH_SIMILARITY"
 echo "🔹 Output directory:   $OUTPUT_DIR"
 echo
 
-### ── FIND CLASSIFIED FASTA FILES ─────────────────────────────────
-echo "▶ Finding fish-classified sequences..."
-shopt -s nullglob
-classified_files=("$KRAKEN_DB_DIR"/*_classified.fasta)
-
-if [[ ${#classified_files[@]} -eq 0 ]]; then
-  echo "❌ No classified .fasta files found in $KRAKEN_DB_DIR"
-  echo "Looking for files matching: *_classified.fasta"
-  echo "Available files:"
-  ls -la "$KRAKEN_DB_DIR/"
-  exit 1
-fi
-
-echo "Found ${#classified_files[@]} classified file(s):"
-for file in "${classified_files[@]}"; do
-  echo "  • $(basename "$file")"
-  # Show input stats
-  if command -v seqkit &>/dev/null; then
-    seqkit stats "$file" 2>/dev/null | tail -n +2 | sed 's/^/    /' || {
-      echo "    File stats unavailable"
-    }
+### ── PROCESS EACH DATABASE ────────────────────────────────────────
+for DATABASE in $DATABASES; do
+  echo "════════════════════════════════════════════════════════════════"
+  echo "🗄️ Processing Database: $DATABASE"
+  echo "════════════════════════════════════════════════════════════════"
+  
+  # Check if Kraken2 results exist for this database
+  KRAKEN_DB_DIR="$KRAKEN_RESULTS_DIR/$DATABASE"
+  if [[ ! -d "$KRAKEN_DB_DIR" ]]; then
+    echo "⚠️  Warning: Kraken2 results not found at $KRAKEN_DB_DIR"
+    echo "   Skipping database: $DATABASE"
+    echo
+    continue
   fi
-done
-echo
 
-### ── APPROACH 1: VSEARCH CLUSTERING (RUNS LOCALLY) ───────────────
-echo "🚀 APPROACH 1: vsearch Clustering (Local Execution)"
-echo "   Purpose: Fast, lightweight clustering for immediate results"
-echo "   Best for: Mock communities, teaching demonstrations"
-echo
+  # Create database-specific output directories
+  DB_VSEARCH_DIR="$VSEARCH_DIR/$DATABASE"
+  DB_AMPLICON_DIR="$AMPLICON_DIR/$DATABASE"
+  mkdir -p "$DB_VSEARCH_DIR" "$DB_AMPLICON_DIR"
 
-for classified_file in "${classified_files[@]}"; do
-  # Extract sample name
-  sample=$(basename "$classified_file")
-  sample="${sample%_${DATABASE}_classified.fasta}"
-  
-  echo "▶ vsearch clustering: $sample"
-  
-  # Step 1: Dereplicate sequences
-  derep_file="$VSEARCH_DIR/${sample}_dereplicated.fasta"
-  echo "  • Dereplicating sequences..."
-  vsearch \
-    --derep_fulllength "$classified_file" \
-    --output "$derep_file" \
-    --sizeout \
-    --minuniquesize 1
-  
-  # Step 2: Cluster sequences
-  vsearch_consensus="$VSEARCH_DIR/${sample}_vsearch_consensus.fasta"
-  echo "  • Clustering at ${VSEARCH_SIMILARITY} similarity..."
-  vsearch \
-    --cluster_fast "$derep_file" \
-    --id "$VSEARCH_SIMILARITY" \
-    --centroids "$vsearch_consensus" \
-    --clusters "$VSEARCH_DIR/${sample}_clusters"
-  
-  echo "  ✅ vsearch consensus: $vsearch_consensus"
-  
-  # Show clustering stats
-  if command -v seqkit &>/dev/null; then
-    echo "    Clustering results:"
-    seqkit stats "$vsearch_consensus" 2>/dev/null | tail -n +2 | sed 's/^/      /' || {
-      echo "      Stats unavailable"
-    }
+  ### ── FIND CLASSIFIED FASTA FILES ─────────────────────────────────
+  echo "▶ Finding $DATABASE-classified sequences..."
+  shopt -s nullglob
+  classified_files=("$KRAKEN_DB_DIR"/*_classified.fasta)
+
+  if [[ ${#classified_files[@]} -eq 0 ]]; then
+    echo "⚠️  No classified .fasta files found in $KRAKEN_DB_DIR"
+    echo "   Looking for files matching: *_classified.fasta"
+    echo "   Available files:"
+    ls -la "$KRAKEN_DB_DIR/" || echo "   Directory not accessible"
+    echo "   Skipping database: $DATABASE"
+    echo
+    continue
   fi
+
+  echo "Found ${#classified_files[@]} classified file(s) for $DATABASE:"
+  for file in "${classified_files[@]}"; do
+    echo "  • $(basename "$file")"
+    # Show input stats
+    if command -v seqkit &>/dev/null; then
+      seqkit stats "$file" 2>/dev/null | tail -n +2 | sed 's/^/    /' || {
+        echo "    File stats unavailable"
+      }
+    fi
+  done
   echo
-done
 
-### ── APPROACH 2: AMPLICON_SORTER DEMO (COMMAND PROVIDED) ──────────
-echo "🎯 APPROACH 2: amplicon_sorter Demo (Advanced Clustering)"
-echo "   Purpose: Sophisticated clustering designed for ONT/eDNA data"
-echo "   Best for: Real eDNA samples, final publication results"
-echo "   Status: Command provided for demonstration"
-echo
+  ### ── APPROACH 1: VSEARCH CLUSTERING (RUNS LOCALLY) ───────────────
+  echo "🚀 APPROACH 1: vsearch Clustering for $DATABASE (Local Execution)"
+  echo "   Purpose: Fast, lightweight clustering for immediate results"
+  echo "   Best for: Mock communities, teaching demonstrations"
+  echo
 
-for classified_file in "${classified_files[@]}"; do
-  sample=$(basename "$classified_file")
-  sample="${sample%_${DATABASE}_classified.fasta}"
-  
-  echo "▶ amplicon_sorter demo: $sample"
-  echo "  Input: $classified_file"
-  
-  # Generate the amplicon_sorter command
-  sample_output="$AMPLICON_DIR/${sample}_amplicons"
-  
-  cat << EOF
-  
-  📋 amplicon_sorter Command (Copy & Paste to Try):
-  ────────────────────────────────────────────────────────────────
-  python3 \$(which amplicon_sorter) \\
-    -i '$classified_file' \\
-    -min $AMPLICON_MINLEN \\
-    -max $AMPLICON_MAXLEN \\
-    -ar -ra \\
-    -maxr $AMPLICON_MAXREADS \\
-    -ssg 95 -ss 97 -sc 98 \\
-    -np 1 \\
-    -o '$sample_output'
-  ────────────────────────────────────────────────────────────────
-  
-  ⚠️  Note: This command may hang locally due to multiprocessing issues.
-      For real analysis, run on a server with more resources.
-  
+  for classified_file in "${classified_files[@]}"; do
+    # Extract sample name
+    sample=$(basename "$classified_file")
+    sample="${sample%_${DATABASE}_classified.fasta}"
+    
+    echo "▶ vsearch clustering: $sample ($DATABASE)"
+    
+    # Step 1: Dereplicate sequences
+    derep_file="$DB_VSEARCH_DIR/${sample}_${DATABASE}_dereplicated.fasta"
+    echo "  • Dereplicating sequences..."
+    vsearch \
+      --derep_fulllength "$classified_file" \
+      --output "$derep_file" \
+      --sizeout \
+      --minuniquesize 1
+    
+    # Step 2: Cluster sequences
+    vsearch_consensus="$DB_VSEARCH_DIR/${sample}_${DATABASE}_vsearch_consensus.fasta"
+    echo "  • Clustering at ${VSEARCH_SIMILARITY} similarity..."
+    vsearch \
+      --cluster_fast "$derep_file" \
+      --id "$VSEARCH_SIMILARITY" \
+      --centroids "$vsearch_consensus" \
+      --clusters "$DB_VSEARCH_DIR/${sample}_${DATABASE}_clusters"
+    
+    echo "  ✅ vsearch consensus: $vsearch_consensus"
+    
+    # Show clustering stats
+    if command -v seqkit &>/dev/null; then
+      echo "    Clustering results:"
+      seqkit stats "$vsearch_consensus" 2>/dev/null | tail -n +2 | sed 's/^/      /' || {
+        echo "      Stats unavailable"
+      }
+    fi
+    echo
+  done
+
+  ### ── APPROACH 2: AMPLICON_SORTER DEMO (COMMAND PROVIDED) ──────────
+  echo "🎯 APPROACH 2: amplicon_sorter Demo for $DATABASE (Advanced Clustering)"
+  echo "   Purpose: Sophisticated clustering designed for ONT/eDNA data"
+  echo "   Best for: Real eDNA samples, final publication results"
+  echo "   Status: Command provided for demonstration"
+  echo
+
+  for classified_file in "${classified_files[@]}"; do
+    sample=$(basename "$classified_file")
+    sample="${sample%_${DATABASE}_classified.fasta}"
+    
+    echo "▶ amplicon_sorter demo: $sample ($DATABASE)"
+    echo "  Input: $classified_file"
+    
+    # Generate the amplicon_sorter command
+    sample_output="$DB_AMPLICON_DIR/${sample}_${DATABASE}_amplicons"
+    
+    cat << EOF
+    
+    📋 amplicon_sorter Command for $DATABASE (Copy & Paste to Try):
+    ────────────────────────────────────────────────────────────────
+    python3 \$(which amplicon_sorter) \\
+      -i '$classified_file' \\
+      -min $AMPLICON_MINLEN \\
+      -max $AMPLICON_MAXLEN \\
+      -ar -ra \\
+      -maxr $AMPLICON_MAXREADS \\
+      -ssg 95 -ss 97 -sc 98 \\
+      -np 1 \\
+      -o '$sample_output'
+    ────────────────────────────────────────────────────────────────
+    
+    ⚠️  Note: This command may hang locally due to multiprocessing issues.
+        For real analysis, run on a server with more resources.
+    
 EOF
 
-  # Only run if specifically requested and available
-  if [[ "${RUN_AMPLICON_SORTER:-0}" -eq 1 && "$AMPLICON_AVAILABLE" -eq 1 ]]; then
-    echo "  🔄 Running amplicon_sorter (this may take a while or hang)..."
-    python3 "$(which amplicon_sorter)" \
-      -i "$classified_file" \
-      -min "$AMPLICON_MINLEN" \
-      -max "$AMPLICON_MAXLEN" \
-      -ar -ra \
-      -maxr "$AMPLICON_MAXREADS" \
-      -ssg 95 -ss 97 -sc 98 \
-      -np 1 \
-      -o "$sample_output" || {
-        echo "  ❌ amplicon_sorter failed (expected for local execution)"
-      }
-  else
-    echo "  💡 To enable amplicon_sorter execution: RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh ..."
-  fi
+    # Only run if specifically requested and available
+    if [[ "${RUN_AMPLICON_SORTER:-0}" -eq 1 && "$AMPLICON_AVAILABLE" -eq 1 ]]; then
+      echo "  🔄 Running amplicon_sorter (this may take a while or hang)..."
+      python3 "$(which amplicon_sorter)" \
+        -i "$classified_file" \
+        -min "$AMPLICON_MINLEN" \
+        -max "$AMPLICON_MAXLEN" \
+        -ar -ra \
+        -maxr "$AMPLICON_MAXREADS" \
+        -ssg 95 -ss 97 -sc 98 \
+        -np 1 \
+        -o "$sample_output" || {
+          echo "  ❌ amplicon_sorter failed (expected for local execution)"
+        }
+    else
+      echo "  💡 To enable amplicon_sorter execution: RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh ..."
+    fi
+    echo
+  done
+  
+  echo "✅ Database $DATABASE processing complete!"
   echo
 done
 
 ### ── PRE-COMPUTED AMPLICON_SORTER RESULTS ───────────────────────
+echo "════════════════════════════════════════════════════════════════"
 echo "📁 APPROACH 2B: Pre-computed amplicon_sorter Results"
+echo "════════════════════════════════════════════════════════════════"
 echo "   For this class, we provide pre-computed amplicon_sorter results:"
 echo "   Generated on high-performance server with optimized parameters"
 echo
@@ -318,10 +337,16 @@ echo
 ### ── COMPARISON & NEXT STEPS ──────────────────────────────────────
 echo "📊 CLUSTERING COMPARISON SUMMARY"
 echo "────────────────────────────────────────────────────────────────"
-echo "Two approaches demonstrated:"
+echo "Processed databases: $DATABASES"
+echo
+echo "Two approaches demonstrated for each database:"
 echo
 echo "1. 🏃 vsearch (Fast & Local):"
-echo "   • Results: $VSEARCH_DIR/*_vsearch_consensus.fasta"
+for DATABASE in $DATABASES; do
+  if [[ -d "$VSEARCH_DIR/$DATABASE" ]]; then
+    echo "   • $DATABASE results: $VSEARCH_DIR/$DATABASE/*_vsearch_consensus.fasta"
+  fi
+done
 echo "   • Pros: Fast, reliable, runs locally"
 echo "   • Cons: Conservative clustering, may preserve errors"
 echo "   • Use case: Mock communities, quick analysis"
@@ -333,7 +358,7 @@ echo "   • Cons: Slow locally, requires server resources"
 echo "   • Use case: Real eDNA samples, publication-quality results"
 echo
 echo "📈 For downstream analysis, you can use BOTH:"
-echo "   • vsearch results: Compare clustering approaches"
+echo "   • vsearch results: Compare clustering approaches across databases"
 echo "   • amplicon_sorter results: Final biological interpretation"
 echo
 echo "🔬 Next steps:"
