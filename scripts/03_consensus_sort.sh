@@ -1,177 +1,323 @@
 #!/usr/bin/env bash
 # scripts/03_consensus_sort.sh
 #
-# Step III: Consensus / Sort
+# Step III: Consensus Building - Dual Approach for Teaching
 #
-# Input:
-#   A directory of classified FASTQ files (e.g. fish‐only FASTQ from Step II)
+# This script demonstrates TWO clustering approaches:
+# 1. vsearch: Fast, local clustering (runs automatically)
+# 2. amplicon_sorter: Advanced clustering (command provided, but commented out)
 #
-# Process:
-#   1) Convert FASTQ → FASTA with seqkit
-#   2) (Optional) Example VSEARCH clustering
-#   3) Consensus building with Amplicon Sorter
-#
-# Tools:
-#   - seqkit
-#       A fast toolkit for FASTA/Q manipulation. Here we use `seqkit fq2fa`
-#       to convert FASTQ files into FASTA for downstream clustering.
-#   - vsearch
-#       Example OTU clustering (not required for final pipeline; may be slow
-#       on large datasets).
-#   - amplicon_sorter
-#       Rapid ASV/consensus-building script (not yet on Bioconda/PyPI, so
-#       install manually—see below).  
-#       **Supports read subsampling**: if you know you have a low-diversity dataset,
-#       you can sample fewer reads to approximate the full set of variants,
-#       greatly speeding consensus calling when compute resources are limited.
-#
-# BEFORE YOU RUN:
-#   1) Create & activate a fresh env:
-#         conda create -n asorter-env python=3.10 -y
-#         conda activate asorter-env
-#
-#   2) Install seqkit & vsearch from Bioconda:
-#         conda install -c conda-forge -c bioconda seqkit vsearch -y
-#
-#   3) Install Amplicon Sorter manually:
-#         git clone https://github.com/avierstr/amplicon_sorter.git
-#         cp amplicon_sorter/amplicon_sorter.py $CONDA_PREFIX/bin/amplicon_sorter
-#         chmod +x $CONDA_PREFIX/bin/amplicon_sorter
-#
-#   Now you should have `seqkit`, `vsearch`, and `amplicon_sorter` on your PATH
+# Input: Kraken2 results directory from Step II
+# Output: 
+#   - vsearch consensus sequences (generated locally)
+#   - amplicon_sorter command (for demonstration)
+#   - Instructions to use pre-computed amplicon_sorter results
 #
 set -euo pipefail
 
 ### ── USER CONFIG ─────────────────────────────────────────────────
-FASTQ_DIR="${1:?Error: need FASTQ_DIR}"
+KRAKEN_RESULTS_DIR="${1:?Error: need KRAKEN_RESULTS_DIR (e.g., results/02_quicklook)}"
 OUTPUT_DIR="${2:?Error: need OUTPUT_DIR}"
 
-# Amplicon Sorter parameters (tweak for your marker)
-MINLEN="${MINLEN:-100}"        # min amplicon length (bp)
-MAXLEN="${MAXLEN:-200}"        # max amplicon length (bp)
-MAXREADS="${MAXREADS:-30000}"  # subsample depth (reads) via --maxreads
-THREADS="${THREADS:-8}"        # processes per job
+# Which Kraken2 database to use for consensus building
+DATABASE="${DATABASE:-mitofish}"  # Use mitofish by default (best classification rate)
 
-# ── Amplicon Sorter similarity thresholds explained:
-# These three thresholds control how “tight” your clustering is at each step:
-#   1. SSG (Similar Species Groups) = 90%
-#      • Bundles reads ≥90% identical into broad “species-group” bins (coarse filter).
-#   2. SS (Similar Species) = 95%
-#      • Splits reads ≥95% identical into species-level clusters within groups (fine filter).
-#   3. SC (Similar Consensus) = 98%
-#      • Merges sequences ≥98% identical into final consensus ASVs (strictest collapse).
-SSG="${SSG:-90}"   # coarse grouping (% identity)
-SS="${SS:-95}"     # species-level clustering (% identity)
-SC="${SC:-98}"     # consensus merge (% identity)
+# Clustering parameters
+VSEARCH_SIMILARITY="${VSEARCH_SIMILARITY:-0.97}"  # 97% similarity for vsearch
+AMPLICON_MINLEN="${AMPLICON_MINLEN:-150}"         # amplicon_sorter min length
+AMPLICON_MAXLEN="${AMPLICON_MAXLEN:-350}"         # amplicon_sorter max length
+AMPLICON_MAXREADS="${AMPLICON_MAXREADS:-1000}"    # amplicon_sorter max reads (for local demo)
 
-# directories
-FASTA_DIR="$OUTPUT_DIR/fasta"
-VSEARCH_DIR="$OUTPUT_DIR/vsearch_example"
-ASORTER_DIR="$OUTPUT_DIR/amplicon_sorter"
-
-mkdir -p "$FASTA_DIR" "$VSEARCH_DIR" "$ASORTER_DIR"
+# Directories
+VSEARCH_DIR="$OUTPUT_DIR/vsearch_clustering"
+AMPLICON_DIR="$OUTPUT_DIR/amplicon_sorter_demo"
+mkdir -p "$VSEARCH_DIR" "$AMPLICON_DIR"
 
 ### ── SANITY CHECKS ────────────────────────────────────────────────
-for cmd in seqkit amplicon_sorter; do
-  if ! command -v "$cmd" &>/dev/null; then
-    echo "Error: '$cmd' not found. Did you install it as described above?"
-    exit 1
+echo "🔍 Checking required programs..."
+
+# Check for vsearch
+if ! command -v vsearch &>/dev/null; then
+  echo "❌ Error: vsearch not found."
+  echo "   Install via: conda install -c bioconda vsearch"
+  exit 1
+else
+  echo "✅ vsearch found"
+fi
+
+# Check for seqkit
+if ! command -v seqkit &>/dev/null; then
+  echo "❌ Error: seqkit not found."
+  echo "   Install via: conda install -c bioconda seqkit"
+  exit 1
+else
+  echo "✅ seqkit found"
+fi
+
+# Check for amplicon_sorter (optional for demo)
+if command -v amplicon_sorter &>/dev/null; then
+  echo "✅ amplicon_sorter found (available for demo)"
+  AMPLICON_AVAILABLE=1
+else
+  echo "⚠️  amplicon_sorter not found (demo commands will be provided)"
+  AMPLICON_AVAILABLE=0
+fi
+
+# Check if Kraken2 results exist
+KRAKEN_DB_DIR="$KRAKEN_RESULTS_DIR/$DATABASE"
+if [[ ! -d "$KRAKEN_DB_DIR" ]]; then
+  echo "❌ Error: Kraken2 results not found at $KRAKEN_DB_DIR"
+  echo "Available databases:"
+  ls -la "$KRAKEN_RESULTS_DIR/"
+  exit 1
+fi
+
+echo
+echo "🔹 Kraken2 results:    $KRAKEN_DB_DIR"
+echo "🔹 Using database:     $DATABASE"
+echo "🔹 vsearch similarity: $VSEARCH_SIMILARITY"
+echo "🔹 Output directory:   $OUTPUT_DIR"
+echo
+
+### ── FIND CLASSIFIED FASTA FILES ─────────────────────────────────
+echo "▶ Finding fish-classified sequences..."
+shopt -s nullglob
+classified_files=("$KRAKEN_DB_DIR"/*_classified.fasta)
+
+if [[ ${#classified_files[@]} -eq 0 ]]; then
+  echo "❌ No classified .fasta files found in $KRAKEN_DB_DIR"
+  echo "Looking for files matching: *_classified.fasta"
+  echo "Available files:"
+  ls -la "$KRAKEN_DB_DIR/"
+  exit 1
+fi
+
+echo "Found ${#classified_files[@]} classified file(s):"
+for file in "${classified_files[@]}"; do
+  echo "  • $(basename "$file")"
+  # Show input stats
+  if command -v seqkit &>/dev/null; then
+    seqkit stats "$file" 2>/dev/null | tail -n +2 | sed 's/^/    /' || {
+      echo "    File stats unavailable"
+    }
   fi
 done
+echo
 
-# vsearch is optional
-if ! command -v vsearch &>/dev/null; then
-  echo "Warning: vsearch not found; skipping VSEARCH example"
-  USE_VSEARCH=0
+### ── APPROACH 1: VSEARCH CLUSTERING (RUNS LOCALLY) ───────────────
+echo "🚀 APPROACH 1: vsearch Clustering (Local Execution)"
+echo "   Purpose: Fast, lightweight clustering for immediate results"
+echo "   Best for: Mock communities, teaching demonstrations"
+echo
+
+for classified_file in "${classified_files[@]}"; do
+  # Extract sample name
+  sample=$(basename "$classified_file")
+  sample="${sample%_${DATABASE}_classified.fasta}"
+  
+  echo "▶ vsearch clustering: $sample"
+  
+  # Step 1: Dereplicate sequences
+  derep_file="$VSEARCH_DIR/${sample}_dereplicated.fasta"
+  echo "  • Dereplicating sequences..."
+  vsearch \
+    --derep_fulllength "$classified_file" \
+    --output "$derep_file" \
+    --sizeout \
+    --minuniquesize 1
+  
+  # Step 2: Cluster sequences
+  vsearch_consensus="$VSEARCH_DIR/${sample}_vsearch_consensus.fasta"
+  echo "  • Clustering at ${VSEARCH_SIMILARITY} similarity..."
+  vsearch \
+    --cluster_fast "$derep_file" \
+    --id "$VSEARCH_SIMILARITY" \
+    --centroids "$vsearch_consensus" \
+    --clusters "$VSEARCH_DIR/${sample}_clusters"
+  
+  echo "  ✅ vsearch consensus: $vsearch_consensus"
+  
+  # Show clustering stats
+  if command -v seqkit &>/dev/null; then
+    echo "    Clustering results:"
+    seqkit stats "$vsearch_consensus" 2>/dev/null | tail -n +2 | sed 's/^/      /' || {
+      echo "      Stats unavailable"
+    }
+  fi
+  echo
+done
+
+### ── APPROACH 2: AMPLICON_SORTER DEMO (COMMAND PROVIDED) ──────────
+echo "🎯 APPROACH 2: amplicon_sorter Demo (Advanced Clustering)"
+echo "   Purpose: Sophisticated clustering designed for ONT/eDNA data"
+echo "   Best for: Real eDNA samples, final publication results"
+echo "   Status: Command provided for demonstration"
+echo
+
+for classified_file in "${classified_files[@]}"; do
+  sample=$(basename "$classified_file")
+  sample="${sample%_${DATABASE}_classified.fasta}"
+  
+  echo "▶ amplicon_sorter demo: $sample"
+  echo "  Input: $classified_file"
+  
+  # Generate the amplicon_sorter command
+  sample_output="$AMPLICON_DIR/${sample}_amplicons"
+  
+  cat << EOF
+  
+  📋 amplicon_sorter Command (Copy & Paste to Try):
+  ────────────────────────────────────────────────────────────────
+  python3 \$(which amplicon_sorter) \\
+    -i '$classified_file' \\
+    -min $AMPLICON_MINLEN \\
+    -max $AMPLICON_MAXLEN \\
+    -ar -ra \\
+    -maxr $AMPLICON_MAXREADS \\
+    -ssg 95 -ss 97 -sc 98 \\
+    -np 1 \\
+    -o '$sample_output'
+  ────────────────────────────────────────────────────────────────
+  
+  ⚠️  Note: This command may hang locally due to multiprocessing issues.
+      For real analysis, run on a server with more resources.
+  
+EOF
+
+  # Only run if specifically requested and available
+  if [[ "${RUN_AMPLICON_SORTER:-0}" -eq 1 && "$AMPLICON_AVAILABLE" -eq 1 ]]; then
+    echo "  🔄 Running amplicon_sorter (this may take a while or hang)..."
+    python3 "$(which amplicon_sorter)" \
+      -i "$classified_file" \
+      -min "$AMPLICON_MINLEN" \
+      -max "$AMPLICON_MAXLEN" \
+      -ar -ra \
+      -maxr "$AMPLICON_MAXREADS" \
+      -ssg 95 -ss 97 -sc 98 \
+      -np 1 \
+      -o "$sample_output" || {
+        echo "  ❌ amplicon_sorter failed (expected for local execution)"
+      }
+  else
+    echo "  💡 To enable amplicon_sorter execution: RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh ..."
+  fi
+  echo
+done
+
+### ── PRE-COMPUTED AMPLICON_SORTER RESULTS ───────────────────────
+echo "📁 APPROACH 2B: Pre-computed amplicon_sorter Results"
+echo "   For this class, we provide pre-computed amplicon_sorter results:"
+echo "   Generated on high-performance server with optimized parameters"
+echo
+
+# Check if pre-computed results exist
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PRECOMPUTED_FILE="$PROJECT_ROOT/mock/mock_amplicon_sorter_clustered_consensus.fasta"
+
+if [[ -f "$PRECOMPUTED_FILE" ]]; then
+  echo "  ✅ Found pre-computed results: $PRECOMPUTED_FILE"
+  
+  # Copy to output directory for downstream analysis
+  cp "$PRECOMPUTED_FILE" "$OUTPUT_DIR/amplicon_sorter_consensus.fasta"
+  echo "  📋 Copied to: $OUTPUT_DIR/amplicon_sorter_consensus.fasta"
+  
+  # Show the exact server command used to generate these results
+  cat << 'EOF'
+  
+  🖥️  Server Command Used to Generate Pre-computed Results:
+  ────────────────────────────────────────────────────────────────
+  python3 ~/amp_sorter/amplicon_sorter.py \
+    -i test_fhl_200k_mitofish_classified.fasta \
+    -min 150 \
+    -max 350 \
+    -ar \
+    -ra \
+    -maxr 119241 \
+    -ssg 95 \
+    -ss 97 \
+    -sc 98 \
+    -np 120 \
+    -o fish_consensus_MAX_reads
+  ────────────────────────────────────────────────────────────────
+  
+  📚 Parameter Explanations (Optimized for 12S/mitofish):
+  
+  Basic Parameters:
+  • -min 150, -max 350    : Length filter (150-350bp)
+                           Reason: 12S amplicons typically 200-300bp
+                           Removes PCR artifacts and incomplete reads
+  
+  • -ar (--allreads)       : Use all reads in length range
+                           Reason: Maximize data for better consensus
+  
+  • -ra (--random)         : Random sampling when needed
+                           Reason: Ensure unbiased representation
+  
+  • -maxr 119241          : Process ALL classified fish reads
+                           Reason: Use complete dataset (not subsampled)
+  
+  Clustering Thresholds (Conservative for 12S):
+  • -ssg 95               : Species groups at 95% similarity
+                           Reason: 12S is highly conserved, needs tight grouping
+                           Default (~90%) too loose for species resolution
+  
+  • -ss 97                : Species level at 97% similarity  
+                           Reason: 12S allows species-level discrimination
+                           More stringent than default (85%) for cleaner clusters
+  
+  • -sc 98                : Final consensus at 98% similarity
+                           Reason: Very tight final clustering
+                           Reduces intraspecific variation artifacts
+  
+  Technical Parameters:
+  • -np 120               : 120 CPU threads (server only)
+                           Reason: Maximize parallel processing on server
+                           Local systems use -np 1 to avoid crashes
+  
+  🎯 Results: 21 high-quality consensus sequences representing distinct fish species/variants
+     Compare with vsearch's 77,393 clusters - same biology, different granularity!
+  
+EOF
+  
+  # Show stats
+  if command -v seqkit &>/dev/null; then
+    echo "    Pre-computed consensus stats:"
+    seqkit stats "$PRECOMPUTED_FILE" 2>/dev/null | tail -n +2 | sed 's/^/      /' || {
+      echo "      Stats unavailable"
+    }
+  fi
 else
-  USE_VSEARCH=1
+  echo "  ⚠️  Pre-computed results not found at: $PRECOMPUTED_FILE"
+  echo "      Please ensure mock_amplicon_sorter_clustered_consensus.fasta is in the mock/ directory"
 fi
 
 echo
-echo "🔹 FASTQ input:     $FASTQ_DIR"
-echo "🔹 Output base dir: $OUTPUT_DIR"
-echo
 
-### ── 1) Convert FASTQ → FASTA -------------------------------
-echo "▶ Converting all FASTQ → FASTA → $FASTA_DIR …"
-for fq in "$FASTQ_DIR"/*.fastq "$FASTQ_DIR"/*.fastq.gz; do
-  [[ -e "$fq" ]] || continue
-  sample=$(basename "$fq" | sed 's/\(.fastq.*\)//')
-  fa="$FASTA_DIR/${sample}.fasta"
-  echo "  • $sample → $fa"
-  seqkit fq2fa "$fq" -o "$fa"
-done
-echo "    ✓ Conversion complete"
+### ── COMPARISON & NEXT STEPS ──────────────────────────────────────
+echo "📊 CLUSTERING COMPARISON SUMMARY"
+echo "────────────────────────────────────────────────────────────────"
+echo "Two approaches demonstrated:"
 echo
-
-### ── 2) VSEARCH clustering (optional example) ------------------
-if [[ "$USE_VSEARCH" -eq 1 ]]; then
-  echo "▶ Example VSEARCH clustering (not recommended on large files)"
-  mkdir -p "$VSEARCH_DIR"
-  for fa in "$FASTA_DIR"/*.fasta; do
-    sample=$(basename "$fa" .fasta)
-    derep="$VSEARCH_DIR/${sample}_derep.fasta"
-    centroids="$VSEARCH_DIR/${sample}_clustered.fasta"
-    echo "  → $sample: derep → cluster"
-    vsearch --derep_fulllength "$fa" \
-            --output "$derep" \
-            --sizeout --minuniquesize 1
-    vsearch --cluster_fast "$derep" \
-            --id 0.98 \
-            --centroids "$centroids"
-  done
-  echo "    ✓ VSEARCH example complete"
-  echo
-fi
-
-### ── 3) Amplicon Sorter consensus building ----------------------
-ASCRIPT=$(which amplicon_sorter)
-echo "▶ Amplicon Sorter consensus (depth=$MAXREADS, len=${MINLEN}-${MAXLEN}bp)"
-for fa in "$FASTA_DIR"/*.fasta; do
-  sample=$(basename "$fa" .fasta)
-  outdir="$ASORTER_DIR/${sample}_amplicons"
-  rm -rf "$outdir"
-  echo
-  echo "  → JOB: $sample"
-  echo "    python3 $ASCRIPT \\"
-  echo "      --input                '$fa' \\"
-  echo "      --minlength            $MINLEN \\"
-  echo "      --maxlength            $MAXLEN \\"
-  echo "      --maxreads             $MAXREADS \\"
-  echo "      --allreads             \\"
-  echo "      --random               \\"
-  echo "      --nprocesses           $THREADS \\"
-  echo "      --similar_species_groups $SSG \\"
-  echo "      --similar_species      $SS \\"
-  echo "      --similar_consensus    $SC \\"
-  echo "      --outputfolder         '$outdir'"
-  python3 "$ASCRIPT" \
-    --input                "$fa" \
-    --minlength            "$MINLEN" \
-    --maxlength            "$MAXLEN" \
-    --maxreads             "$MAXREADS" \
-    --allreads \
-    --random \
-    --nprocesses           "$THREADS" \
-    --similar_species_groups "$SSG" \
-    --similar_species      "$SS" \
-    --similar_consensus    "$SC" \
-    --outputfolder         "$outdir"
-  echo "    ✓ Done: $outdir"
-done
-
+echo "1. 🏃 vsearch (Fast & Local):"
+echo "   • Results: $VSEARCH_DIR/*_vsearch_consensus.fasta"
+echo "   • Pros: Fast, reliable, runs locally"
+echo "   • Cons: Conservative clustering, may preserve errors"
+echo "   • Use case: Mock communities, quick analysis"
 echo
-echo "Step III complete!"
+echo "2. 🎯 amplicon_sorter (Advanced & Thorough):"
+echo "   • Results: $OUTPUT_DIR/amplicon_sorter_consensus.fasta (pre-computed)"
+echo "   • Pros: Sophisticated error correction, designed for ONT data"
+echo "   • Cons: Slow locally, requires server resources"
+echo "   • Use case: Real eDNA samples, publication-quality results"
 echo
-echo "Results:"
-echo " • FASTA                          → $FASTA_DIR/*.fasta"
-if [[ "$USE_VSEARCH" -eq 1 ]]; then
-  echo " • VSEARCH derep + cluster        → $VSEARCH_DIR/"
-fi
-echo " • Amplicon Sorter outputs:"
-echo "     $ASORTER_DIR/<sample>_amplicons/consensus_sequences.fasta"
+echo "📈 For downstream analysis, you can use BOTH:"
+echo "   • vsearch results: Compare clustering approaches"
+echo "   • amplicon_sorter results: Final biological interpretation"
 echo
-echo "Next steps:"
-echo " – Inspect each *_amplicons folder for consensus_sequences.fasta"
-echo " – Feed these ASVs into Step IV (denoise)."
+echo "🔬 Next steps:"
+echo "   • Taxonomic assignment of consensus sequences"
+echo "   • Compare clustering methods with Krona plots"
+echo "   • Species identification and abundance estimation"
 echo
+echo "✅ Step III complete - Ready for downstream analysis!"
