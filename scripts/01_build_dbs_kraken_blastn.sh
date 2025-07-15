@@ -176,7 +176,7 @@ for MARK in 12s coi mitofish; do
 
   echo "  • Processing sequences and creating clean headers..."
 
-  # Create Python script to clean FASTA files
+  # Create Python script to clean FASTA files (using the WORKING logic from old script)
   cat > "$FASTA_CLEAN/process_fasta_${MARK}.py" << 'EOF'
 import sys
 import re
@@ -225,9 +225,9 @@ with open(output_file, 'w') as out:
                 species = parts[2]
                 species = re.sub(r'\s*\(.*', '', species)  # Remove everything after (
                 
-                # Clean up species name
+                # Clean up species name - remove any problematic characters
                 species = re.sub(r'[^\w_]', '_', species)
-                species = re.sub(r'_+', '_', species)
+                species = re.sub(r'_+', '_', species)  # Collapse multiple underscores
                 species = species.strip('_')
                 
                 base_header = f'{accession_prefix}_{accession_number}_{species}'
@@ -237,9 +237,9 @@ with open(output_file, 'w') as out:
             # MIDORI format: MH910097.1.49461.51216###...;Genus_species_taxid
             accession = header.split('###')[0] if '###' in header else f'unknown_acc_{counter}'
             
-            # Clean accession
+            # Clean accession - remove commas and other problematic characters
             accession = re.sub(r'[^\w.-]', '_', accession)
-            accession = re.sub(r'_+', '_', accession)
+            accession = re.sub(r'_+', '_', accession)  # Collapse multiple underscores
             accession = accession.strip('_')
             
             # Extract species from taxonomy string
@@ -256,12 +256,12 @@ with open(output_file, 'w') as out:
             
             base_header = f'{accession}_{species}'
         
-        # Clean header - remove problematic characters
+        # Clean the entire header - remove commas, pipes, and other BLAST-problematic characters
         base_header = re.sub(r'[,|;()<>[\]{}]', '_', base_header)
-        base_header = re.sub(r'_+', '_', base_header)
+        base_header = re.sub(r'_+', '_', base_header)  # Collapse multiple underscores
         base_header = base_header.strip('_')
         
-        # Make header unique
+        # FIRST LEVEL: Make header unique if we've seen it before
         unique_header = base_header
         suffix = 1
         while unique_header in seen_headers:
@@ -270,12 +270,25 @@ with open(output_file, 'w') as out:
         
         # Truncate if too long for BLAST (50 char limit)
         if len(unique_header) > 50:
+            # Keep some space for the suffix if needed
             if suffix > 1:
                 suffix_part = f'_{suffix}'
                 max_base_len = 50 - len(suffix_part)
                 unique_header = f'{base_header[:max_base_len]}{suffix_part}'
             else:
                 unique_header = unique_header[:50]
+        
+        # SECOND LEVEL: Final check after truncation - ensure this exact header hasn't been used
+        original_unique = unique_header
+        suffix = 1
+        while unique_header in seen_headers:
+            suffix += 1
+            if len(original_unique) + len(f'_{suffix}') <= 50:
+                unique_header = f'{original_unique}_{suffix}'
+            else:
+                # Truncate more to fit suffix
+                max_len = 50 - len(f'_{suffix}')
+                unique_header = f'{original_unique[:max_len]}_{suffix}'
         
         seen_headers.add(unique_header)
         processed_count += 1
@@ -293,6 +306,16 @@ EOF
   echo "  • Sample cleaned headers:"
   head -5 "$CLEAN_FASTA" | grep "^>" | sed 's/^/    /' || echo "    No headers to show"
 
+  # Check for duplicates before building DB (from old script)
+  echo "  • Checking for duplicate headers..."
+  duplicate_count=$(grep "^>" "$CLEAN_FASTA" | sort | uniq -d | wc -l)
+  if [[ "$duplicate_count" -gt 0 ]]; then
+    echo "    ⚠️  Found $duplicate_count duplicate headers - this shouldn't happen!"
+    grep "^>" "$CLEAN_FASTA" | sort | uniq -d | head -3
+  else
+    echo "    ✅ No duplicate headers found"
+  fi
+
   # Build the BLAST database
   echo "  • Building BLAST database..."
   if makeblastdb \
@@ -305,6 +328,8 @@ EOF
     echo "  ✅ BLAST DB built for $MARK at $OUT_DIR/$MARK"
   else
     echo "  ❌ BLAST DB build failed for $MARK"
+    echo "    Checking first few headers for issues:"
+    head -10 "$CLEAN_FASTA"
     exit 1
   fi
   
