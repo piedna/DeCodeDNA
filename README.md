@@ -98,7 +98,7 @@ flowchart TB
   end
 
   %% Bottom row: Consensus → Denoise → Taxonomy
-  subgraph analysis ["🔬 Clustering & Classification"]
+  subgraph analysis ["Clustering & Classification"]
     direction LR
     F["03: Consensus<br/>Building"]
     G["04: Denoising<br/>(LULU)"]
@@ -110,7 +110,7 @@ flowchart TB
   E --> F
 
   %% Final outputs
-  subgraph results ["📊 Results"]
+  subgraph results ["Results"]
     direction LR
     I["Species Lists"]
     J["Abundance Tables"] 
@@ -119,37 +119,6 @@ flowchart TB
   
   H --> results
 ```
-
----
-
-## Pipeline Workflow Overview
-
-```mermaid
-flowchart TB
-  %% Top row: Wet lab → Basecalling → Quick Look
-  subgraph Pre-screening
-    direction LR
-    A["Sample collection<br>Filtration"] 
-    B["PCR<br>Library Preparation<br>MinION sequencing"]
-    C["I. Basecalling/Demultiplex"]
-    D["II. Build database<br>Kraken2/Bracken"]
-    E["Off-target clean up"]
-    A --> B --> C --> D --> E
-  end
-
-  %% Bottom row: Consensus → Denoise → Taxonomy
-  subgraph Cluster   Classify
-    direction LR
-    F["III. Consensus/<br>Sort"]
-    G["IV. Denoise"]
-    H["V. Taxonomic<br>Assignment"]
-    F --> G --> H
-  end
-
-  %% Connect the two rows
-  E --> F
-```
-
 
 ---
 
