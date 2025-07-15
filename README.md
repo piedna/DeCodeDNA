@@ -87,7 +87,7 @@ conda activate decode-dna
 ```mermaid
 flowchart TB
   %% Top row: Wet lab → Basecalling → Database → Classification
-  subgraph wetlab ["Wet Lab, Initial Processing"]
+  subgraph wetlab ["Wet Lab<br/>Initial Processing"]
     direction LR
     A["Sample Collection<br/>& Filtration"] 
     B["PCR, Library Prep<br/>MinION Sequencing"]
@@ -98,7 +98,7 @@ flowchart TB
   end
 
   %% Bottom row: Consensus → Denoise → Taxonomy
-  subgraph analysis ["Clustering & Classification"]
+  subgraph analysis ["Cluster & Classify"]
     direction LR
     F["03: Consensus<br/>Building"]
     G["04: Denoising<br/>(LULU)"]
