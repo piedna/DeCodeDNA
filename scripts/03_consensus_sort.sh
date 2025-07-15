@@ -213,22 +213,50 @@ echo
 # Check if pre-computed results exist
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-PRECOMPUTED_FILE="$PROJECT_ROOT/mock/mock_amplicon_sorter_clustered_consensus.fasta"
 
-if [[ -f "$PRECOMPUTED_FILE" ]]; then
-  echo "  ✅ Found pre-computed results: $PRECOMPUTED_FILE"
+# Look for multiple pre-computed files (for multi-sample workflow)
+shopt -s nullglob
+precomputed_files=("$PROJECT_ROOT"/mock/mock_amplicon_sorter_clustered_consensus_*.fasta)
+
+if [[ ${#precomputed_files[@]} -gt 0 && -f "${precomputed_files[0]}" ]]; then
+  echo "  ✅ Found ${#precomputed_files[@]} pre-computed result file(s):"
   
-  # Copy to output directory for downstream analysis
-  cp "$PRECOMPUTED_FILE" "$OUTPUT_DIR/amplicon_sorter_consensus.fasta"
-  echo "  📋 Copied to: $OUTPUT_DIR/amplicon_sorter_consensus.fasta"
+  # Combine all pre-computed results into one file for downstream analysis
+  echo "  📋 Combining into: $OUTPUT_DIR/amplicon_sorter_consensus.fasta"
+  > "$OUTPUT_DIR/amplicon_sorter_consensus.fasta"
+  
+  for precomputed_file in "${precomputed_files[@]}"; do
+    echo "    • $(basename "$precomputed_file")"
+    
+    # Show stats for each file
+    if command -v seqkit &>/dev/null; then
+      seqkit stats "$precomputed_file" 2>/dev/null | tail -n +2 | sed 's/^/      /' || {
+        echo "      Stats unavailable"
+      }
+    fi
+    
+    # Append to combined file
+    cat "$precomputed_file" >> "$OUTPUT_DIR/amplicon_sorter_consensus.fasta"
+  done
+  
+  echo "  ✅ Combined successfully!"
+  
+  # Show combined stats
+  if command -v seqkit &>/dev/null; then
+    echo "    Combined consensus stats:"
+    seqkit stats "$OUTPUT_DIR/amplicon_sorter_consensus.fasta" 2>/dev/null | tail -n +2 | sed 's/^/      /' || {
+      echo "      Stats unavailable"
+    }
+  fi
   
   # Show the exact server command used to generate these results
   cat << 'EOF'
   
   🖥️  Server Command Used to Generate Pre-computed Results:
   ────────────────────────────────────────────────────────────────
+  # For each sample:
   python3 ~/amp_sorter/amplicon_sorter.py \
-    -i test_fhl_200k_mitofish_classified.fasta \
+    -i test_fhl_200k_[1-3]_mitofish_classified.fasta \
     -min 150 \
     -max 350 \
     -ar \
@@ -238,7 +266,7 @@ if [[ -f "$PRECOMPUTED_FILE" ]]; then
     -ss 97 \
     -sc 98 \
     -np 120 \
-    -o fish_consensus_MAX_reads
+    -o fish_consensus_MAX_reads_[1-3]
   ────────────────────────────────────────────────────────────────
   
   📚 Parameter Explanations (Optimized for 12S/mitofish):
@@ -275,21 +303,14 @@ if [[ -f "$PRECOMPUTED_FILE" ]]; then
                            Reason: Maximize parallel processing on server
                            Local systems use -np 1 to avoid crashes
   
-  🎯 Results: 21 high-quality consensus sequences representing distinct fish species/variants
-     Compare with vsearch's 77,393 clusters - same biology, different granularity!
+  🎯 Results: Multiple high-quality consensus sequences representing distinct fish species/variants
+     Compare with vsearch's many clusters - same biology, different granularity!
   
 EOF
   
-  # Show stats
-  if command -v seqkit &>/dev/null; then
-    echo "    Pre-computed consensus stats:"
-    seqkit stats "$PRECOMPUTED_FILE" 2>/dev/null | tail -n +2 | sed 's/^/      /' || {
-      echo "      Stats unavailable"
-    }
-  fi
 else
-  echo "  ⚠️  Pre-computed results not found at: $PRECOMPUTED_FILE"
-  echo "      Please ensure mock_amplicon_sorter_clustered_consensus.fasta is in the mock/ directory"
+  echo "  ⚠️  Pre-computed results not found at: $PROJECT_ROOT/mock/mock_amplicon_sorter_clustered_consensus_*.fasta"
+  echo "      Please ensure mock_amplicon_sorter_clustered_consensus_[1-3].fasta files are in the mock/ directory"
 fi
 
 echo
