@@ -86,39 +86,38 @@ conda activate decode-dna
 
 ```mermaid
 flowchart TB
-  %% Sample to sequencing
-  subgraph wet ["🧪 Wet Lab"]
+  %% Top row: Wet lab → Basecalling → Database → Classification
+  subgraph wetlab ["🧪 Wet Lab & Initial Processing"]
     direction LR
     A["Sample Collection<br/>& Filtration"] 
-    B["PCR Amplification<br/>Library Prep"]
-    C["MinION Sequencing<br/>POD5 Output"]
-    A --> B --> C
+    B["PCR Amplification<br/>Library Prep<br/>MinION Sequencing"]
+    C["00. Basecalling<br/>& Demultiplexing"]
+    D["01. Database Building<br/>Kraken2 & BLAST"]
+    E["02. Quality Control<br/>& Classification"]
+    A --> B --> C --> D --> E
   end
 
-  %% Bioinformatics pipeline  
-  subgraph bio ["💻 Bioinformatics Pipeline"]
+  %% Bottom row: Consensus → Denoise → Taxonomy
+  subgraph analysis ["🔬 Clustering & Classification"]
     direction LR
-    D["00. Basecalling<br/>& Demultiplexing"]
-    E["02. Quality Control<br/>& Classification"]
     F["03. Consensus<br/>Building"]
     G["04. Denoising<br/>(LULU)"]
     H["05. Taxonomic<br/>Assignment"]
-    D --> E --> F --> G --> H
+    F --> G --> H
   end
 
-  %% Connect wet lab to bioinformatics
-  C --> D
+  %% Connect the two rows
+  E --> F
 
-  %% Outputs
-  subgraph out ["📊 Results"]
+  %% Final outputs
+  subgraph results ["📊 Results"]
     direction LR
     I["Species Lists"]
     J["Abundance Tables"] 
     K["Krona Plots"]
-    H --> I
-    H --> J  
-    H --> K
   end
+  
+  H --> results
 ```
 
 ---
@@ -133,6 +132,22 @@ flowchart TB
   *https://github.com/asrivathsan/ONTbarcoder/releases*
 - **Output**: High-quality FASTQ sequences organized by sample
 - **Teaching note**: Scripts handle both GPU and CPU basecalling for different systems
+
+### Step 01: Reference Database Building
+- **Input**: Curated FASTA sequences from multiple sources
+- **Process**: Download and build local reference databases for taxonomic classification
+- **Databases created**:
+  - **MIDORI 12S**: Curated 12S rRNA sequences for fish identification
+  - **MIDORI COI**: Cytochrome oxidase I sequences for broader metazoan diversity
+  - **MitoFish**: Complete fish mitogenome database for comprehensive coverage
+- **Output formats**:
+  - **Kraken2 databases**: K-mer based classification (fast, probabilistic)
+  - **BLAST databases**: Sequence similarity search (slower, precise alignments)
+- **Why both approaches?**
+  - **Kraken2**: Rapid initial classification, handles short/degraded sequences well, provides confidence scores
+  - **BLAST**: High-precision alignments, better for novel sequences, allows manual curation of hits
+  - **Complementary strengths**: Kraken2 for speed and broad coverage, BLAST for accuracy and verification
+  - **Cross-validation**: Compare results between methods to increase confidence in identifications
 
 ### Step 02: Quality Control & Initial Classification  
 - **Input**: Basecalled and demultiplexed FASTQ files
@@ -165,7 +180,7 @@ flowchart TB
 - **Methods**: 
   - **BLAST**: Sequence similarity search against curated databases (12S, COI, MitoFish)
   - **Kraken2**: K-mer based classification with confidence scoring
-  - **Database comparison**: Cross-validation between methods
+  - **Database comparison**: Cross-validation between methods for robust identification
 - **Output**: 
   - Final species identification matrices
   - Abundance tables per sample
@@ -255,7 +270,9 @@ bash scripts/00_basecall_and_demux.sh
 
 # 3. Continue with steps 2-5 using your FASTQ directory
 bash scripts/02_quick_look_clean.sh your_fastq_dir/ results/02_quicklook
-# ... continue as above
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise
+bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 ```
 
 ### Customization Options
@@ -319,10 +336,10 @@ results/
 ## 📚 Scientific Background
 
 ### Key Publications
-- **Kraken2**: Wood & Langmead (2019) - Improved metagenomic analysis  
+- **Kraken2**: Wood & Salzberg (2014) - Improved metagenomic analysis  
 - **LULU**: Frøslev et al. (2017) - Post-clustering curation algorithm
 - **BLAST**: Altschul et al. (1990) - Basic local alignment search tool
-- **amplicon_sorter**: Vierstraete et al. (2022) - ONT amplicon processing
+- **amplicon_sorter**: Vierstraete et al. (2021) - ONT amplicon processing
 
 ### Pipeline Philosophy
 - **Educational transparency**: All parameters documented and adjustable
@@ -351,14 +368,6 @@ If you use DeCodeDNA in your research:
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-improvement`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)  
-4. Push to branch (`git push origin feature/amazing-improvement`)
-5. Open a Pull Request
 
 ## 📞 Support
 
