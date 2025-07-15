@@ -4,15 +4,18 @@ set -eo pipefail
 # ─── USAGE ─────────────────────────────────────────────────────────
 if [[ $# -ne 2 ]]; then
   echo "Usage: $0 <FASTQ_DIR> <OUTPUT_DIR>"
+  echo "Example: $0 mock/basecalled_fastq/ results/02_quicklook"
   exit 1
 fi
 FASTQ_DIR="$1"
 OUTPUT_DIR="$2"
 
-# ─── PROJECT & DB ROOT ────────────────────────────────────────────
+# ─── PROJECT & DB ROOT (SELF-CONTAINED) ────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DB_ROOT="${DB_ROOT:-$PROJECT_ROOT/../kraken2_db}"
+
+# Database locations (created by script 01)
+DB_ROOT="${DB_ROOT:-$PROJECT_ROOT/../databases/kraken2_db}"
 
 # ─── WHICH KRAKEN2 DBs ─────────────────────────────────────────────
 DBS=(12s coi mitofish)
@@ -25,6 +28,15 @@ CONFIDENCE="${CONFIDENCE:-0.05}"
 QUALITY_THRESHOLD="${QUALITY_THRESHOLD:-12}"   # Q12 quality threshold
 MIN_LENGTH="${MIN_LENGTH:-100}"                # minimum read length
 MAX_LENGTH="${MAX_LENGTH:-500}"                # maximum read length (initial broad filter)
+
+echo "🔬 DeCodeDNA Quality Control & Classification"
+echo "═══════════════════════════════════════════════"
+echo "🔹 Input FASTQ dir:  $FASTQ_DIR"
+echo "🔹 Output dir:       $OUTPUT_DIR"
+echo "🔹 Database root:    $DB_ROOT"
+echo "🔹 Quality filter:   Q≥$QUALITY_THRESHOLD"
+echo "🔹 Length filter:    ${MIN_LENGTH}-${MAX_LENGTH} bp"
+echo ""
 
 # ─── SANITY: required tools must exist ────────────────────────────
 echo "🔍 Checking required tools..."
@@ -51,6 +63,13 @@ else
   echo "⚠️  Warning: KronaTools not found → skipping Krona charts"
 fi
 
+# ─── CHECK INPUT DIRECTORY ─────────────────────────────────────────
+if [[ ! -d "$FASTQ_DIR" ]]; then
+  echo "❌ Error: Input directory not found: $FASTQ_DIR"
+  echo "   Expected to find FASTQ files for analysis"
+  exit 1
+fi
+
 # ─── MAKE OUTPUT DIRS ─────────────────────────────────────────────
 FILTERED_DIR="$OUTPUT_DIR/filtered"
 mkdir -p "$FILTERED_DIR"
@@ -58,16 +77,27 @@ for db in "${DBS[@]}"; do
   mkdir -p "$OUTPUT_DIR/$db"
 done
 
-echo
-echo "🔹 Input FASTQ dir:  $FASTQ_DIR"
-echo "🔹 Output dir:       $OUTPUT_DIR"
-echo "🔹 Quality filter:   Q≥$QUALITY_THRESHOLD"
-echo "🔹 Length filter:    ${MIN_LENGTH}-${MAX_LENGTH} bp"
-echo
+echo ""
 
 # ─── MAIN LOOP: each FASTQ (.gz) in FASTQ_DIR ─────────────────────
 shopt -s nullglob
-for fq in "$FASTQ_DIR"/*.fastq "$FASTQ_DIR"/*.fastq.gz "$FASTQ_DIR"/*.fq "$FASTQ_DIR"/*.fq.gz; do
+fastq_files=("$FASTQ_DIR"/*.fastq "$FASTQ_DIR"/*.fastq.gz "$FASTQ_DIR"/*.fq "$FASTQ_DIR"/*.fq.gz)
+
+if [[ ${#fastq_files[@]} -eq 0 ]]; then
+  echo "❌ No FASTQ files found in $FASTQ_DIR"
+  echo "   Looking for: *.fastq, *.fastq.gz, *.fq, *.fq.gz"
+  echo "   Available files:"
+  ls -la "$FASTQ_DIR/" | head -10
+  exit 1
+fi
+
+echo "Found ${#fastq_files[@]} FASTQ file(s) to process:"
+for fq in "${fastq_files[@]}"; do
+  echo "  • $(basename "$fq")"
+done
+echo ""
+
+for fq in "${fastq_files[@]}"; do
   sample="$(basename "$fq")"
   sample="${sample%.*}"      # strip first extension
   sample="${sample%.*}"      # strip second extension if .gz
@@ -124,6 +154,14 @@ for fq in "$FASTQ_DIR"/*.fastq "$FASTQ_DIR"/*.fastq.gz "$FASTQ_DIR"/*.fq "$FASTQ
     OUT_DIR="$OUTPUT_DIR/$db"
 
     echo "  • Kraken2 → $db"
+    
+    # Check if database exists
+    if [[ ! -d "$DB_PATH" ]] || [[ ! -f "$DB_PATH/taxo.k2d" ]]; then
+      echo "    ❌ Kraken2 database not found: $DB_PATH"
+      echo "       Run script 01 to build databases first"
+      continue
+    fi
+    
     kraken2 \
       --db "$DB_PATH" \
       --threads "$THREADS" \
@@ -183,13 +221,17 @@ for fq in "$FASTQ_DIR"/*.fastq "$FASTQ_DIR"/*.fastq.gz "$FASTQ_DIR"/*.fq "$FASTQ
 done
 
 echo
-echo "✅ Quick look with filtering complete!"
+echo "✅ Quality control and classification complete!"
 echo
-echo "Results:"
+echo "📊 Results summary:"
 echo " • Filtered FASTQ files       → $FILTERED_DIR/"
 echo " • Length distribution PDFs   → $FILTERED_DIR/<sample>_length_dist/"
 echo " • Kraken2 classification     → $OUTPUT_DIR/{${DBS[*]}}"
 echo " • Fish-classified sequences  → $OUTPUT_DIR/mitofish/*_classified.fasta"
+if [[ "$USE_KRONA" -eq 1 ]]; then
+  echo " • Interactive Krona plots    → $OUTPUT_DIR/*/*.krona.html"
+fi
 echo
-echo "Next step:"
+echo "🔗 Next step:"
 echo " bash scripts/03_consensus_sort.sh $OUTPUT_DIR results/03_consensus"
+echo ""
