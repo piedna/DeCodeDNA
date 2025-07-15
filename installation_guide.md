@@ -36,11 +36,14 @@ chmod +x scripts/*.sh
 conda env create -f environment.yml
 conda activate decode-dna
 
-# 4. Install R package for denoising
+# 4. Setup Krona taxonomy
+ktUpdateTaxonomy.sh
+
+# 5. Install R package for denoising
 Rscript -e 'if(!require(devtools)) install.packages("devtools"); devtools::install_github("tobiasgf/lulu")'
 
-# 5. Test with mock data (skip basecalling, start from step 2)
-bash scripts/02_quick_look_clean.sh mock/basecalled_fastq/ results/02_quicklook
+# 6. Test with mock data (skip basecalling, start from step 2)
+bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
 ```
 
 **✅ This minimal setup lets you run steps 2-5 of the pipeline on example data!**
@@ -85,11 +88,9 @@ chmod +x scripts/*.sh
 # │   └── FAU66365_465db7b0_6c9b72bf_3.fast5
 # ├── pod5_barcode50/                 # Modern POD5 files (for basecalling demo)
 # │   ├── FAX02223_pass_barcode50_*.pod5  # 5 files total
-# ├── basecalled_fastq/               # Ready-to-use sequences (START HERE)
-# │   ├── test_fhl_200k_1.fastq      # Sample replicate 1 (~200k reads)
-# │   ├── test_fhl_200k_2.fastq      # Sample replicate 2
-# │   ├── test_fhl_200k_3.fastq      # Sample replicate 3
-# │   └── README.txt                 # Data description
+# ├── test_fhl_200k_1.fastq          # Sample replicate 1 (~200k reads)
+# ├── test_fhl_200k_2.fastq          # Sample replicate 2  
+# ├── test_fhl_200k_3.fastq          # Sample replicate 3
 # └── mock_amplicon_sorter_clustered_consensus_*.fasta  # Pre-computed server results
 #
 # 🎓 File Format Explanation:
@@ -98,7 +99,7 @@ chmod +x scripts/*.sh
 # • FASTQ: Basecalled sequences ready for analysis
 # • Pre-computed consensus: High-quality results from server processing
 #
-# 💡 For classroom: Use basecalled_fastq/ files to focus on bioinformatics
+# 💡 For classroom: Use mock/ files to focus on bioinformatics
 #    rather than spending time on basecalling
 #
 # 🖥️ Pre-computed Amplicon_sorter Results:
@@ -135,10 +136,43 @@ for tool in python kraken2 vsearch blastn seqkit; do
 done
 ```
 
-### Step 3: Install R Packages
+### Step 3: Setup Krona Taxonomy
 ```bash
+# Krona needs NCBI taxonomy data for proper visualization
+echo "📊 Setting up Krona taxonomy..."
+
+# Create taxonomy directory and populate it
+mkdir -p $CONDA_PREFIX/opt/krona/taxonomy
+cd $CONDA_PREFIX/opt/krona/taxonomy
+
+# Download and setup taxonomy (this does everything automatically)
+ktUpdateTaxonomy.sh
+
+# If ktUpdateTaxonomy.sh doesn't extract properly, do it manually:
+tar -xzf taxdump.tar.gz
+
+# Then run ktUpdateTaxonomy.sh again to process the extracted files
+ktUpdateTaxonomy.sh
+
+# Verify the files are there
+echo "🔍 Checking for required taxonomy files..."
+ls -la
+
+echo "   ✅ Krona taxonomy setup complete"
+echo "   📁 You should now see files: names.dmp, nodes.dmp, merged.dmp"
+
+# Return to project directory
+cd ~/eDNA_workshop/DeCodeDNA
+```
+
+### Step 4: Install R Packages
+```bash
+# Install system dependencies first (macOS)
+echo "📦 Installing system dependencies..."
+brew install libgit2
+
 # Install LULU package for denoising
-echo "Installing LULU R package..."
+echo "📦 Installing LULU R package..."
 Rscript -e '
   if (!requireNamespace("devtools", quietly = TRUE)) {
     install.packages("devtools", repos = "https://cloud.r-project.org")
@@ -154,7 +188,7 @@ Rscript -e '
 '
 ```
 
-### Step 4: External Tools
+### Step 5: External Tools
 ```bash
 # Create tools directory
 mkdir -p ../tools
@@ -185,7 +219,7 @@ echo "📥 Downloading ONTbarcoder2.3..."
 curl -L -o ONTbarcoder2.3.zip "https://github.com/asrivathsan/ONTbarcoder/releases/download/2.3.0/ONTbarcoder2.3.0_OSX.zip"
 unzip ONTbarcoder2.3.zip
 echo "✅ ONTbarcoder2.3 downloaded - you can open the app from Finder"
-echo "   Location: $(pwd)/ONTbarcoder2.3.app"
+echo "   📱 Location: $(pwd)/ONTbarcoder2.3.app"
 
 # Return to main directory
 cd ../DeCodeDNA
@@ -201,7 +235,7 @@ for tool in dorado amplicon_sorter; do
 done
 ```
 
-### Step 5: Reference Databases
+### Step 6: Reference Databases
 ```bash
 # Build all reference databases
 echo "🗄️ Building reference databases..."
@@ -242,12 +276,23 @@ for pkg in packages:
 
 # Check R packages
 Rscript -e "
-if (requireNamespace('lulu', quietly=TRUE)) {
-  cat('✅ LULU R package\n')
-} else {
-  cat('❌ LULU R package\n')
+packages <- c('devtools', 'lulu')
+for (pkg in packages) {
+  if (requireNamespace(pkg, quietly=TRUE)) {
+    version <- packageVersion(pkg)
+    cat('✅', pkg, ':', as.character(version), '\n')
+  } else {
+    cat('❌', pkg, ': not installed\n')
+  }
 }
 "
+
+# Check Krona
+if [[ -f "$CONDA_PREFIX/opt/krona/taxonomy/taxonomy.tab" ]]; then
+    echo "✅ Krona taxonomy"
+else
+    echo "❌ Krona taxonomy"
+fi
 ```
 
 ### Test 2: Mock Data Pipeline
@@ -259,7 +304,7 @@ echo "🧪 Testing pipeline with mock data..."
 chmod +x scripts/*.sh
 
 # Step 2: Quick classification (using pre-basecalled FASTQ files)
-bash scripts/02_quick_look_clean.sh mock/basecalled_fastq/ results/test_02
+bash scripts/02_quick_look_clean.sh mock/ results/test_02
 
 # Step 3: Consensus building  
 bash scripts/03_consensus_sort.sh results/test_02 results/test_03
@@ -304,7 +349,7 @@ fi
 conda activate decode-dna
 
 # For mock data (no basecalling needed):
-bash scripts/02_quick_look_clean.sh mock/basecalled_fastq/ results/02_quicklook
+bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
 bash scripts/04_denoise.sh results/03_consensus results/04_denoise
 bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
@@ -370,6 +415,24 @@ R
 > quit()
 ```
 
+**Krona taxonomy setup issues**
+```bash
+# If ktUpdateTaxonomy.sh fails, try manual setup:
+cd $CONDA_PREFIX/opt/krona/taxonomy
+
+# Download taxonomy dump manually
+curl -o taxdump.tar.gz "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
+
+# Extract files manually
+tar -xzf taxdump.tar.gz
+
+# Run ktUpdateTaxonomy.sh again
+ktUpdateTaxonomy.sh
+
+# Verify final setup
+ls -la taxonomy.tab
+```
+
 **Database build fails**
 ```bash
 # Check available space
@@ -425,16 +488,17 @@ git clone https://github.com/piedna/DeCodeDNA.git && cd DeCodeDNA
 chmod +x scripts/*.sh  # Make scripts executable
 conda env create -f environment.yml
 conda activate decode-dna
+ktUpdateTaxonomy.sh  # Setup Krona taxonomy
 
 # Copy pre-built databases (if available)
 # cp -r /path/to/shared/databases ../databases
 
 # Start with mock data analysis (use pre-basecalled FASTQ files)
-bash scripts/02_quick_look_clean.sh mock/basecalled_fastq/ results/02_quicklook
+bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
 ```
 
 ### Student Support
-- **Common issues**: Have solutions ready for conda/R problems
+- **Common issues**: Have solutions ready for conda/R/Krona problems
 - **Backup plan**: Pre-computed results for each step
 - **Timing**: Allow extra time for installations
 - **Resources**: Monitor network/CPU usage during class
@@ -453,6 +517,9 @@ conda env update -f environment.yml
 
 # Update R packages  
 Rscript -e 'devtools::install_github("tobiasgf/lulu", upgrade=TRUE)'
+
+# Update Krona taxonomy (optional, updates slowly)
+ktUpdateTaxonomy.sh
 ```
 
 ### Cleaning Up
@@ -465,6 +532,9 @@ conda env remove -n decode-dna-old
 
 # Clean conda cache
 conda clean --all
+
+# Clean Krona test files
+rm -f $CONDA_PREFIX/opt/krona/taxonomy/krona_test.html
 ```
 
 ---
