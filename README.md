@@ -122,6 +122,37 @@ flowchart TB
 
 ---
 
+## Pipeline Workflow Overview
+
+```mermaid
+flowchart TB
+  %% Top row: Wet lab → Basecalling → Quick Look
+  subgraph Pre-screening
+    direction LR
+    A["Sample collection<br>Filtration"] 
+    B["PCR<br>Library Preparation<br>MinION sequencing"]
+    C["I. Basecalling/Demultiplex"]
+    D["II. Build database<br>Kraken2/Bracken"]
+    E["Off-target clean up"]
+    A --> B --> C --> D --> E
+  end
+
+  %% Bottom row: Consensus → Denoise → Taxonomy
+  subgraph Cluster   Classify
+    direction LR
+    F["III. Consensus/<br>Sort"]
+    G["IV. Denoise"]
+    H["V. Taxonomic<br>Assignment"]
+    F --> G --> H
+  end
+
+  %% Connect the two rows
+  E --> F
+```
+
+
+---
+
 ## 📖 Pipeline Steps
 
 ### Step 00: Basecalling and Demultiplexing
