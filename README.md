@@ -53,6 +53,58 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 
 ---
 
+## 🔄 Pipeline Workflow Dependencies
+
+Understanding how the scripts connect helps you plan your analysis:
+
+```
+Script 00 (Basecalling)     ──→ FASTQ files ──→ Script 02
+    ↓                                              ↓
+📱 ONTbarcoder GUI                               Script 03
+    ↓                                              ↓
+Demultiplexed FASTQ        ──→ Script 02 ──→ Script 04
+                                                   ↓
+Script 01 (Databases) ──────────────────────→ Script 05
+
+```
+
+**Script Categories:**
+
+🔧 **Optional Setup** (can run separately):
+* **Script 00**: Basecalling & demultiplexing demo (often done on sequencing machine)
+* **Script 01**: Database building (instructor pre-setup, or one-time student setup)
+
+📊 **Core Pipeline** (run in sequence):
+* **Script 02** → **Script 03** → **Script 04** → **Script 05**
+
+**Classroom Workflows:**
+
+**Option A - Full Experience (45 minutes):**
+```bash
+./scripts/01_build_dbs_kraken_blastn.sh                    # 20-30 min
+bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook              # 5 min
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus # 5 min  
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise          # 10 min
+bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy # 5 min
+```
+
+**Option B - Quick Demo (15 minutes):**
+```bash
+bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook              # 5 min
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus # 5 min  
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise          # 5 min
+# Skip script 05 (requires databases from script 01)
+```
+
+**Option C - Basecalling Demo (separate session):**
+```bash
+bash scripts/00_basecall_and_demux.sh  # Demonstrates GPU vs CPU basecalling
+# Then use ONTbarcoder GUI for demultiplexing
+# Results feed into regular pipeline starting with script 02
+```
+
+---
+
 ## 📋 Dependencies
 
 | Tool            | Purpose                                   |
