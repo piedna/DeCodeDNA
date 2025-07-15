@@ -427,7 +427,7 @@ For questions or issues:
 - **Check the `installation_guide.md`** for detailed setup instructions
 - **Review script comments** for step-specific guidance  
 - **Contact course instructors**: `ednacollab@uw.edu`
-- **Written and maintained by**: Yin Cheong Aden IP
+- **Written and maintained by**: Aden IP
 
 ---
 
