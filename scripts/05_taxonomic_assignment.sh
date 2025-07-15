@@ -4,16 +4,27 @@ set -euo pipefail
 # ─── usage ────────────────────────────────────────────────────────────────
 if [[ $# -ne 2 ]]; then
   echo "Usage: $0 <DENOISE_DIR> <OUTPUT_DIR>"
+  echo "Example: $0 results/04_denoise results/05_taxonomy"
   exit 1
 fi
 DENOISE_DIR="$1"
 OUTPUT_DIR="$2"
 
-# ─── locate project & databases ──────────────────────────────────────────
+# ─── locate project & databases (SELF-CONTAINED) ─────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-BLAST_DB_ROOT="${BLAST_DB_ROOT:-$PROJECT_ROOT/../blast_db}"
-KRAKEN_DB_ROOT="${KRAKEN_DB_ROOT:-$PROJECT_ROOT/../kraken2_db}"
+
+# Database locations (created by script 01)
+BLAST_DB_ROOT="${BLAST_DB_ROOT:-$PROJECT_ROOT/../databases/blast_db}"
+KRAKEN_DB_ROOT="${KRAKEN_DB_ROOT:-$PROJECT_ROOT/../databases/kraken2_db}"
+
+echo "🔬 DeCodeDNA Taxonomic Assignment"
+echo "════════════════════════════════════"
+echo "🔹 Denoise input:    $DENOISE_DIR"
+echo "🔹 Output directory: $OUTPUT_DIR"
+echo "🔹 BLAST databases:  $BLAST_DB_ROOT"
+echo "🔹 Kraken2 databases: $KRAKEN_DB_ROOT"
+echo ""
 
 # ─── sanity checks ───────────────────────────────────────────────────────
 if [[ ! -d "$DENOISE_DIR" ]]; then
@@ -39,21 +50,84 @@ echo "   • Krona plots      → $KRONA_DIR"
 echo "   • Temp files       → $TEMP_DIR"
 echo ""
 
-# ─── find input files ────────────────────────────────────────────────────
-REP_FASTA=$(find "$DENOISE_DIR" -maxdepth 1 -type f -iname "*.fasta" | head -n1 || true)
-if [[ -z "$REP_FASTA" ]]; then
-  echo "❌ Error: no .fasta file found in $DENOISE_DIR"
-  exit 1
-fi
-echo "✔ Found reps FASTA: $REP_FASTA"
+# ─── find and combine input files from multi-database structure ─────────
+echo "🔍 Looking for multi-database denoised files..."
 
-OTU_TABLE=$(find "$DENOISE_DIR" -maxdepth 1 -type f \( -iname "*.csv" -o -iname "*.tsv" \) \
-  | grep -v -i discarded | head -n1 || true)
-if [[ -z "$OTU_TABLE" ]]; then
-  echo "❌ Error: no .csv or .tsv OTU table found in $DENOISE_DIR"
+# Check for nested directory structure (common issue)
+ACTUAL_DENOISE_DIR="$DENOISE_DIR"
+if [[ -d "$DENOISE_DIR/results" ]] && [[ -d "$DENOISE_DIR/results/04_denoise" ]]; then
+  echo "  📁 Detected nested directory structure"
+  ACTUAL_DENOISE_DIR="$DENOISE_DIR/results/04_denoise"
+  echo "  🔄 Using: $ACTUAL_DENOISE_DIR"
+elif [[ ! -d "$DENOISE_DIR/12s" ]] && [[ ! -d "$DENOISE_DIR/coi" ]] && [[ ! -d "$DENOISE_DIR/mitofish" ]]; then
+  echo "❌ Error: No database directories found in $DENOISE_DIR"
+  echo "Expected: $DENOISE_DIR/{12s,coi,mitofish}/"
+  echo "Available:"
+  ls -la "$DENOISE_DIR/" || echo "Directory not accessible"
   exit 1
 fi
-echo "✔ Found OTU table: $OTU_TABLE"
+
+# Combine all representative sequences from all databases
+COMBINED_REP_FASTA="$TEMP_DIR/all_databases_representatives.fasta"
+> "$COMBINED_REP_FASTA"
+
+# Combine all OTU tables from all databases  
+COMBINED_OTU_TABLE="$TEMP_DIR/all_databases_otu_table.csv"
+echo "OTU_ID,Sample1,Sample2,Sample3" > "$COMBINED_OTU_TABLE"
+
+databases_found=0
+
+for db in 12s coi mitofish; do
+  db_dir="$ACTUAL_DENOISE_DIR/$db"
+  if [[ -d "$db_dir" ]]; then
+    echo "  📁 Found database directory: $db"
+    
+    # Look for representative sequences
+    rep_fasta=$(find "$db_dir" -name "*representatives*combined.fasta" | head -n1 || true)
+    if [[ -n "$rep_fasta" && -f "$rep_fasta" ]]; then
+      echo "    ✓ Adding representatives: $(basename "$rep_fasta")"
+      cat "$rep_fasta" >> "$COMBINED_REP_FASTA"
+    fi
+    
+    # Look for curated OTU table
+    otu_table=$(find "$db_dir" -name "*lulu_curated.csv" | head -n1 || true)
+    if [[ -n "$otu_table" && -f "$otu_table" ]]; then
+      echo "    ✓ Adding OTU table: $(basename "$otu_table")"
+      # Skip header and append data
+      tail -n +2 "$otu_table" >> "$COMBINED_OTU_TABLE"
+      databases_found=$((databases_found + 1))
+    fi
+  fi
+done
+
+if [[ $databases_found -eq 0 ]]; then
+  echo "❌ Error: No database results found in $ACTUAL_DENOISE_DIR"
+  echo "Expected structure: $ACTUAL_DENOISE_DIR/{12s,coi,mitofish}/"
+  exit 1
+fi
+
+# Check combined files
+if [[ ! -s "$COMBINED_REP_FASTA" ]]; then
+  echo "❌ Error: No representative sequences found"
+  exit 1
+fi
+
+if [[ ! -s "$COMBINED_OTU_TABLE" ]]; then
+  echo "❌ Error: No OTU table data found"
+  exit 1
+fi
+
+echo "✔ Combined representatives: $COMBINED_REP_FASTA"
+echo "✔ Combined OTU table: $COMBINED_OTU_TABLE"
+
+# Use combined files for downstream analysis
+REP_FASTA="$COMBINED_REP_FASTA"
+OTU_TABLE="$COMBINED_OTU_TABLE"
+
+# Show summary
+rep_count=$(grep -c "^>" "$REP_FASTA")
+otu_count=$(tail -n +2 "$OTU_TABLE" | wc -l)
+echo "📊 Combined dataset: $rep_count sequences, $otu_count OTUs from $databases_found databases"
 
 # ─── subset sequences for teaching speed ─────────────────────────────────
 SUBSET_COUNT="${SUBSET_COUNT:-2000}"
@@ -87,6 +161,7 @@ for DB in 12s coi mitofish; do
   
   if [[ ! -f "${DB_PATH}.nsq" && ! -f "${DB_PATH}.nin" ]]; then
     echo "❌ BLAST DB not found: $DB_PATH"
+    echo "   Run script 01 to build databases first"
     continue
   fi
 
@@ -142,7 +217,7 @@ if [[ "${SKIP_KRAKEN:-false}" != "true" ]]; then
     
     if [[ ! -d "$KRAKEN_DB_PATH" ]] || [[ ! -f "$KRAKEN_DB_PATH/taxo.k2d" ]]; then
       echo "❌ Kraken2 DB not found: $KRAKEN_DB_PATH"
-      echo "   Run script 00 with Kraken2 enabled to build databases"
+      echo "   Run script 01 to build databases first"
       continue
     fi
 
