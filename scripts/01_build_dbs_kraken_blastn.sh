@@ -132,63 +132,8 @@ for fasta in midori_12s.fasta midori_coi.fasta mifish.fasta; do
 done
 echo ""
 
-# ─── BUILD KRAKEN2 DATABASES ───────────────────────────────────────────────
-echo "🦠 STEP 2: Building Kraken2 Databases"
-echo "─────────────────────────────────────────────"
-
-if command -v kraken2-build >/dev/null 2>&1; then
-  echo "   ✅ kraken2-build found"
-  
-  for DB in 12s coi mitofish; do
-    TARGET="$KRAKEN_DB/$DB"
-    echo ""
-    echo "🔨 Building Kraken2 DB for $DB..."
-    
-    if [[ -f "$TARGET/taxo.k2d" ]]; then
-      echo "   ⚠️  Kraken2 DB already exists for $DB - skipping"
-      continue
-    fi
-    
-    # Create database directory
-    mkdir -p "$TARGET"
-    
-    # Download NCBI taxonomy for this database
-    echo "   • Downloading NCBI taxonomy..."
-    kraken2-build --download-taxonomy --db "$TARGET"
-    
-    # Map database name to FASTA file
-    case "$DB" in
-      12s)      FASTA_FILE="$FASTA_ROOT/midori_12s.fasta" ;;
-      coi)      FASTA_FILE="$FASTA_ROOT/midori_coi.fasta" ;;
-      mitofish) FASTA_FILE="$FASTA_ROOT/mifish.fasta" ;;
-    esac
-    
-    if [[ -f "$FASTA_FILE" ]]; then
-      echo "   • Adding sequences to library..."
-      kraken2-build --add-to-library "$FASTA_FILE" --db "$TARGET" --no-masking
-      
-      echo "   • Building database (this may take 5-15 minutes)..."
-      kraken2-build --build --db "$TARGET" --threads "$THREADS" --no-masking
-      
-      echo "   ✅ Kraken2 DB built for $DB"
-    else
-      echo "   ❌ FASTA file not found: $FASTA_FILE"
-    fi
-  done
-  
-  echo ""
-  echo "✅ All Kraken2 DBs completed"
-  
-else
-  echo "❌ kraken2-build not found - skipping Kraken2 databases"
-  echo "   Install with: conda install -c bioconda kraken2"
-  echo "   Kraken2 analysis in downstream scripts will be skipped"
-fi
-
-echo ""
-
 # ─── BUILD BLAST DATABASES ─────────────────────────────────────────────────
-echo "🧬 STEP 3: Building BLAST Databases"
+echo "🧬 STEP 2: Building BLAST Databases"
 echo "─────────────────────────────────────────────"
 
 for MARK in 12s coi mitofish; do
@@ -369,31 +314,86 @@ done
 
 echo ""
 
+# ─── BUILD KRAKEN2 DATABASES ───────────────────────────────────────────────
+echo "🦠 STEP 3: Building Kraken2 Databases"
+echo "─────────────────────────────────────────────"
+
+if command -v kraken2-build >/dev/null 2>&1; then
+  echo "   ✅ kraken2-build found"
+  
+  for DB in 12s coi mitofish; do
+    TARGET="$KRAKEN_DB/$DB"
+    echo ""
+    echo "🔨 Building Kraken2 DB for $DB..."
+    
+    if [[ -f "$TARGET/taxo.k2d" ]]; then
+      echo "   ⚠️  Kraken2 DB already exists for $DB - skipping"
+      continue
+    fi
+    
+    # Create database directory
+    mkdir -p "$TARGET"
+    
+    # Download NCBI taxonomy for this database
+    echo "   • Downloading NCBI taxonomy..."
+    kraken2-build --download-taxonomy --db "$TARGET"
+    
+    # Map database name to FASTA file
+    case "$DB" in
+      12s)      FASTA_FILE="$FASTA_ROOT/midori_12s.fasta" ;;
+      coi)      FASTA_FILE="$FASTA_ROOT/midori_coi.fasta" ;;
+      mitofish) FASTA_FILE="$FASTA_ROOT/mifish.fasta" ;;
+    esac
+    
+    if [[ -f "$FASTA_FILE" ]]; then
+      echo "   • Adding sequences to library..."
+      kraken2-build --add-to-library "$FASTA_FILE" --db "$TARGET" --no-masking
+      
+      echo "   • Building database (this may take 5-15 minutes)..."
+      kraken2-build --build --db "$TARGET" --threads "$THREADS" --no-masking
+      
+      echo "   ✅ Kraken2 DB built for $DB"
+    else
+      echo "   ❌ FASTA file not found: $FASTA_FILE"
+    fi
+  done
+  
+  echo ""
+  echo "✅ All Kraken2 DBs completed"
+  
+else
+  echo "❌ kraken2-build not found - skipping Kraken2 databases"
+  echo "   Install with: conda install -c bioconda kraken2"
+  echo "   Kraken2 analysis in downstream scripts will be skipped"
+fi
+
+echo ""
+
 # ─── FINAL SUMMARY ─────────────────────────────────────────────────────────
 echo "🎉 DATABASE BUILDING COMPLETE!"
 echo "═══════════════════════════════════════════"
 echo ""
 echo "📁 Database locations:"
-echo "   🦠 Kraken2 DBs → $KRAKEN_DB/{12s,coi,mitofish}"
 echo "   🧬 BLAST DBs   → $BLAST_DB/{12s,coi,mitofish}"
+echo "   🦠 Kraken2 DBs → $KRAKEN_DB/{12s,coi,mitofish}"
 echo ""
 
 echo "📊 Database summary:"
 echo ""
-echo "🦠 Kraken2 databases:"
+echo "🧬 BLAST databases:"
 for db in 12s coi mitofish; do
-  if [[ -f "$KRAKEN_DB/$db/taxo.k2d" ]]; then
-    echo "   ✅ $db: Ready for classification"
+  if [[ -f "$BLAST_DB/$db/$db.nsq" ]]; then
+    echo "   ✅ $db: Ready for similarity search"
   else
     echo "   ❌ $db: Failed or not built"
   fi
 done
 
 echo ""
-echo "🧬 BLAST databases:"
+echo "🦠 Kraken2 databases:"
 for db in 12s coi mitofish; do
-  if [[ -f "$BLAST_DB/$db/$db.nsq" ]]; then
-    echo "   ✅ $db: Ready for similarity search"
+  if [[ -f "$KRAKEN_DB/$db/taxo.k2d" ]]; then
+    echo "   ✅ $db: Ready for classification"
   else
     echo "   ❌ $db: Failed or not built"
   fi
