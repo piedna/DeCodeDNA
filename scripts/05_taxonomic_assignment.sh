@@ -185,7 +185,7 @@ echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ─── PART 2: KRAKEN2 ANALYSIS ─────────────────────────────────────────────
-# ═══════════════════════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════────────────════
 
 echo "🦠 PART 2: KRAKEN2 TAXONOMIC CLASSIFICATION"
 echo "═══════════════════════════════════════════════"
@@ -308,6 +308,7 @@ cat > "$TEMP_DIR/process_complete_taxonomy.R" << 'EOF'
 library(dplyr)
 library(readr)
 library(tidyr)
+library(stringr)
 
 # Read command line arguments
 args <- commandArgs(trailingOnly = TRUE)
@@ -353,7 +354,18 @@ for (db in c("12s", "coi", "mitofish")) {
       slice_head(n = 1) %>%
       ungroup() %>%
       mutate(
-        species = hit_id,
+        # FIXED: Extract species from hit_id (database header) instead of using accession
+        species = case_when(
+          # For 12s and COI databases: format is "accession_Genus_species"
+          db %in% c("12s", "coi") ~ str_extract(hit_id, "[A-Z][a-z]+_[a-z]+"),
+          # For mitofish database: format is "gb_accession_Genus_species"  
+          db == "mitofish" ~ str_extract(hit_id, "(?:gb_[^_]+_)?([A-Z][a-z]+_[a-z]+)") %>% str_remove("gb_[^_]+_"),
+          TRUE ~ hit_id
+        ),
+        # Clean up species names
+        species = ifelse(is.na(species) | species == "", 
+                        paste0("unknown_", row_number()), 
+                        species),
         database = db,
         method = "BLAST",
         assignment_status = "classified"
