@@ -59,7 +59,7 @@ flowchart LR
     F --> G[Species Lists & Krona Plots]
     
     H[01: Build Databases] --> F
-    H[01: Build Databases] --> B
+    H[01: Build Databases] --> C
 ```
 
 **Educational Comparisons Built-In:**
