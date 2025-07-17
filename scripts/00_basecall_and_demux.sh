@@ -12,7 +12,7 @@
 # Real demultiplexing done separately with ONTbarcoder2.3 GUI
 #
 # Usage: Just run ./00_basecall_and_demux.sh
-# Prerequisites: Dorado should be in DeCodeDNA/dorado-1.0.2-osx-arm64/
+# Prerequisites: Dorado should be in eDNA_workshop/tools/
 
 set -euo pipefail
 
@@ -20,6 +20,7 @@ set -euo pipefail
 # Set paths relative to script location
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+WORKSPACE_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"
 
 # Input directory (contains fast5/ and pod5_barcode50/ folders)
 INPUT_DIR="$PROJECT_ROOT/mock"
@@ -32,12 +33,34 @@ mkdir -p "$OUTPUT_DIR"
 
 # ─── DORADO CONFIGURATION ──────────────────────────────────────────────────────
 
-# Dorado installation path (within project)
-DORADO_ROOT="$PROJECT_ROOT/dorado-1.0.2-osx-arm64"
-DORADO_BIN="$DORADO_ROOT/bin"
+# Look for Dorado in tools directory
+TOOLS_DIR="$WORKSPACE_ROOT/tools"
+
+# Try to find Dorado installation automatically
+DORADO_ROOT=""
+DORADO_BIN=""
+
+# Look for common Dorado directory patterns in tools
+for dorado_dir in "$TOOLS_DIR"/dorado-* "$TOOLS_DIR"/dorado; do
+  if [[ -d "$dorado_dir" && -f "$dorado_dir/bin/dorado" ]]; then
+    DORADO_ROOT="$dorado_dir"
+    DORADO_BIN="$dorado_dir/bin"
+    break
+  fi
+done
+
+# If not found in subdirectory, check if dorado binary is directly in tools
+if [[ -z "$DORADO_ROOT" && -f "$TOOLS_DIR/dorado" ]]; then
+  DORADO_ROOT="$TOOLS_DIR"
+  DORADO_BIN="$TOOLS_DIR"
+fi
 
 # Model storage within Dorado installation
-MODEL_DIR="$DORADO_ROOT/models"
+if [[ -n "$DORADO_ROOT" ]]; then
+  MODEL_DIR="$DORADO_ROOT/models"
+else
+  MODEL_DIR="$TOOLS_DIR/dorado_models"
+fi
 
 # Models to download and demonstrate
 MODELS=( 
@@ -56,6 +79,7 @@ POD5_DIR="pod5_barcode50"  # For actual basecalling
 echo "🧬 ONT Basecalling Pipeline for Teaching"
 echo "════════════════════════════════════════"
 echo "🔹 Project root:     $PROJECT_ROOT"
+echo "🔹 Tools directory:  $TOOLS_DIR"
 echo "🔹 Input directory:  $INPUT_DIR"
 echo "🔹 Output directory: $OUTPUT_DIR"
 echo "🔹 Dorado location:  $DORADO_ROOT"
@@ -66,32 +90,35 @@ echo ""
 echo "📥 STEP 1: Checking Dorado Installation"
 echo "───────────────────────────────────────────"
 
-if [[ -f "$DORADO_BIN/dorado" ]]; then
+if [[ -n "$DORADO_BIN" && -f "$DORADO_BIN/dorado" ]]; then
   echo "   ✅ Dorado found at: $DORADO_BIN/dorado"
   
   # Test Dorado
   if "$DORADO_BIN/dorado" --version &>/dev/null; then
-    DORADO_VERSION=$("$DORADO_BIN/dorado" --version 2>/dev/null | head -1 || echo "Dorado v1.0.2")
+    DORADO_VERSION=$("$DORADO_BIN/dorado" --version 2>/dev/null | head -1 || echo "Dorado")
     echo "   📋 Version: $DORADO_VERSION"
   else
     echo "   ⚠️  Dorado found but version check failed"
   fi
 else
-  echo "❌ Dorado not found in project structure"
+  echo "❌ Dorado not found in tools directory"
   echo ""
   echo "📋 Please ensure Dorado is installed in the correct location:"
-  echo "   Expected: $DORADO_BIN/dorado"
-  echo "   Current project structure should be:"
-  echo "   DeCodeDNA/"
-  echo "   ├── dorado-1.0.2-osx-arm64/"
-  echo "   │   └── bin/"
-  echo "   │       └── dorado"
-  echo "   ├── scripts/"
-  echo "   │   └── 00_basecall_and_demux.sh"
-  echo "   └── mock/"
+  echo "   Expected locations:"
+  echo "   • $TOOLS_DIR/dorado-*/bin/dorado (extracted from archive)"
+  echo "   • $TOOLS_DIR/dorado (if renamed)"
+  echo "   • $TOOLS_DIR/dorado (if binary placed directly)"
+  echo ""
+  echo "   Current tools directory structure:"
+  if [[ -d "$TOOLS_DIR" ]]; then
+    ls -la "$TOOLS_DIR/" | head -10
+  else
+    echo "   ❌ Tools directory not found: $TOOLS_DIR"
+    echo "   💡 Create it with: mkdir -p $TOOLS_DIR"
+  fi
   echo ""
   echo "   Download Dorado from: https://github.com/nanoporetech/dorado/releases"
-  echo "   Extract and place in DeCodeDNA/ folder"
+  echo "   Extract to: $TOOLS_DIR/"
   exit 1
 fi
 
@@ -342,7 +369,7 @@ done
 echo ""
 echo "📂 Project Organization:"
 echo "   ✅ Models stored in: $MODEL_DIR"
-echo "   ✅ Dorado integrated in project structure"
+echo "   ✅ Dorado integrated in tools structure"
 echo "   ✅ No hardcoded user paths required"
 echo "   ✅ Focus on modern POD5 workflow"
 echo ""
