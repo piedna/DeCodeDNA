@@ -45,6 +45,8 @@ Open `results/05_taxonomy/04_krona_plots/*.html` in your browser!
 
 📖 **Need detailed setup?** → See [`installation_guide.md`](installation_guide.md)
 
+📋 **Verify installation?** → Run `bash scripts/check_installation.sh`
+
 ---
 
 ## 🔄 Pipeline Overview
@@ -179,7 +181,7 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 # 1. Build databases (one-time)
 bash scripts/01_build_dbs_kraken_blastn.sh
 
-# 2. Basecalling (might be done separately on server/gaming laptop)
+# 2. Basecalling (optional - can be done on server/gaming laptop)
 bash scripts/00_basecall_and_demux.sh
 
 # 3. Demultiplexing with ONTbarcoder2.3 (GUI application)
