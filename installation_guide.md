@@ -14,15 +14,129 @@ This guide will take you from a fresh system to a fully functional eDNA analysis
 - **Storage**: 10GB+ free space for databases and tools
 - **Internet**: Stable connection for downloading databases (~2GB)
 
-### Required Software
-- **Conda/Miniconda**: Package manager ([Download here](https://docs.conda.io/en/latest/miniconda.html))
-- **Git**: Version control (usually pre-installed on macOS/Linux)
+---
+
+## 🐍 Step 0: Install Conda/Miniconda (If Not Already Installed)
+
+**Most important step!** Conda manages all our software dependencies automatically.
+
+### Check if Conda is Already Installed
+```bash
+# Test if conda is installed
+conda --version
+
+# If you see a version number, skip to "Quick Setup" below
+# If you get "command not found", continue with installation
+```
+
+### Install Miniconda (Recommended)
+
+1. **Go to the Miniconda download page**: https://www.anaconda.com/download/success
+2. **Click on "Miniconda Installers"** 
+3. **Select the installer suitable for your computer:**
+   - **macOS Apple Silicon (M1/M2/M3)**: `Miniconda3-latest-MacOSX-arm64.sh`
+   - **macOS Intel**: `Miniconda3-latest-MacOSX-x86_64.sh`
+   - **Linux**: `Miniconda3-latest-Linux-x86_64.sh`
+   - **Windows**: `Miniconda3-latest-Windows-x86_64.exe`
+
+4. **Download and install:**
+
+#### 🍎 macOS Installation
+```bash
+# Navigate to Downloads folder
+cd ~/Downloads
+
+# Run the installer (replace with your downloaded file name)
+bash Miniconda3-latest-MacOSX-arm64.sh
+
+# Follow the prompts:
+# - Press ENTER to continue
+# - Type "yes" to accept the license
+# - Press ENTER to install in default location
+# - Type "yes" to initialize conda
+```
+
+#### 🐧 Linux Installation
+```bash
+# Navigate to Downloads folder
+cd ~/Downloads
+
+# Run the installer
+bash Miniconda3-latest-Linux-x86_64.sh
+
+# Follow the prompts:
+# - Press ENTER to continue
+# - Type "yes" to accept the license
+# - Press ENTER to install in default location
+# - Type "yes" to initialize conda
+```
+
+### 🔄 Restart Your Terminal
+**Important:** After installation, close and reopen your terminal window.
+
+### ✅ Verify Installation
+```bash
+# Test conda installation
+conda --version
+# Should show: conda 23.x.x or similar
+
+# Test that conda is working
+conda info
+# Should show conda environment information
+```
+
+### 🍎 macOS-Specific Fix (If Needed)
+If you encounter this error when running `conda activate`:
+```
+ERROR: CONDA_BUILD_SYSROOT or SDKROOT has to be set for cross-compiling
+```
+
+Run these commands:
+```bash
+# Install Xcode command line tools
+xcode-select --install
+
+# Set SDK root
+export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
+
+# Add to your shell profile to make permanent
+echo 'export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)' >> ~/.zshrc
+```
+
+### 🚫 Common Installation Issues
+
+**"conda: command not found" after installation:**
+```bash
+# Manually activate conda (temporary fix)
+source ~/miniconda3/bin/activate
+
+# Then initialize for future sessions
+conda init
+
+# Restart terminal and try again
+```
+
+**Permission errors:**
+```bash
+# Make sure you have write permissions to home directory
+ls -la ~/ | grep miniconda3
+
+# If needed, fix permissions
+chmod -R 755 ~/miniconda3
+```
+
+**Already have Anaconda installed?**
+```bash
+# That's fine! Anaconda includes conda
+conda --version
+# Should work - proceed to "Quick Setup" below
+```
 
 ---
 
 ## 🚀 Quick Setup (Minimal)
 
-**For students who just want to run the pipeline on mock data:**
+**Now that conda is installed, set up the pipeline:**
 
 ```bash
 # 1. Create workspace and clone repository
@@ -32,18 +146,41 @@ git clone https://github.com/piedna/DeCodeDNA.git && cd DeCodeDNA
 # 2. Make scripts executable (important!)
 chmod +x scripts/*.sh
 
-# 3. Install environment
+# 3. Install environment (this will take 5-10 minutes)
 conda env create -f environment.yml
 conda activate decode-dna
 
 # 4. Setup Krona taxonomy
-ktUpdateTaxonomy.sh
+bash scripts/install_krona_taxonomy.sh
 
-# 5. Install R package for denoising
-Rscript -e 'if(!require(devtools)) install.packages("devtools"); devtools::install_github("tobiasgf/lulu")'
+# 5. Install R packages for denoising
+bash scripts/install_R_dependencies.sh
 
 # 6. Test with mock data (skip basecalling, start from step 2)
 bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
+```
+
+### 🔍 Environment Creation Troubleshooting
+
+**If `conda env create` fails:**
+```bash
+# Try with mamba (faster solver)
+conda install mamba -c conda-forge
+mamba env create -f environment.yml
+
+# Or try with explicit channel priority
+conda env create -f environment.yml --solver=libmamba
+
+# Or update conda first
+conda update conda
+conda env create -f environment.yml
+```
+
+**If environment creation is very slow:**
+```bash
+# Use mamba instead (much faster)
+conda install mamba -c conda-forge
+mamba env create -f environment.yml
 ```
 
 **✅ This minimal setup lets you run steps 2-5 of the pipeline on example data!**
@@ -66,6 +203,9 @@ cd DeCodeDNA
 
 # Make all scripts executable (important step!)
 chmod +x scripts/*.sh
+
+# Activate your conda environment
+conda activate decode-dna
 
 # Your final structure will be:
 # ~/eDNA_workshop/
@@ -117,9 +257,9 @@ chmod +x scripts/*.sh
 # - amplicon_sorter (slow, thorough, fewer high-quality clusters)
 ```
 
-### Step 2: Conda Environment
+### Step 2: Conda Environment (Already Done in Quick Setup)
 ```bash
-# Create environment from file
+# If you didn't do quick setup, create environment
 conda env create -f environment.yml
 
 # Activate environment (do this every time you start work)
@@ -138,55 +278,60 @@ done
 
 ### Step 3: Setup Krona Taxonomy
 ```bash
-# Krona needs NCBI taxonomy data for proper visualization
-echo "📊 Setting up Krona taxonomy..."
+# Run the Krona taxonomy setup script
+bash scripts/install_krona_taxonomy.sh
+```
 
-# Create taxonomy directory and populate it
-mkdir -p $CONDA_PREFIX/opt/krona/taxonomy
-cd $CONDA_PREFIX/opt/krona/taxonomy
+**What this script does:**
+- Downloads NCBI taxonomy database (~50MB) for Krona visualizations
+- Extracts taxonomy files (names.dmp, nodes.dmp, merged.dmp)
+- Sets up Krona's taxonomy directory structure
+- Handles the common `ktUpdateTaxonomy.sh` failures automatically
 
-# Download and setup taxonomy (this does everything automatically)
-ktUpdateTaxonomy.sh
-
-# If ktUpdateTaxonomy.sh doesn't extract properly, do it manually:
-tar -xzf taxdump.tar.gz
-
-# Then run ktUpdateTaxonomy.sh again to process the extracted files
-ktUpdateTaxonomy.sh
-
-# Verify the files are there
-echo "🔍 Checking for required taxonomy files..."
-ls -la
-
-echo "   ✅ Krona taxonomy setup complete"
-echo "   📁 You should now see files: names.dmp, nodes.dmp, merged.dmp"
-
-# Return to project directory
-cd ~/eDNA_workshop/DeCodeDNA
+**Expected output - you should see:**
+```
+📊 Setting up Krona taxonomy...
+✅ Method 1: Try automatic update first...
+⚠️  Automatic update failed, using manual method...
+📥 Method 2: Manual download and setup...
+      • Downloading taxdump.tar.gz from NCBI...
+      ✅ Download successful (50M)
+      • Extracting taxonomy files...
+      ✅ Extraction successful
+✅ names.dmp: 50M
+✅ nodes.dmp: 2.1M
+✅ Krona taxonomy setup complete!
 ```
 
 ### Step 4: Install R Packages
 ```bash
-# Install system dependencies first (macOS)
-echo "📦 Installing system dependencies..."
-brew install libgit2
-
-# Install LULU package for denoising
-echo "📦 Installing LULU R package..."
-Rscript -e '
-  if (!requireNamespace("devtools", quietly = TRUE)) {
-    install.packages("devtools", repos = "https://cloud.r-project.org")
-  }
-  devtools::install_github("tobiasgf/lulu", upgrade = FALSE)
-  
-  # Test installation
-  if (requireNamespace("lulu", quietly = TRUE)) {
-    cat("✅ LULU installed successfully\n")
-  } else {
-    cat("❌ LULU installation failed\n")
-  }
-'
+# Run the R dependencies installation script
+bash scripts/install_R_dependencies.sh
 ```
+
+**What this script does:**
+- Installs system dependencies (libgit2 on macOS)
+- Installs essential R packages for the pipeline:
+  - `lulu` - For denoising consensus sequences
+  - `dplyr` - Data manipulation
+  - `tidyr` - Data tidying
+  - `readr` - Reading CSV files
+  - `stringr` - String manipulation
+- Tests each installation to ensure success
+
+**Expected output - you should see:**
+```
+📦 Installing system dependencies...
+✅ libgit2 already installed (or newly installed)
+📦 Installing LULU R package...
+✅ LULU installed successfully
+✅ dplyr installed successfully
+✅ tidyr installed successfully
+✅ readr installed successfully
+✅ stringr installed successfully
+```
+
+**If you see any ❌ errors:** The script will try alternative installation methods automatically.
 
 ### Step 5: External Tools
 ```bash
@@ -196,16 +341,19 @@ cd ../tools
 
 echo "Installing external tools..."
 
-# A) Dorado (Oxford Nanopore basecaller)
-echo "📥 Installing Dorado..."
-# Visit https://github.com/nanoporetech/dorado/releases for latest version
-# Example for macOS ARM64:
-curl -L -o dorado.tar.gz "https://github.com/nanoporetech/dorado/releases/download/v1.0.2/dorado-1.0.2-osx-arm64.tar.gz"
-tar xzf dorado.tar.gz
-cp dorado-*/bin/dorado $CONDA_PREFIX/bin/
-chmod +x $CONDA_PREFIX/bin/dorado
-rm -rf dorado* # cleanup
-echo "✅ Dorado installed to $CONDA_PREFIX/bin/dorado"
+# A) Dorado (Oxford Nanopore basecaller) - Manual Download Required
+echo "📥 Downloading Dorado..."
+echo "🔗 Go to the Dorado GitHub page: https://github.com/nanoporetech/dorado"
+echo "📋 Look for the latest release and download the appropriate installer for your system:"
+echo "   • macOS Apple Silicon: dorado-X.X.X-osx-arm64.zip"
+echo "   • macOS Intel: dorado-X.X.X-osx-x64.zip"  
+echo "   • Linux x64: dorado-X.X.X-linux-x64.tar.gz"
+echo "   • Linux ARM64: dorado-X.X.X-linux-arm64.tar.gz"
+echo "   • Windows: dorado-X.X.X-win64.zip"
+echo ""
+echo "💡 After downloading, move the installer from ~/Downloads to ~/eDNA_workshop/tools/"
+echo "   Then extract and install according to the GitHub instructions"
+echo ""
 
 # B) amplicon_sorter  
 echo "📥 Installing amplicon_sorter..."
@@ -226,20 +374,24 @@ cd ../DeCodeDNA
 
 # Verify external tools
 echo "🔍 Verifying external tool installation..."
-for tool in dorado amplicon_sorter; do
+for tool in amplicon_sorter; do
   if command -v $tool >/dev/null; then
     echo "✅ $tool: $(which $tool)"
   else
     echo "❌ $tool: not found"
   fi
 done
+
+echo "📋 Note: Dorado requires manual installation from GitHub"
 ```
 
 ### Step 6: Reference Databases
 ```bash
 # Build all reference databases
 echo "🗄️ Building reference databases..."
-echo "⏰ This will take 20-30 minutes and download ~2GB of data"
+echo "⏰ This will take approximately 1.5 hours and download ~2GB of data"
+echo "   • 3 BLAST databases (12S, COI, MitoFish)"
+echo "   • 3 Kraken2 databases (12S, COI, MitoFish)"
 echo "💡 Tip: Run this in the background or during a break"
 
 # Option A: Run in foreground with logging
@@ -258,9 +410,11 @@ echo "📋 Monitor progress: tail -f database_build.log"
 
 ## 🧪 Testing Your Installation
 
-### Test 1: Environment Check
+### Test 1: Conda Environment Check
 ```bash
+# Make sure you're in the right environment
 conda activate decode-dna
+echo "Current environment: $CONDA_DEFAULT_ENV"
 
 # Check Python packages
 python -c "
@@ -313,10 +467,10 @@ bash scripts/03_consensus_sort.sh results/test_02 results/test_03
 bash scripts/04_denoise.sh results/test_03 results/test_04
 
 # Check results
-if [[ -f "results/test_04/otu_table_lulu_curated.csv" ]]; then
+if [[ -f "results/test_04/mitofish/otu_table_mitofish_lulu_curated.csv" ]]; then
   echo "✅ Pipeline test successful!"
   echo "📊 Results in results/test_04/"
-  echo "🧬 Found $(tail -n +2 results/test_04/otu_table_lulu_curated.csv | wc -l) curated OTUs"
+  echo "🧬 Found curated OTUs across multiple databases"
 else
   echo "❌ Pipeline test failed"
   echo "🔍 Check error messages above"
@@ -382,21 +536,47 @@ RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh results/02_quicklook res
 
 **"conda: command not found"**
 ```bash
-# Install Miniconda first
-curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-MacOSX-x86_64.sh
-bash Miniconda3-latest-MacOSX-x86_64.sh
-# Restart terminal, then retry
+# If you just installed conda, restart your terminal first
+# Then try:
+source ~/miniconda3/bin/activate
+conda init
+# Restart terminal again
 ```
 
 **Environment creation fails**
 ```bash
+# Update conda first
+conda update conda
+
 # Try with mamba (faster)
 conda install mamba -c conda-forge
 mamba env create -f environment.yml
 
-# Or update conda first
-conda update conda
-conda env create -f environment.yml
+# Or try with specific solver
+conda env create -f environment.yml --solver=libmamba
+```
+
+**Environment activation fails**
+```bash
+# Make sure conda is initialized
+conda init
+
+# Try activating with full path
+source ~/miniconda3/etc/profile.d/conda.sh
+conda activate decode-dna
+```
+
+**Package conflicts during installation**
+```bash
+# Clean conda cache
+conda clean --all
+
+# Try creating environment with minimal packages first
+conda create -n decode-dna-test python=3.11
+conda activate decode-dna-test
+
+# Then install key packages individually
+conda install -c conda-forge -c bioconda kraken2 vsearch blast
 ```
 
 **"pod5 illegal hardware instruction"**
@@ -445,6 +625,21 @@ curl -I https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz
 bash -x scripts/01_build_dbs_kraken_blastn.sh
 ```
 
+### Memory Issues During Installation
+```bash
+# If your system runs out of memory during environment creation:
+# 1. Close other applications
+# 2. Use mamba instead of conda
+# 3. Install packages in smaller batches
+
+# Example batch installation:
+conda create -n decode-dna python=3.11
+conda activate decode-dna
+conda install -c conda-forge -c bioconda kraken2 vsearch
+conda install -c conda-forge -c bioconda blast seqkit
+# ... continue with remaining packages
+```
+
 ### Performance Issues
 
 **Pipeline running slowly**
@@ -476,19 +671,28 @@ df -h .
 
 ### Pre-Class Setup
 1. **Test complete installation** on instructor machine
-2. **Build databases** ahead of time (20-30 minutes)
-3. **Prepare USB drives** with key files for offline installation
-4. **Test network capacity** for simultaneous downloads
+2. **Verify conda is working** for all expected platforms
+3. **Have backup environment.yml** with locked versions if needed
+4. **Prepare conda troubleshooting guide** for common student issues
+5. **Build databases** ahead of time (1.5 hours)
+6. **Prepare USB drives** with key files for offline installation
+7. **Test network capacity** for simultaneous downloads
 
 ### Class Day Shortcuts
 ```bash
-# Quick student setup (5 minutes)
+# If conda installation fails during class:
+# 1. Have pre-built conda environment on USB drive
+# 2. Use Docker container as backup
+# 3. Pair students with working installations
+
+# Quick student setup (assuming conda works):
 mkdir ~/eDNA_workshop && cd ~/eDNA_workshop
 git clone https://github.com/piedna/DeCodeDNA.git && cd DeCodeDNA
 chmod +x scripts/*.sh  # Make scripts executable
 conda env create -f environment.yml
 conda activate decode-dna
-ktUpdateTaxonomy.sh  # Setup Krona taxonomy
+bash scripts/install_krona_taxonomy.sh  # Setup Krona taxonomy
+bash scripts/install_R_dependencies.sh  # Install R packages
 
 # Copy pre-built databases (if available)
 # cp -r /path/to/shared/databases ../databases
@@ -519,7 +723,7 @@ conda env update -f environment.yml
 Rscript -e 'devtools::install_github("tobiasgf/lulu", upgrade=TRUE)'
 
 # Update Krona taxonomy (optional, updates slowly)
-ktUpdateTaxonomy.sh
+bash scripts/install_krona_taxonomy.sh
 ```
 
 ### Cleaning Up
