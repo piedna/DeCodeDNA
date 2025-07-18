@@ -103,35 +103,6 @@ export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
 echo 'export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)' >> ~/.zshrc
 ```
 
-### 🚫 Common Installation Issues
-
-**"conda: command not found" after installation:**
-```bash
-# Manually activate conda (temporary fix)
-source ~/miniconda3/bin/activate
-
-# Then initialize for future sessions
-conda init
-
-# Restart terminal and try again
-```
-
-**Permission errors:**
-```bash
-# Make sure you have write permissions to home directory
-ls -la ~/ | grep miniconda3
-
-# If needed, fix permissions
-chmod -R 755 ~/miniconda3
-```
-
-**Already have Anaconda installed?**
-```bash
-# That's fine! Anaconda includes conda
-conda --version
-# Should work - proceed to "Quick Setup" below
-```
-
 ---
 
 ## 🚀 Quick Setup (Minimal)
@@ -160,30 +131,58 @@ bash scripts/install_R_dependencies.sh
 bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
 ```
 
-### 🔍 Environment Creation Troubleshooting
-
-**If `conda env create` fails:**
-```bash
-# Try with mamba (faster solver)
-conda install mamba -c conda-forge
-mamba env create -f environment.yml
-
-# Or try with explicit channel priority
-conda env create -f environment.yml --solver=libmamba
-
-# Or update conda first
-conda update conda
-conda env create -f environment.yml
-```
-
-**If environment creation is very slow:**
-```bash
-# Use mamba instead (much faster)
-conda install mamba -c conda-forge
-mamba env create -f environment.yml
-```
-
 **✅ This minimal setup lets you run steps 2-5 of the pipeline on example data!**
+
+---
+
+## 🎯 Pipeline Customization (No Script Editing Required!)
+
+**The pipeline is fully customizable without editing any scripts.** Just set environment variables before running:
+
+### Quick Setup for Different Data Types
+
+```bash
+# For 2000bp mitochondrial data:
+export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish" THREADS=16
+
+# For standard eDNA samples:
+export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=350 DATABASES="12s coi mitofish" THREADS=8
+
+# For fast teaching demos:
+export DATABASES="mitofish" THREADS=4 SUBSET_COUNT=500
+```
+
+### All Available Options
+
+| Parameter | What it does | Default | Example |
+|-----------|--------------|---------|---------|
+| `QUALITY_THRESHOLD` | Minimum quality score | 12 | 18 |
+| `MIN_LENGTH` | Minimum sequence length | 100 | 1500 |
+| `MAX_LENGTH` | Maximum sequence length | 500 | 3000 |
+| `DATABASES` | Which databases to use | "12s coi mitofish" | "mitofish" |
+| `THREADS` | CPU cores to use | 8 | 16 |
+| `SUBSET_COUNT` | Max sequences for taxonomy | 2000 | 1000 |
+
+### How to Use
+
+```bash
+# 1. Set your parameters once
+export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish" THREADS=16
+
+# 2. Check they're set
+echo "Quality: $QUALITY_THRESHOLD, Length: $MIN_LENGTH-$MAX_LENGTH, DB: $DATABASES, Threads: $THREADS"
+
+# 3. Run pipeline normally - no script editing needed!
+bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise
+bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
+
+# 4. Advanced: Enable amplicon_sorter local execution (may hang on local machines)
+RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
+```
+
+**That's it!** The scripts automatically use your custom parameters.
 
 ---
 
@@ -387,104 +386,47 @@ echo "📋 Note: Dorado requires manual installation from GitHub"
 
 ### Step 6: Reference Databases
 ```bash
-# Build all reference databases
+# Build all reference databases (takes ~1.5 hours)
 echo "🗄️ Building reference databases..."
-echo "⏰ This will take approximately 1.5 hours and download ~2GB of data"
-echo "   • 3 BLAST databases (12S, COI, MitoFish)"
-echo "   • 3 Kraken2 databases (12S, COI, MitoFish)"
-echo "💡 Tip: Run this in the background or during a break"
-
-# Option A: Run in foreground with logging
 ./scripts/01_build_dbs_kraken_blastn.sh 2>&1 | tee database_build.log
-
-# Option B: Run in background
-# nohup ./scripts/01_build_dbs_kraken_blastn.sh > database_build.log 2>&1 &
-# tail -f database_build.log  # Watch progress
-
-echo "✅ Database building initiated"
-echo "📁 Databases will be created in ../databases/"
-echo "📋 Monitor progress: tail -f database_build.log"
 ```
 
 ---
 
 ## 🧪 Testing Your Installation
 
-### Test 1: Conda Environment Check
+### Test 1: Quick Pipeline Test
 ```bash
 # Make sure you're in the right environment
 conda activate decode-dna
-echo "Current environment: $CONDA_DEFAULT_ENV"
 
-# Check Python packages
-python -c "
-import sys
-packages = ['biopython', 'matplotlib', 'pandas', 'numpy']
-for pkg in packages:
-    try:
-        __import__(pkg)
-        print(f'✅ {pkg}')
-    except ImportError:
-        print(f'❌ {pkg}')
-"
-
-# Check R packages
-Rscript -e "
-packages <- c('devtools', 'lulu')
-for (pkg in packages) {
-  if (requireNamespace(pkg, quietly=TRUE)) {
-    version <- packageVersion(pkg)
-    cat('✅', pkg, ':', as.character(version), '\n')
-  } else {
-    cat('❌', pkg, ': not installed\n')
-  }
-}
-"
-
-# Check Krona
-if [[ -f "$CONDA_PREFIX/opt/krona/taxonomy/taxonomy.tab" ]]; then
-    echo "✅ Krona taxonomy"
-else
-    echo "❌ Krona taxonomy"
-fi
-```
-
-### Test 2: Mock Data Pipeline
-```bash
 # Quick test run (should complete in 5-10 minutes)
 echo "🧪 Testing pipeline with mock data..."
 
 # Make sure scripts are executable
 chmod +x scripts/*.sh
 
-# Step 2: Quick classification (using pre-basecalled FASTQ files)
+# Run pipeline steps
 bash scripts/02_quick_look_clean.sh mock/ results/test_02
-
-# Step 3: Consensus building  
 bash scripts/03_consensus_sort.sh results/test_02 results/test_03
-
-# Step 4: Denoising
 bash scripts/04_denoise.sh results/test_03 results/test_04
 
 # Check results
 if [[ -f "results/test_04/mitofish/otu_table_mitofish_lulu_curated.csv" ]]; then
   echo "✅ Pipeline test successful!"
-  echo "📊 Results in results/test_04/"
-  echo "🧬 Found curated OTUs across multiple databases"
 else
   echo "❌ Pipeline test failed"
-  echo "🔍 Check error messages above"
 fi
 ```
 
-### Test 3: Full Pipeline (if databases are built)
+### Test 2: Full Pipeline (if databases are built)
 ```bash
 # Only run if databases exist
 if [[ -d "../databases/blast_db" ]]; then
   echo "🔬 Testing full taxonomic assignment..."
   bash scripts/05_taxonomic_assignment.sh results/test_04 results/test_05
   
-  if [[ -f "results/test_05/03_final_taxonomy/method_comparison_summary.csv" ]]; then
+  if [[ -f "results/test_05/03_final_taxonomy/Overall_Method_Comparison.csv" ]]; then
     echo "✅ Full pipeline test successful!"
     echo "🌐 Open Krona plots: results/test_05/04_krona_plots/*.html"
   fi
@@ -495,12 +437,15 @@ fi
 
 ---
 
-## 📚 Usage Examples
+## 📚 Basic Usage
 
 ### Complete Workflow
 ```bash
 # Always start by activating environment
 conda activate decode-dna
+
+# Set your parameters (customize for your data)
+export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=350 DATABASES="12s coi mitofish" THREADS=8
 
 # For mock data (no basecalling needed):
 bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
@@ -512,23 +457,6 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 bash scripts/00_basecall_and_demux.sh   # First time setup + basecalling
 bash scripts/02_quick_look_clean.sh your_fastq_dir/ results/02_quicklook
 # ... continue with steps 3-5
-```
-
-### Customization Options
-```bash
-# Faster processing for teaching (fewer sequences)
-export SUBSET_COUNT=1000
-export THREADS=4
-
-# Different quality thresholds
-export QUALITY_THRESHOLD=15  # Default: 12
-export MIN_LENGTH=200        # Default: 100
-
-# Just using one of the databases
-export DATABASES="mitofish"
-
-# Enable amplicon_sorter local execution (may hang)
-RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
 ```
 
 ---
@@ -554,39 +482,6 @@ conda update conda
 # Try with mamba (faster)
 conda install mamba -c conda-forge
 mamba env create -f environment.yml
-
-# Or try with specific solver
-conda env create -f environment.yml --solver=libmamba
-```
-
-**Environment activation fails**
-```bash
-# Make sure conda is initialized
-conda init
-
-# Try activating with full path
-source ~/miniconda3/etc/profile.d/conda.sh
-conda activate decode-dna
-```
-
-**Package conflicts during installation**
-```bash
-# Clean conda cache
-conda clean --all
-
-# Try creating environment with minimal packages first
-conda create -n decode-dna-test python=3.11
-conda activate decode-dna-test
-
-# Then install key packages individually
-conda install -c conda-forge -c bioconda kraken2 vsearch blast
-```
-
-**"pod5 illegal hardware instruction"**
-```bash
-# This is expected on ARM64 Macs
-# Scripts handle this gracefully - pod5 conversion is optional
-echo "✅ This is expected and handled automatically"
 ```
 
 **R package installation fails**
@@ -598,53 +493,6 @@ R
 > quit()
 ```
 
-**Krona taxonomy setup issues**
-```bash
-# If ktUpdateTaxonomy.sh fails, try manual setup:
-cd $CONDA_PREFIX/opt/krona/taxonomy
-
-# Download taxonomy dump manually
-curl -o taxdump.tar.gz "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
-
-# Extract files manually
-tar -xzf taxdump.tar.gz
-
-# Run ktUpdateTaxonomy.sh again
-ktUpdateTaxonomy.sh
-
-# Verify final setup
-ls -la taxonomy.tab
-```
-
-**Database build fails**
-```bash
-# Check available space
-df -h .
-
-# Check internet connection
-curl -I https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz
-
-# Retry with verbose output
-bash -x scripts/01_build_dbs_kraken_blastn.sh
-```
-
-### Memory Issues During Installation
-```bash
-# If your system runs out of memory during environment creation:
-# 1. Close other applications
-# 2. Use mamba instead of conda
-# 3. Install packages in smaller batches
-
-# Example batch installation:
-conda create -n decode-dna python=3.11
-conda activate decode-dna
-conda install -c conda-forge -c bioconda kraken2 vsearch
-conda install -c conda-forge -c bioconda blast seqkit
-# ... continue with remaining packages
-```
-
-### Performance Issues
-
 **Pipeline running slowly**
 ```bash
 # Reduce dataset size
@@ -652,20 +500,6 @@ export SUBSET_COUNT=500
 
 # Use fewer CPU threads  
 export THREADS=2
-
-# Check system resources
-top
-# Look for high CPU/memory usage
-```
-
-**Large file handling**
-```bash
-# Clean up intermediate files
-rm -rf results/*/00_temp_files/
-
-# Monitor disk space
-du -sh results/
-df -h .
 ```
 
 ---
@@ -674,74 +508,22 @@ df -h .
 
 ### Pre-Class Setup
 1. **Test complete installation** on instructor machine
-2. **Verify conda is working** for all expected platforms
-3. **Have backup environment.yml** with locked versions if needed
-4. **Prepare conda troubleshooting guide** for common student issues
-5. **Build databases** ahead of time (1.5 hours)
-6. **Prepare USB drives** with key files for offline installation
-7. **Test network capacity** for simultaneous downloads
+2. **Build databases** ahead of time (1.5 hours)
+3. **Prepare conda troubleshooting guide** for common student issues
 
 ### Class Day Shortcuts
 ```bash
-# If conda installation fails during class:
-# 1. Have pre-built conda environment on USB drive
-# 2. Use Docker container as backup
-# 3. Pair students with working installations
-
 # Quick student setup (assuming conda works):
 mkdir ~/eDNA_workshop && cd ~/eDNA_workshop
 git clone https://github.com/piedna/DeCodeDNA.git && cd DeCodeDNA
-chmod +x scripts/*.sh  # Make scripts executable
+chmod +x scripts/*.sh
 conda env create -f environment.yml
 conda activate decode-dna
-bash scripts/install_krona_taxonomy.sh  # Setup Krona taxonomy
-bash scripts/install_R_dependencies.sh  # Install R packages
-
-# Copy pre-built databases (if available)
-# cp -r /path/to/shared/databases ../databases
-
-# Start with mock data analysis (use pre-basecalled FASTQ files)
-bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
-```
-
-### Student Support
-- **Common issues**: Have solutions ready for conda/R/Krona problems
-- **Backup plan**: Pre-computed results for each step
-- **Timing**: Allow extra time for installations
-- **Resources**: Monitor network/CPU usage during class
-
----
-
-## 🔄 Maintenance
-
-### Updating the Pipeline
-```bash
-# Update repository
-git pull origin main
-
-# Update conda environment
-conda env update -f environment.yml
-
-# Update R packages  
-Rscript -e 'devtools::install_github("tobiasgf/lulu", upgrade=TRUE)'
-
-# Update Krona taxonomy (optional, updates slowly)
 bash scripts/install_krona_taxonomy.sh
-```
+bash scripts/install_R_dependencies.sh
 
-### Cleaning Up
-```bash
-# Remove temporary files
-find results/ -name "00_temp_files" -type d -exec rm -rf {} +
-
-# Remove old environments
-conda env remove -n decode-dna-old
-
-# Clean conda cache
-conda clean --all
-
-# Clean Krona test files
-rm -f $CONDA_PREFIX/opt/krona/taxonomy/krona_test.html
+# Start with mock data analysis
+bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
 ```
 
 ---
@@ -751,13 +533,11 @@ rm -f $CONDA_PREFIX/opt/krona/taxonomy/krona_test.html
 ### Getting Help
 1. **Check this guide** for common solutions
 2. **Review script comments** for step-specific guidance
-3. **Check GitHub issues** for known problems
-4. **Contact instructors**: `ednacollab@uw.edu`
+3. **Contact instructors**: `ednacollab@uw.edu`
 
 ### Reporting Issues
 When reporting problems, include:
 - Operating system and version
-- Conda environment export: `conda env export > my_environment.yml`
 - Error messages (full output)
 - Steps to reproduce the issue
 
