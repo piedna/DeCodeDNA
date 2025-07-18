@@ -5,7 +5,16 @@
 
 echo "🔍 Detecting available databases..."
 
-# Check USB first (common mount points across OS)
+# Check local databases first (students should build their own)
+if [[ -d "../databases/kraken2_db" ]]; then
+  echo "💻 Using local databases at: ../databases/"
+  echo "✅ Local databases found!"
+  echo ""
+  echo "🚀 Ready to run pipeline with local databases!"
+  return 0
+fi
+
+# Check USB second (fallback for students)
 for usb_mount in "/Volumes/DeCodeDNA_DB" "/Volumes/DeCodeDNA" "/media/$USER/DeCodeDNA_DB" "/media/$USER/DeCodeDNA" "/mnt/DeCodeDNA_DB" "/mnt/DeCodeDNA"; do
   if [[ -d "$usb_mount/databases/kraken2_db" ]]; then
     export DB_ROOT="$usb_mount/databases/kraken2_db"
@@ -23,19 +32,12 @@ for usb_mount in "/Volumes/DeCodeDNA_DB" "/Volumes/DeCodeDNA" "/media/$USER/DeCo
   fi
 done
 
-# Check local databases
-if [[ -d "../databases/kraken2_db" ]]; then
-  echo "💻 Using local databases"
-  echo "✅ Local databases found at: ../databases/"
-  echo ""
-  echo "🚀 Ready to run pipeline with local databases!"
-else
-  echo "❌ No databases found!"
-  echo ""
-  echo "📋 Please choose one option:"
-  echo "  1️⃣  Insert USB drive with pre-built databases"
-  echo "  2️⃣  Build databases locally: bash scripts/01_build_dbs_kraken_blastn.sh"
-  echo "  3️⃣  Copy from USB to local: cp -r /Volumes/DeCodeDNA_DB/databases ../"
-  echo ""
-  echo "💡 For FHL course: USB drives with 158GB databases are provided"
-fi
+# No databases found
+echo "❌ No databases found!"
+echo ""
+echo "📋 Recommended approach:"
+echo "  1️⃣  Build local databases: bash scripts/01_build_dbs_kraken_blastn.sh"
+echo "  2️⃣  Or insert USB drive with pre-built databases"
+echo "  3️⃣  Or copy from USB to local: cp -r /Volumes/DeCodeDNA/databases ../"
+echo ""
+echo "💡 For FHL course: Build local first, USB drives provided as backup"
