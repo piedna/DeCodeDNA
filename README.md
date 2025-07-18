@@ -158,9 +158,7 @@ bash scripts/00_basecall_and_demux.sh
 
 **Educational Value:**
 - Compare basecalling speeds (GPU vs CPU)
-- Understand modern POD5 vs legacy FAST5 formats
-- See the complete raw signal → sequence workflow
-- Perfect for understanding ONT technology basics
+- Understanding ONT technology basics
 
 **Note:** This is optional - the mock data already includes basecalled FASTQ files ready for analysis!
 
