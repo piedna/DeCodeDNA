@@ -107,7 +107,6 @@ All dependencies are automatically managed via conda. Here's what each tool does
 | **ONTbarcoder** | Demultiplex custom CCI barcodes          |
 | **MinKNOW**     | Sequencer control & live basecalling     |
 
----
 
 ---
 
