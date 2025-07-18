@@ -127,62 +127,13 @@ bash scripts/install_krona_taxonomy.sh
 # 5. Install R packages for denoising
 bash scripts/install_R_dependencies.sh
 
-# 6. Test with mock data (skip basecalling, start from step 2)
-bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
+# 6. Verify installation works
+bash scripts/02_quick_look_clean.sh mock/ results/installation_test
 ```
 
-**✅ This minimal setup lets you run steps 2-5 of the pipeline on example data!**
+**✅ This minimal setup lets you run the complete pipeline on example data!**
 
----
-
-## 🎯 Pipeline Customization (No Script Editing Required!)
-
-**The pipeline is fully customizable without editing any scripts.** Just set environment variables before running:
-
-### Quick Setup for Different Data Types
-
-```bash
-# For 2000bp mitochondrial data:
-export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish" THREADS=16
-
-# For standard eDNA samples:
-export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=350 DATABASES="12s coi mitofish" THREADS=8
-
-# For fast teaching demos:
-export DATABASES="mitofish" THREADS=4 SUBSET_COUNT=500
-```
-
-### All Available Options
-
-| Parameter | What it does | Default | Example |
-|-----------|--------------|---------|---------|
-| `QUALITY_THRESHOLD` | Minimum quality score | 12 | 18 |
-| `MIN_LENGTH` | Minimum sequence length | 100 | 1500 |
-| `MAX_LENGTH` | Maximum sequence length | 500 | 3000 |
-| `DATABASES` | Which databases to use | "12s coi mitofish" | "mitofish" |
-| `THREADS` | CPU cores to use | 8 | 16 |
-| `SUBSET_COUNT` | Max sequences for taxonomy | 2000 | 1000 |
-
-### How to Use
-
-```bash
-# 1. Set your parameters once
-export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish" THREADS=16
-
-# 2. Check they're set
-echo "Quality: $QUALITY_THRESHOLD, Length: $MIN_LENGTH-$MAX_LENGTH, DB: $DATABASES, Threads: $THREADS"
-
-# 3. Run pipeline normally - no script editing needed!
-bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
-bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
-bash scripts/04_denoise.sh results/03_consensus results/04_denoise
-bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
-
-# 4. Advanced: Enable amplicon_sorter local execution (may hang on local machines)
-RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
-```
-
-**That's it!** The scripts automatically use your custom parameters.
+**📖 For usage instructions:** See the main [README.md](README.md) file.
 
 ---
 
@@ -388,75 +339,67 @@ echo "📋 Note: Dorado requires manual installation from GitHub"
 ```bash
 # Build all reference databases (takes ~1.5 hours)
 echo "🗄️ Building reference databases..."
-./scripts/01_build_dbs_kraken_blastn.sh 2>&1 | tee database_build.log
+bash scripts/01_build_dbs_kraken_blastn.sh 2>&1 | tee database_build.log
 ```
 
 ---
 
 ## 🧪 Testing Your Installation
 
-### Test 1: Quick Pipeline Test
+### Test 1: Verify Tools Work
 ```bash
 # Make sure you're in the right environment
 conda activate decode-dna
 
-# Quick test run (should complete in 5-10 minutes)
-echo "🧪 Testing pipeline with mock data..."
+# Test that all core tools are accessible
+echo "🔍 Testing core pipeline tools..."
 
 # Make sure scripts are executable
 chmod +x scripts/*.sh
 
-# Run pipeline steps
-bash scripts/02_quick_look_clean.sh mock/ results/test_02
-bash scripts/03_consensus_sort.sh results/test_02 results/test_03
-bash scripts/04_denoise.sh results/test_03 results/test_04
+# Test basic pipeline functionality (should complete in 5-10 minutes)
+echo "🧪 Running installation verification test..."
+bash scripts/02_quick_look_clean.sh mock/ results/installation_test
 
-# Check results
-if [[ -f "results/test_04/mitofish/otu_table_mitofish_lulu_curated.csv" ]]; then
-  echo "✅ Pipeline test successful!"
+# Check if basic output was created
+if [[ -f "results/installation_test/mitofish/combined_clean_mitofish.krona.html" ]]; then
+  echo "✅ Installation test successful!"
+  echo "🌐 Test results created at: results/installation_test/"
 else
-  echo "❌ Pipeline test failed"
+  echo "❌ Installation test failed - check error messages above"
 fi
 ```
 
-### Test 2: Full Pipeline (if databases are built)
+### Test 2: Verify R Integration
+```bash
+# Test R packages work
+echo "🧪 Testing R package integration..."
+bash scripts/03_consensus_sort.sh results/installation_test results/test_consensus
+bash scripts/04_denoise.sh results/test_consensus results/test_denoise
+
+# Check R-based denoising worked
+if [[ -f "results/test_denoise/mitofish/otu_table_mitofish_lulu_curated.csv" ]]; then
+  echo "✅ R integration test successful!"
+else
+  echo "❌ R integration test failed - check R package installation"
+fi
+```
+
+### Test 3: Full Pipeline (if databases are built)
 ```bash
 # Only run if databases exist
 if [[ -d "../databases/blast_db" ]]; then
   echo "🔬 Testing full taxonomic assignment..."
-  bash scripts/05_taxonomic_assignment.sh results/test_04 results/test_05
+  bash scripts/05_taxonomic_assignment.sh results/test_denoise results/test_full
   
-  if [[ -f "results/test_05/03_final_taxonomy/Overall_Method_Comparison.csv" ]]; then
+  if [[ -f "results/test_full/03_final_taxonomy/Overall_Method_Comparison.csv" ]]; then
     echo "✅ Full pipeline test successful!"
-    echo "🌐 Open Krona plots: results/test_05/04_krona_plots/*.html"
+    echo "🌐 Open Krona plots: results/test_full/04_krona_plots/*.html"
   fi
 else
   echo "⏩ Skipping taxonomic assignment test (databases not built yet)"
+  echo "💡 To test full pipeline, first run: bash scripts/01_build_dbs_kraken_blastn.sh"
 fi
-```
-
----
-
-## 📚 Basic Usage
-
-### Complete Workflow
-```bash
-# Always start by activating environment
-conda activate decode-dna
-
-# Set your parameters (customize for your data)
-export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=350 DATABASES="12s coi mitofish" THREADS=8
-
-# For mock data (no basecalling needed):
-bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
-bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
-bash scripts/04_denoise.sh results/03_consensus results/04_denoise
-bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
-
-# For real POD5 data (includes basecalling):
-bash scripts/00_basecall_and_demux.sh   # First time setup + basecalling
-bash scripts/02_quick_look_clean.sh your_fastq_dir/ results/02_quicklook
-# ... continue with steps 3-5
 ```
 
 ---
@@ -493,13 +436,29 @@ R
 > quit()
 ```
 
-**Pipeline running slowly**
+**Krona taxonomy setup fails**
 ```bash
-# Reduce dataset size
-export SUBSET_COUNT=500
+# Manual Krona setup
+mkdir -p $CONDA_PREFIX/opt/krona/taxonomy
+cd $CONDA_PREFIX/opt/krona/taxonomy
+curl -O https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz
+tar -xzf taxdump.tar.gz
+echo "Manual Krona taxonomy setup complete"
+```
 
-# Use fewer CPU threads  
-export THREADS=2
+**Scripts not executable**
+```bash
+# Make sure scripts can be run
+chmod +x scripts/*.sh
+ls -la scripts/
+# Should show -rwxr-xr-x permissions
+```
+
+**Pipeline running slowly during testing**
+```bash
+# Speed up testing by using smaller datasets
+export SUBSET_COUNT=500 THREADS=2
+bash scripts/02_quick_look_clean.sh mock/ results/fast_test
 ```
 
 ---
@@ -508,8 +467,9 @@ export THREADS=2
 
 ### Pre-Class Setup
 1. **Test complete installation** on instructor machine
-2. **Build databases** ahead of time (1.5 hours)
-3. **Prepare conda troubleshooting guide** for common student issues
+2. **Build databases** ahead of time (1.5 hours): `bash scripts/01_build_dbs_kraken_blastn.sh`
+3. **Prepare USB drives** with pre-built databases
+4. **Test USB detection** with `source scripts/setup_databases.sh`
 
 ### Class Day Shortcuts
 ```bash
@@ -522,27 +482,35 @@ conda activate decode-dna
 bash scripts/install_krona_taxonomy.sh
 bash scripts/install_R_dependencies.sh
 
-# Start with mock data analysis
-bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
+# Test installation works
+bash scripts/02_quick_look_clean.sh mock/ results/class_test
 ```
+
+### Common Student Issues
+- **Conda not installed**: Guide through miniconda installation
+- **Permission errors**: `chmod +x scripts/*.sh`
+- **Environment conflicts**: `conda deactivate` then `conda activate decode-dna`
+- **R package fails**: Run `bash scripts/install_R_dependencies.sh` again
 
 ---
 
 ## 📞 Support
 
 ### Getting Help
-1. **Check this guide** for common solutions
-2. **Review script comments** for step-specific guidance
-3. **Contact instructors**: `ednacollab@uw.edu`
+1. **Check this guide** for common installation solutions
+2. **Verify environment**: `conda activate decode-dna && conda list`
+3. **Test basic functionality**: `bash scripts/02_quick_look_clean.sh mock/ results/debug`
+4. **Contact instructors**: `ednacollab@uw.edu`
 
 ### Reporting Issues
-When reporting problems, include:
-- Operating system and version
+When reporting installation problems, include:
+- Operating system and version (`uname -a`)
+- Conda version (`conda --version`)
 - Error messages (full output)
-- Steps to reproduce the issue
+- Steps that led to the error
 
 ---
 
-**Installation complete! 🎉**
+**Installation complete! **
 
-You're ready to analyze eDNA data with the DeCodeDNA pipeline.
+**📖 Next step:** See [README.md](README.md) for usage instructions and pipeline customization options.
