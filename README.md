@@ -393,7 +393,14 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 # 1. Basecalling (GPU recommended, might be done on server/gaming laptop)
 bash scripts/00_basecall_and_demux.sh
 
-# 2. Demultiplexing with ONTbarcoder2.3 (GUI application)
+# 2. Demultiplexing - Choose your approach based on barcoding method:
+
+# Option A: ONT Native Barcoding (NBD104, etc.)
+# Use Dorado for demultiplexing during or after basecalling
+# Place demultiplexed FASTQ files in mock/ folder or your own directory
+
+# Option B: Custom CCI Barcodes
+# Use ONTbarcoder2.3 (GUI application) for demultiplexing
 # Create demultiplex sheet with 5 columns:
 # sample_name,forward_tag,reverse_tag,forward_primer,reverse_primer
 # 
@@ -401,10 +408,11 @@ bash scripts/00_basecall_and_demux.sh
 # 1_mifish_sample_a,CCATTGTATAAACC,CCATTGTATAAACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
 # 2_mifish_sample_b,CCGTATAGAGTACC,CCGTATAGAGTACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
 
-# 3. Fix ONTbarcoder output format (if needed)
+# 3. Fix ONTbarcoder output format (only needed for Option B)
 bash scripts/EFPQ_ontbarcoder_convert.sh
 
-# 4. Process your demultiplexed data (same commands as mock data)
+# 4. Process your demultiplexed data
+# Place your demultiplexed FASTQ files in a directory (e.g., mock/ or your_samples/)
 conda activate decode-dna
 source scripts/setup_databases.sh
 
