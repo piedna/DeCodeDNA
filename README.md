@@ -32,11 +32,19 @@ conda activate decode-dna
 ```
 
 ### 2. Setup Databases
-**Choose your setup method:**
+**Recommended approach: Build local databases with USB backup**
 
-- **🏫 FHL Course Students:** → Jump to [Classroom Setup](#classroom-setup) for USB databases
-- **🔨 Build Locally:** `bash scripts/01_build_dbs_kraken_blastn.sh` (1.5 hours, one-time)
-- **🔍 Auto-detect:** `source scripts/setup_databases.sh` (finds USB or local)
+```bash
+# 🔨 Build local databases (1.5 hours, but you own them forever)
+bash scripts/01_build_dbs_kraken_blastn.sh
+
+# 🔍 Auto-detect will prefer local, fallback to USB
+source scripts/setup_databases.sh
+```
+
+**Alternative quick setups:**
+- **🏫 FHL Course Students:** USB drives available → See [Classroom Setup](#classroom-setup)
+- **⚡ Quick Demo:** `source scripts/setup_databases.sh` (auto-detects USB if no local DBs)
 
 ### 3. Run Complete Pipeline
 ```bash
@@ -69,6 +77,12 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 ```bash
 # Automatically detect USB or local databases
 source scripts/setup_databases.sh
+
+# Verify databases are accessible
+echo "DB_ROOT: $DB_ROOT"
+echo "BLAST_DB_ROOT: $BLAST_DB_ROOT"
+ls -la "$DB_ROOT"
+ls -la "$BLAST_DB_ROOT"
 
 # Then run the pipeline normally (see Quick Start Step 3 above)
 ```
