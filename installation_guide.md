@@ -58,7 +58,7 @@ bash Miniconda3-latest-MacOSX-arm64.sh
 # - Type "yes" to initialize conda
 ```
 
-#### 🐧 Linux Installation
+#### 🐧 Linux (partitioned in Windows) Installation
 ```bash
 # Navigate to Downloads folder
 cd ~/Downloads
