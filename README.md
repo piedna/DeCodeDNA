@@ -199,7 +199,7 @@ bash scripts/00_basecall_and_demux.sh
 
 # 2. Demultiplexing - Choose your approach based on barcoding method:
 
-# Option A: ONT Native Barcoding (NBD104, etc.)
+# Option A: ONT Native Barcoding (SQK-NBD114.96, EXP-PBC096, etc.)
 # Use Dorado for demultiplexing during or after basecalling
 # Place demultiplexed FASTQ files in mock/ folder or your own directory
 
