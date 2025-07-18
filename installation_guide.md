@@ -105,9 +105,11 @@ echo 'export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)' >> ~/.zshrc
 
 ---
 
-## 🚀 Quick Setup (Minimal)
+## 🚀 Quick Setup
 
-**Now that conda is installed, set up the pipeline:**
+### For FHL Class (with USB drives):
+
+**If you're in the FHL course with provided USB drives:**
 
 ```bash
 # 1. Create workspace and clone repository
@@ -127,11 +129,45 @@ bash scripts/install_krona_taxonomy.sh
 # 5. Install R packages for denoising
 bash scripts/install_R_dependencies.sh
 
-# 6. Verify installation works
+# 6. Connect USB drive and setup pre-built databases
+source scripts/setup_databases.sh
+
+# 7. Verify installation works (5 minutes)
 bash scripts/02_quick_look_clean.sh mock/ results/installation_test
 ```
 
-**✅ This minimal setup lets you run the complete pipeline on example data!**
+**✅ This setup gets you working immediately with pre-built databases!**
+
+### For Independent Users:
+
+**If you're setting up on your own without pre-built databases:**
+
+```bash
+# 1. Create workspace and clone repository
+mkdir ~/eDNA_workshop && cd ~/eDNA_workshop
+git clone https://github.com/piedna/DeCodeDNA.git && cd DeCodeDNA
+
+# 2. Make scripts executable (important!)
+chmod +x scripts/*.sh
+
+# 3. Install environment (this will take 5-10 minutes)
+conda env create -f environment.yml
+conda activate decode-dna
+
+# 4. Setup Krona taxonomy
+bash scripts/install_krona_taxonomy.sh
+
+# 5. Install R packages for denoising
+bash scripts/install_R_dependencies.sh
+
+# 6. Build databases (this will take ~1.5 hours)
+bash scripts/01_build_dbs_kraken_blastn.sh
+
+# 7. Verify installation works (5-10 minutes)
+bash scripts/02_quick_look_clean.sh mock/ results/installation_test
+```
+
+**✅ This setup builds everything from scratch for complete independence!**
 
 **📖 For usage instructions:** See the main [README.md](README.md) file.
 
@@ -335,7 +371,17 @@ done
 echo "📋 Note: Dorado requires manual installation from GitHub"
 ```
 
-### Step 6: Reference Databases
+### Step 6: Database Setup (Choose Your Approach)
+
+#### Option A: Use Pre-built Databases (Classroom/USB)
+```bash
+# For FHL class or if you have pre-built database USB drives
+source scripts/setup_databases.sh
+
+# This will auto-detect USB drives and configure database paths
+```
+
+#### Option B: Build Databases from Scratch
 ```bash
 # Build all reference databases (takes ~1.5 hours)
 echo "🗄️ Building reference databases..."
@@ -356,6 +402,9 @@ echo "🔍 Testing core pipeline tools..."
 
 # Make sure scripts are executable
 chmod +x scripts/*.sh
+
+# Setup databases (USB or local)
+source scripts/setup_databases.sh
 
 # Test basic pipeline functionality (should complete in 5-10 minutes)
 echo "🧪 Running installation verification test..."
@@ -385,20 +434,17 @@ else
 fi
 ```
 
-### Test 3: Full Pipeline (if databases are built)
+### Test 3: Full Pipeline Test
 ```bash
-# Only run if databases exist
-if [[ -d "../databases/blast_db" ]]; then
-  echo "🔬 Testing full taxonomic assignment..."
-  bash scripts/05_taxonomic_assignment.sh results/test_denoise results/test_full
-  
-  if [[ -f "results/test_full/03_final_taxonomy/Overall_Method_Comparison.csv" ]]; then
-    echo "✅ Full pipeline test successful!"
-    echo "🌐 Open Krona plots: results/test_full/04_krona_plots/*.html"
-  fi
+# Test complete pipeline including taxonomic assignment
+echo "🔬 Testing full taxonomic assignment..."
+bash scripts/05_taxonomic_assignment.sh results/test_denoise results/test_full
+
+if [[ -f "results/test_full/03_final_taxonomy/Overall_Method_Comparison.csv" ]]; then
+  echo "✅ Full pipeline test successful!"
+  echo "🌐 Open Krona plots: results/test_full/04_krona_plots/*.html"
 else
-  echo "⏩ Skipping taxonomic assignment test (databases not built yet)"
-  echo "💡 To test full pipeline, first run: bash scripts/01_build_dbs_kraken_blastn.sh"
+  echo "❌ Full pipeline test failed - check database setup"
 fi
 ```
 
@@ -425,6 +471,18 @@ conda update conda
 # Try with mamba (faster)
 conda install mamba -c conda-forge
 mamba env create -f environment.yml
+```
+
+**Database setup fails**
+```bash
+# Check if USB drive is connected and mounted
+ls /Volumes/
+
+# Try manual database detection
+source scripts/setup_databases.sh
+
+# If no USB, build databases locally
+bash scripts/01_build_dbs_kraken_blastn.sh
 ```
 
 **R package installation fails**
@@ -468,7 +526,7 @@ bash scripts/02_quick_look_clean.sh mock/ results/fast_test
 ### Pre-Class Setup
 1. **Test complete installation** on instructor machine
 2. **Build databases** ahead of time (1.5 hours): `bash scripts/01_build_dbs_kraken_blastn.sh`
-3. **Prepare USB drives** with pre-built databases
+3. **Prepare USB drives** with pre-built databases (copy databases folder to USB)
 4. **Test USB detection** with `source scripts/setup_databases.sh`
 
 ### Class Day Shortcuts
@@ -482,7 +540,8 @@ conda activate decode-dna
 bash scripts/install_krona_taxonomy.sh
 bash scripts/install_R_dependencies.sh
 
-# Test installation works
+# Connect USB drive and test
+source scripts/setup_databases.sh
 bash scripts/02_quick_look_clean.sh mock/ results/class_test
 ```
 
@@ -490,6 +549,7 @@ bash scripts/02_quick_look_clean.sh mock/ results/class_test
 - **Conda not installed**: Guide through miniconda installation
 - **Permission errors**: `chmod +x scripts/*.sh`
 - **Environment conflicts**: `conda deactivate` then `conda activate decode-dna`
+- **Database not found**: Ensure USB drive is connected, try `source scripts/setup_databases.sh`
 - **R package fails**: Run `bash scripts/install_R_dependencies.sh` again
 
 ---
@@ -499,13 +559,14 @@ bash scripts/02_quick_look_clean.sh mock/ results/class_test
 ### Getting Help
 1. **Check this guide** for common installation solutions
 2. **Verify environment**: `conda activate decode-dna && conda list`
-3. **Test basic functionality**: `bash scripts/02_quick_look_clean.sh mock/ results/debug`
+3. **Test database detection**: `source scripts/setup_databases.sh`
 4. **Contact instructors**: `ednacollab@uw.edu`
 
 ### Reporting Issues
 When reporting installation problems, include:
 - Operating system and version (`uname -a`)
 - Conda version (`conda --version`)
+- Database setup method used (USB vs local build)
 - Error messages (full output)
 - Steps that led to the error
 
