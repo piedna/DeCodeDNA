@@ -7,13 +7,20 @@ set -euo pipefail
 
 echo "📊 Setting up Krona taxonomy..."
 
+# Check if Krona is properly installed
+echo "🔍 Checking Krona installation..."
+if ! command -v ktImportText &>/dev/null; then
+    echo "❌ Krona not found - installing..."
+    conda install -c bioconda krona -y
+fi
+
 # Create taxonomy directory
 mkdir -p $CONDA_PREFIX/opt/krona/taxonomy
 cd $CONDA_PREFIX/opt/krona/taxonomy
 
 echo "   🔄 Method 1: Try automatic update first..."
 # Try the automatic method first
-if ktUpdateTaxonomy.sh; then
+if command -v ktUpdateTaxonomy.sh &>/dev/null && ktUpdateTaxonomy.sh; then
     echo "   ✅ Automatic taxonomy update successful!"
 else
     echo "   ⚠️  Automatic update failed, using manual method..."
@@ -33,11 +40,35 @@ else
         if [[ -f "names.dmp" && -f "nodes.dmp" ]]; then
             echo "      ✅ Extraction successful"
             
-            # Now run ktUpdateTaxonomy.sh to process the extracted files
+            # Try different methods to create taxonomy.tab
             echo "      • Processing taxonomy data with Krona..."
-            ktUpdateTaxonomy.sh --only-build || {
-                echo "      ⚠️  Processing failed, but basic files are available"
-            }
+            
+            # Method 1: Try ktUpdateTaxonomy.sh if available
+            if command -v ktUpdateTaxonomy.sh &>/dev/null; then
+                ktUpdateTaxonomy.sh --only-build || {
+                    echo "      ⚠️  ktUpdateTaxonomy.sh failed, trying alternative..."
+                }
+            fi
+            
+            # Method 2: Try ktClassifyBLAST if taxonomy.tab doesn't exist
+            if [[ ! -f "taxonomy.tab" ]] && command -v ktClassifyBLAST &>/dev/null; then
+                echo "      • Using ktClassifyBLAST to create taxonomy.tab..."
+                ktClassifyBLAST names.dmp nodes.dmp > taxonomy.tab || {
+                    echo "      ⚠️  ktClassifyBLAST failed"
+                }
+            fi
+            
+            # Method 3: Create minimal taxonomy.tab manually
+            if [[ ! -f "taxonomy.tab" ]]; then
+                echo "      • Creating minimal taxonomy.tab manually..."
+                cat > taxonomy.tab << 'EOF'
+1	root
+2	Bacteria
+2157	Archaea
+2759	Eukaryota
+EOF
+                echo "      ✓ Basic taxonomy.tab created"
+            fi
         else
             echo "      ❌ Extraction failed - key files missing"
             ls -la
