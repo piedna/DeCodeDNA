@@ -45,23 +45,93 @@ Open `results/05_taxonomy/04_krona_plots/*.html` in your browser!
 
 📖 **Need detailed setup?** → See [`installation_guide.md`](installation_guide.md)
 
-📋 **Verify installation?** → Run `bash scripts/check_installation.sh`
+---
+
+## 📋 Dependencies
+
+All dependencies are automatically managed via conda. Here's what each tool does:
+
+| Tool            | Purpose                                   |
+|-----------------|-------------------------------------------|
+| **Dorado**      | SUP basecalling for Oxford Nanopore data |
+| **Cutadapt**    | Primer trimming and adapter removal      |
+| **NanoFilt**    | Quality & length filtering                |
+| **SeqKit**      | FASTA/Q utilities and statistics         |
+| **Kraken2**     | Rapid taxonomic classification            |
+| **VSEARCH**     | Fast clustering & sequence comparison     |
+| **CD-HIT**      | Alternative sequence clustering           |
+| **BLAST**       | Sequence alignment & taxonomic assignment|
+| **TaxonKit**    | Taxonomy database utilities              |
+| **Krona**       | Interactive HTML taxonomic visualizations|
+| **Amplicon_sorter** | Advanced consensus sequence calling   |
+| **LULU (R)**    | Post-clustering error correction          |
+| **ONTbarcoder** | Demultiplex custom CCI barcodes          |
+| **MinKNOW**     | Sequencer control & live basecalling     |
+
+### Automated Installation
+```bash
+conda env create -f environment.yml
+conda activate decode-dna
+```
 
 ---
 
-## 🔄 Pipeline Overview
+## 🔄 Pipeline Workflow Overview
 
 ```mermaid
-flowchart LR
-    A[Raw POD5] --> B[00: Basecalling]
-    B --> C[02: QC & Classification]
-    C --> D[03: Consensus Building]
-    D --> E[04: LULU Denoising]
-    E --> F[05: Taxonomic Assignment]
-    F --> G[Species Lists & Krona Plots]
-    
-    H[01: Build Databases] --> F
-    H[01: Build Databases] --> C
+flowchart TB
+  %% Define styling for different stages
+  classDef wetlab fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
+  classDef database fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
+  classDef analysis fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px,color:#000
+  classDef results fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
+
+  %% Wet lab processing
+  subgraph wetlab ["🧪 Sample to Data"]
+    direction LR
+    A["Sample Collection<br/>& Filtration"] 
+    B["PCR, Library Prep<br/>MinION Sequencing"]
+    C["00: Basecalling<br/>& Demultiplexing"]
+    A --> B --> C
+  end
+
+  %% Database preparation
+  subgraph database ["🗄️ Reference Databases"]
+    direction TB
+    D["01: Database Building<br/>MIDORI + MitoFish"]
+    D1["Kraken2 DBs<br/>(fast k-mer)"]
+    D2["BLAST DBs<br/>(precise alignment)"]
+    D --> D1
+    D --> D2
+  end
+
+  %% Core analysis pipeline
+  subgraph analysis ["🔬 Core Analysis Pipeline"]
+    direction LR
+    E["02: Quality Control<br/>& Classification"]
+    F["03: Consensus<br/>Building"]
+    G["04: LULU<br/>Denoising"]
+    H["05: Taxonomic<br/>Assignment"]
+    E --> F --> G --> H
+  end
+
+  %% Final outputs
+  subgraph results ["📊 Results & Visualization"]
+    direction TB
+    I["Species Lists<br/>& Abundance Tables"]
+    J["Interactive Krona Plots<br/>& Method Comparisons"]
+  end
+
+  %% Connect workflow stages
+  wetlab --> analysis
+  database --> analysis
+  analysis --> results
+
+  %% Apply styling
+  class A,B,C wetlab
+  class D,D1,D2 database
+  class E,F,G,H analysis
+  class I,J results
 ```
 
 **Educational Comparisons Built-In:**
@@ -125,17 +195,47 @@ The pipeline consists of 6 main scripts that can be run sequentially or independ
 
 ---
 
-## 📊 What You Get
+## 📊 Output Structure
 
-### Method Comparisons
-- **Multiple clustering methods:** vsearch vs amplicon_sorter
-- **Multiple classification methods:** BLAST vs Kraken2  
-- **Multiple databases:** 12S vs COI vs MitoFish
+Understanding what the pipeline produces helps you navigate and interpret results:
+
+```
+results/
+├── 02_quicklook/                    # Quality control & initial classification
+│   ├── filtered/                    # Quality-filtered sequences
+│   │   ├── *_filtered.fastq        # Sequences passing Q≥12, length filters
+│   │   └── *_length_dist/           # Length distribution plots
+│   └── mitofish/                    # Fish-classified sequences + Krona plots
+│       ├── *_mitofish.report.txt    # Kraken2 classification report
+│       ├── *_classified.fasta       # Fish-identified sequences
+│       └── *.krona.html             # Interactive taxonomic plots
+├── 03_consensus/                    # Sequence clustering results  
+│   ├── vsearch_clustering/          # Fast local clustering
+│   │   └── mitofish/               # Database-specific results
+│   │       └── *_vsearch_consensus.fasta  # Representative sequences
+│   └── amplicon_sorter_consensus.fasta    # High-quality consensus (pre-computed)
+├── 04_denoise/                     # Error-corrected sequences
+│   └── mitofish/                   # Database-specific denoised results
+│       ├── otu_table_*_lulu_curated.csv       # Final OTU abundance tables
+│       ├── otu_representatives_*.fasta        # Representative sequences
+│       └── otu_self_blast_*.out              # Self-alignment results
+└── 05_taxonomy/                    # Final species identification
+    ├── 01_blast_results/            # BLAST taxonomic assignments
+    │   └── *_blast_hits.tsv         # Best BLAST matches per method
+    ├── 02_kraken2_results/          # Kraken2 classifications  
+    │   ├── *_kraken2_output.txt     # Classification details
+    │   └── *_kraken2_report.txt     # Summary reports
+    ├── 03_final_taxonomy/           # Species abundance matrices
+    │   ├── Final_*_*_6columns.csv   # Method comparison tables ⭐
+    │   └── Overall_Method_Comparison.csv  # Performance summary
+    └── 04_krona_plots/              # Interactive HTML visualizations ⭐
+        └── *_krona_plot.html        # Method-specific taxonomic plots
+```
 
 ### Key Result Files
-- `results/05_taxonomy/03_final_taxonomy/Final_*_*_6columns.csv` - Species abundance matrices comparing both methods
-- `results/05_taxonomy/04_krona_plots/*.html` - Interactive taxonomic visualizations
-- `results/05_taxonomy/03_final_taxonomy/Overall_Method_Comparison.csv` - BLAST vs Kraken2 performance summary
+- **Species comparison tables**: `Final_*_*_6columns.csv` - Side-by-side method results
+- **Interactive plots**: `04_krona_plots/*.html` - Open these in your browser!
+- **Method performance**: `Overall_Method_Comparison.csv` - BLAST vs Kraken2 stats
 
 ---
 
@@ -180,43 +280,64 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 
 **Complete Pipeline Flow:**
 ```
-Raw POD5 → Dorado → ONTbarcoder2.3 → EFPQ_convert → Pipeline
+Raw POD5 → Dorado → ONTbarcoder2.3 → EFPQ_convert → DeCodeDNA Pipeline
 ```
 
 ```bash
-# 1. Build databases (one-time)
+# 1. Build databases (one-time, 1.5 hours)
 bash scripts/01_build_dbs_kraken_blastn.sh
 
-# 2. Basecalling (might be done separately on server/gaming laptop)
+# 2. Basecalling (GPU recommended, might be done on server/gaming laptop)
 bash scripts/00_basecall_and_demux.sh
 
 # 3. Demultiplexing with ONTbarcoder2.3 (GUI application)
-# Use demultiplex sheet with 5 columns:
-# sample_name, forward_tag, reverse_tag, forward_primer, reverse_primer
-# Example:
-# 1_mifish_chelexFN_a,CCATTGTATAAACC,CCATTGTATAAACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
-# 2_mifish_chelex1_a,CCGTATAGAGTACC,CCGTATAGAGTACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
+# Create demultiplex sheet with 5 columns:
+# sample_name,forward_tag,reverse_tag,forward_primer,reverse_primer
+# 
+# Example entries:
+# 1_mifish_sample_a,CCATTGTATAAACC,CCATTGTATAAACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
+# 2_mifish_sample_b,CCGTATAGAGTACC,CCGTATAGAGTACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
 
-# Fix ONTbarcoder output (if needed)
+# 4. Fix ONTbarcoder output format (if needed)
 bash scripts/EFPQ_ontbarcoder_convert.sh
 
-# 4. Process your demultiplexed data
+# 5. Process your demultiplexed data
 bash scripts/02_quick_look_clean.sh your_fastq_dir/ results/02_quicklook
-# ... continue with steps 3-5
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise
+bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 ```
 
 📖 **ONTbarcoder2.3 detailed usage:** https://github.com/asrivathsan/ONTbarcoder/releases
 
-### Customization
+### Customization Options
 ```bash
-# Faster for teaching
-export SUBSET_COUNT=1000
-export THREADS=4
+# For 2000bp mitochondrial data:
+export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish" THREADS=16
 
-# Different quality thresholds
-export QUALITY_THRESHOLD=15
-export MIN_LENGTH=200
+# For standard eDNA samples:
+export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=350 DATABASES="12s coi mitofish" THREADS=8
+
+# For fast teaching demos:
+export DATABASES="mitofish" THREADS=4 SUBSET_COUNT=500
 ```
+
+---
+
+## 🔬 Scientific Background
+
+### Key Publications
+- **Kraken2**: Wood & Salzberg (2014) - Improved metagenomic analysis with confidence scoring
+- **LULU**: Frøslev et al. (2017) - Post-clustering curation algorithm for OTU validation
+- **BLAST**: Altschul et al. (1990) - Basic local alignment search tool for sequence similarity
+- **amplicon_sorter**: Vierstraete et al. (2021) - Specialized ONT amplicon processing and consensus calling
+- **VSEARCH**: Rognes et al. (2016) - Fast sequence clustering and chimera detection
+
+### Pipeline Philosophy
+- **Educational transparency**: All parameters documented and adjustable for learning
+- **Method comparison**: Multiple approaches provide validation and demonstrate trade-offs
+- **Quality focus**: Rigorous filtering and error correction throughout pipeline
+- **Reproducibility**: Version-controlled environments and standardized workflows
 
 ---
 
@@ -224,7 +345,7 @@ export MIN_LENGTH=200
 
 - **OS:** macOS or Linux
 - **RAM:** 8GB minimum, 16GB+ recommended
-- **Storage:** 10GB+ free space
+- **Storage:** 10GB+ free space for databases and results
 - **Dependencies:** Managed via conda (see `environment.yml`)
 
 ---
