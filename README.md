@@ -422,7 +422,7 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 
 #### All Available Parameters
 
-| Parameter | What it does | Default | Example |
+| Parameter | What it does | Default | Custom |
 |-----------|--------------|---------|---------|
 | `QUALITY_THRESHOLD` | Minimum quality score | 12 | 18 |
 | `MIN_LENGTH` | Minimum sequence length | 100 | 1500 |
