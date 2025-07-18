@@ -266,6 +266,35 @@ bash scripts/01_build_dbs_kraken_blastn.sh
 
 ---
 
+### Optional: Basecalling Demo
+
+**Want to try Oxford Nanopore basecalling?** (5-10 minutes)
+
+```bash
+# 1. Download and install Dorado (one-time setup)
+# Visit: https://github.com/nanoporetech/dorado/releases
+# Extract to: ~/eDNA_workshop/tools/
+
+# 2. Run basecalling demonstration
+bash scripts/00_basecall_and_demux.sh
+
+# What this demonstrates:
+# • FAST5 vs POD5 file formats (educational)
+# • GPU vs CPU basecalling performance comparison  
+# • Model downloading (FAST, HAC, SUP)
+# • Produces basecalled FASTQ files for comparison
+```
+
+**Educational Value:**
+- Compare basecalling speeds (GPU vs CPU)
+- Understand modern POD5 vs legacy FAST5 formats
+- See the complete raw signal → sequence workflow
+- Perfect for understanding ONT technology basics
+
+**Note:** This is optional - the mock data already includes basecalled FASTQ files ready for analysis!
+
+---
+
 ## 📜 Pipeline Scripts
 
 The pipeline consists of 6 main scripts that can be run sequentially or independently:
