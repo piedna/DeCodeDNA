@@ -524,6 +524,9 @@ export THREADS=4
 export QUALITY_THRESHOLD=15  # Default: 12
 export MIN_LENGTH=200        # Default: 100
 
+# Just using one of the databases
+export DATABASES="mitofish"
+
 # Enable amplicon_sorter local execution (may hang)
 RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
 ```
