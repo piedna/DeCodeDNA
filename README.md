@@ -1,6 +1,6 @@
 # DeCodeDNA
 
-**Oxford Nanopore eDNA Metabarcoding Pipeline for FHL Class 2025**
+**Oxford Nanopore eDNA Metabarcoding Pipeline for Friday Harbor Lab Class 2025**
 
 A complete, educational bioinformatics pipeline for analyzing environmental DNA (eDNA) using Oxford Nanopore long-read sequencing technology. Designed for Friday Harbor Labs' (FHL) eDNA summer course by [The eDNA Collaborative](https://www.ednacollab.org)
 
@@ -8,11 +8,11 @@ A complete, educational bioinformatics pipeline for analyzing environmental DNA 
 
 ## 🧬 What is DeCodeDNA?
 
-DeCodeDNA transforms raw Oxford Nanopore sequencing data into species identification and abundance estimates. From raw POD5 basecalling through consensus calling, LULU‐denoising and taxonomic assignment, you get publication-ready results with educational insights at every step.
+DeCodeDNA transforms raw Oxford Nanopore sequencing data into species identification and abundance estimates. From raw POD5 basecalling through consensus calling, LULU‐denoising and taxonomic assignment, you get OTU tables and visual plot results with educational insights at every step.
 
 **Key Features:**
 - 🚀 **Smart basecalling** adapted to local machine specs
-- 🔬 **Dual clustering approaches** (fast vsearch + thorough amplicon_sorter)  
+- 🔬 **Dual clustering approaches** (fast vsearch + thorough, ONT-suited amplicon_sorter)  
 - 🧹 **LULU denoising** with co-occurrence filtering
 - 📊 **Method comparisons** (BLAST vs Kraken2, multiple databases)
 - 🎓 **Educational focus** with timing estimates and explanations
@@ -79,7 +79,7 @@ flowchart TB
 ```
 
 **Educational Comparisons Built-In:**
-- **Clustering:** vsearch (fast) vs amplicon_sorter (thorough)
+- **Clustering:** vsearch (fast) vs amplicon_sorter (thorough, ONT suited)
 - **Classification:** BLAST (similarity) vs Kraken2 (k-mer)
 - **Databases:** 12S vs COI vs MitoFish
 - **Visualization:** Multiple interactive Krona plots
@@ -92,17 +92,17 @@ All dependencies are automatically managed via conda. Here's what each tool does
 
 | Tool            | Purpose                                   |
 |-----------------|-------------------------------------------|
-| **Dorado**      | SUP basecalling for Oxford Nanopore data |
+| **Dorado**      | Fast, HAC, SUP basecalling for Oxford Nanopore data |
 | **Cutadapt**    | Primer trimming and adapter removal      |
 | **NanoFilt**    | Quality & length filtering                |
-| **SeqKit**      | FASTA/Q utilities and statistics         |
+| **SeqKit**      | FASTA/Q utilities and statistics, Quality Filtering         |
 | **Kraken2**     | Rapid taxonomic classification            |
 | **VSEARCH**     | Fast clustering & sequence comparison     |
 | **CD-HIT**      | Alternative sequence clustering           |
 | **BLAST**       | Sequence alignment & taxonomic assignment|
 | **TaxonKit**    | Taxonomy database utilities              |
 | **Krona**       | Interactive HTML taxonomic visualizations|
-| **Amplicon_sorter** | Advanced consensus sequence calling   |
+| **Amplicon_sorter** | Advanced consensus sequence calling, length QC   |
 | **LULU (R)**    | Post-clustering error correction          |
 | **ONTbarcoder** | Demultiplex custom CCI barcodes          |
 | **MinKNOW**     | Sequencer control & live basecalling     |
