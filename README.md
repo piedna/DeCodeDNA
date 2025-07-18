@@ -366,7 +366,20 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 
 **Complete Pipeline Flow:**
 ```
-Raw POD5 → Dorado → ONTbarcoder2.3 → EFPQ_convert → DeCodeDNA Pipeline
+                    Raw Data Processing
+POD5 ──[Dorado]──> FASTQ ──[ONTbarcoder]──> FASTA ──[EFPQ]──> Clean FASTQ
+ │                   │                        │                    │
+Raw signals      Basecalled              Demultiplexed        Quality-filtered
+                 sequences               by sample            sequences
+
+                    DeCodeDNA Pipeline
+Clean FASTQ ──[02]──> Filtered ──[03]──> Consensus ──[04]──> Curated ──[05]──> Results
+    │           │        │         │         │         │         │         │
+  Input      QC+Filter  FASTQ   Clustering  FASTA   Denoising   OTUs   Taxonomy
+                                                                        
+                                                                    ┌─> Species Tables
+                                                                    │
+                                                                    └─> Krona Plots
 ```
 
 **Step-by-step process:**
