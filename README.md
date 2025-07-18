@@ -201,8 +201,10 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 
 📖 **ONTbarcoder2.3 detailed usage:** https://github.com/asrivathsan/ONTbarcoder/releases
 
-# View results: Open results/05_taxonomy/04_krona_plots/*.html in browser
 ```
+
+# View results: Open results/05_taxonomy/04_krona_plots/*.html in browser
+
 
 📖 **Need detailed setup?** → See [`installation_guide.md`](installation_guide.md)
 
