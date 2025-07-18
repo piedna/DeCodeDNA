@@ -248,30 +248,67 @@ echo "   📋 POD5 file details:"
 ls -lh "$POD5_PATH"/*.pod5 | head -3
 
 echo ""
-echo "🖥️  APPROACH 1: GPU Basecalling (if available)"
+echo "🖥️  APPROACH 1: GPU/Metal Basecalling (if available)"
 echo "─────────────────────────────────────────────────"
 
 GPU_OUTPUT="$OUTPUT_DIR/gpu_basecalling.fastq"
-echo "   🚀 Attempting GPU basecalling with $RUN_MODEL..."
-echo "      Output: $GPU_OUTPUT"
+echo "   🔍 Checking for GPU/Metal availability..."
 
-# Try GPU basecalling (will fall back to CPU if no GPU)
-GPU_START_TIME=$(date +%s)
-if "$DORADO_BIN/dorado" basecaller "$MODEL_DIR/$RUN_MODEL" "$POD5_PATH" --emit-fastq > "$GPU_OUTPUT" 2>/dev/null; then
-  GPU_END_TIME=$(date +%s)
-  GPU_DURATION=$((GPU_END_TIME - GPU_START_TIME))
-  echo "   ✅ GPU basecalling completed in ${GPU_DURATION}s"
+# Check for GPU support (CUDA, Metal, or other)
+GPU_AVAILABLE=false
+
+# Method 1: On Mac, assume Metal is available
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  echo "   🍎 macOS detected - Metal acceleration should be available"
+  GPU_AVAILABLE=true
+# Method 2: Check if Dorado mentions GPU support on other systems
+elif timeout 10s "$DORADO_BIN/dorado" basecaller --help 2>/dev/null | grep -q -i "device.*cuda\|device.*gpu" 2>/dev/null; then
+  echo "   📊 GPU support detected in Dorado"
+  GPU_AVAILABLE=true
+else
+  echo "   💻 No GPU support detected - will use CPU only"
+fi
+
+if [[ "$GPU_AVAILABLE" == "true" ]]; then
+  echo "   🚀 Attempting GPU/Metal basecalling with $RUN_MODEL..."
+  echo "      Output: $GPU_OUTPUT"
+  echo "      Platform: $(uname -s) $(uname -m)"
+  echo "      Model path: $MODEL_DIR/$RUN_MODEL"
+
+  # Try GPU basecalling - let Dorado choose the best device automatically
+  GPU_START_TIME=$(date +%s)
   
-  # Show stats
-  if [[ -s "$GPU_OUTPUT" ]]; then
-    READ_COUNT=$(grep -c "^@" "$GPU_OUTPUT" || echo "0")
-    FILE_SIZE=$(du -h "$GPU_OUTPUT" | cut -f1)
-    echo "      📊 Reads: $READ_COUNT"
-    echo "      📁 Size: $FILE_SIZE"
+  # Debug: Show the exact command being run
+  echo "      Command: $DORADO_BIN/dorado basecaller $MODEL_DIR/$RUN_MODEL $POD5_PATH --emit-fastq"
+  
+  # Run without timeout first to see actual error messages
+  if "$DORADO_BIN/dorado" basecaller "$MODEL_DIR/$RUN_MODEL" "$POD5_PATH" --emit-fastq > "$GPU_OUTPUT" 2>"$OUTPUT_DIR/gpu_basecall_log.txt"; then
+    GPU_END_TIME=$(date +%s)
+    GPU_DURATION=$((GPU_END_TIME - GPU_START_TIME))
+    echo "   ✅ GPU/Metal basecalling completed in ${GPU_DURATION}s"
+    
+    # Show stats
+    if [[ -s "$GPU_OUTPUT" ]]; then
+      READ_COUNT=$(grep -c "^@" "$GPU_OUTPUT" || echo "0")
+      FILE_SIZE=$(du -h "$GPU_OUTPUT" | cut -f1)
+      echo "      📊 Reads: $READ_COUNT"
+      echo "      📁 Size: $FILE_SIZE"
+    fi
+  else
+    echo "   ⚠️  GPU/Metal basecalling failed"
+    echo "      Error log saved to: $OUTPUT_DIR/gpu_basecall_log.txt"
+    echo "      Checking error details..."
+    if [[ -f "$OUTPUT_DIR/gpu_basecall_log.txt" ]]; then
+      echo "      Last few lines of error log:"
+      tail -3 "$OUTPUT_DIR/gpu_basecall_log.txt" | sed 's/^/        /'
+    fi
+    echo "      Falling back to CPU basecalling"
+    rm -f "$GPU_OUTPUT"
+    GPU_DURATION=0
   fi
 else
-  echo "   ⚠️  GPU basecalling failed or no GPU available"
-  rm -f "$GPU_OUTPUT"
+  echo "   ⏭️  Skipping GPU basecalling (no acceleration detected)"
+  GPU_DURATION=0
 fi
 
 echo ""
@@ -318,16 +355,20 @@ echo "   🧬 Basecalling demo: FAST model for speed"
 echo ""
 
 echo "⚡ Performance Comparison:"
-if [[ -f "$GPU_OUTPUT" && -f "$CPU_OUTPUT" ]]; then
-  echo "   🖥️  GPU basecalling: ${GPU_DURATION}s"
+if [[ -f "$GPU_OUTPUT" && -f "$CPU_OUTPUT" && "$GPU_DURATION" -gt 0 ]]; then
+  echo "   🖥️  GPU/Metal basecalling: ${GPU_DURATION}s"
   echo "   💻 CPU basecalling: ${CPU_DURATION}s"
   
   if [[ "$GPU_DURATION" -lt "$CPU_DURATION" ]]; then
     SPEEDUP=$(echo "scale=1; $CPU_DURATION / $GPU_DURATION" | bc -l 2>/dev/null || echo "N/A")
-    echo "   🚀 GPU speedup: ${SPEEDUP}x faster"
+    echo "   🚀 Acceleration speedup: ${SPEEDUP}x faster"
   fi
 elif [[ -f "$CPU_OUTPUT" ]]; then
-  echo "   💻 CPU basecalling: ${CPU_DURATION}s (GPU not available)"
+  echo "   💻 CPU basecalling: ${CPU_DURATION}s"
+  if [[ "$GPU_DURATION" -eq 0 ]]; then
+    echo "   💡 GPU/Metal basecalling: Skipped or failed"
+    echo "   🎓 Teaching note: GPU acceleration varies by system"
+  fi
 fi
 
 echo ""
