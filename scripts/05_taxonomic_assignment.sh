@@ -549,8 +549,14 @@ for (db in c("12s", "coi", "mitofish")) {
     blast_classified_file <- file.path(taxonomy_dir, paste0("BLAST_", method_name, "_", db, "_classified_species.csv"))
     blast_full_file <- file.path(taxonomy_dir, paste0("BLAST_", method_name, "_", db, "_full_taxonomy.csv"))
     
-    if (nrow(blast_species_matrix) > 0) {
+    if (nrow(blast_species_matrix) > 0) {    
+      write_csv(blast_species_matrix, blast_classified_file)
       write_csv(taxonomy_result, blast_full_file)
+    } else {
+      empty_df <- data.frame(species = character(0), Sample1 = numeric(0), Sample2 = numeric(0), Sample3 = numeric(0))
+      write_csv(empty_df, blast_classified_file)
+      write_csv(taxonomy_result, blast_full_file)
+    }
     
     # Add to summary
     classified_otus <- sum(taxonomy_result$assignment_status == "classified")
@@ -696,7 +702,7 @@ fi
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ─── PART 4: CREATE FINAL 6-COLUMN COMBINED OUTPUT ───────────────────────
-# ═══════════════════════════════════────────────────────────════────────────
+# ═══════════════════════════════════════════════════════════════════════════
 
 echo "🔄 PART 4: CREATING FINAL 6-COLUMN COMBINED OUTPUT"
 echo "════════════════════════════════════════════════════════════════"
@@ -805,8 +811,21 @@ for (db in c("12s", "coi", "mitofish")) {
     
     # Save combined data if we have any
     if (!is.null(combined_data) && nrow(combined_data) > 0) {
-      # Replace NA with 0
-      combined_data[is.na(combined_data)] <- 0
+      # Replace NA with 0, handling mixed data types safely
+      combined_data <- combined_data %>%
+        mutate(across(where(is.numeric), ~replace_na(.x, 0))) %>%
+        mutate(across(where(is.character), ~replace_na(.x, "0")))
+
+      # Convert all sample columns to numeric
+      combined_data <- combined_data %>%
+        mutate(
+          Sample1_vsearch = as.numeric(Sample1_vsearch),
+          Sample2_vsearch = as.numeric(Sample2_vsearch), 
+          Sample3_vsearch = as.numeric(Sample3_vsearch),
+          Sample1_amplicon_sorter = as.numeric(Sample1_amplicon_sorter),
+          Sample2_amplicon_sorter = as.numeric(Sample2_amplicon_sorter),
+          Sample3_amplicon_sorter = as.numeric(Sample3_amplicon_sorter)
+        )
       
       # Reorder columns in the desired 6-column format
       combined_data <- combined_data %>%
@@ -935,15 +954,4 @@ echo "   • Open Final_*_6columns.csv files to compare method performance"
 echo "   • Use 6-column format for ecological analysis (e.g., community composition)"
 echo "   • Compare classification rates between vsearch and amplicon_sorter"
 echo "   • Analyze which species are detected by one method vs both"
-echo ""blast_species_matrix, blast_classified_file)
-    } else {
-      empty_df <- data.frame(species = character(0), Sample1 = numeric(0), Sample2 = numeric(0), Sample3 = numeric(0))
-      write_csv(empty_df, blast_classified_file)
-    }
-    
-    write_csv(#!/usr/bin/env bash
-set -euo pipefail
-
-# ─── usage ────────────────────────────────────────────────────────────────
-if [[ $# -ne 2 ]]; then
-  echo "Usage: $0 <DENOISE_DIR> <OUTPUT_DIR>"
+echo ""
