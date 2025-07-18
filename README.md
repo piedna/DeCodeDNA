@@ -197,13 +197,14 @@ bash scripts/02_quick_look_clean.sh your_fastq_dir/ results/02_quicklook
 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
 bash scripts/04_denoise.sh results/03_consensus results/04_denoise
 bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
+
+# View results: Open results/05_taxonomy/04_krona_plots/*.html in browser
 ```
 
 📖 **ONTbarcoder2.3 detailed usage:** https://github.com/asrivathsan/ONTbarcoder/releases
 
 ```
 
-# View results: Open results/05_taxonomy/04_krona_plots/*.html in browser
 
 
 📖 **Need detailed setup?** → See [`installation_guide.md`](installation_guide.md)
