@@ -215,7 +215,7 @@ The pipeline consists of 6 main scripts that can be run sequentially or independ
 ### Script 00: Basecalling Demo
 **`00_basecall_and_demux.sh`** - Oxford Nanopore basecalling demonstration
 - **Purpose:** Educational showcase of basecalling process
-- **What it does:** Downloads models, converts FAST5→POD5, demonstrates GPU vs CPU basecalling
+- **What it does:** Downloads models, converts FAST5→POD5 (if needed), demonstrates GPU vs CPU basecalling
 - **When to use:** Optional demo for understanding ONT basecalling workflow
 - **Output:** Basecalled FASTQ files for comparison
 
@@ -223,7 +223,7 @@ The pipeline consists of 6 main scripts that can be run sequentially or independ
 **`01_build_dbs_kraken_blastn.sh`** - Reference database construction
 - **Purpose:** One-time setup to build all reference databases
 - **What it does:** Downloads MIDORI and MitoFish sequences, builds BLAST and Kraken2 databases
-- **When to use:** Once before running taxonomic assignment (Script 05)
+- **When to use:** Once before running quick look (Script 02) and taxonomic assignment (Script 05)
 - **Output:** Ready-to-use databases in `../databases/`
 - **Timing:** ~1.5 hours (one-time setup)
 
@@ -241,14 +241,14 @@ The pipeline consists of 6 main scripts that can be run sequentially or independ
 - **What it does:** 
   - **vsearch:** Fast local clustering (runs automatically)
   - **amplicon_sorter:** Advanced clustering (demo command provided)
-- **Input:** Classified sequences from Script 02
+- **Input:** Classified (cleane of off-targets) sequences from Script 02
 - **Output:** Consensus sequences from both methods
 - **Timing:** ~5-8 minutes
 
 ### Script 04: LULU Denoising
 **`04_denoise.sh`** - Error correction and artifact removal
 - **Purpose:** Remove sequencing errors and PCR artifacts using LULU algorithm
-- **What it does:** Self-BLAST alignment, co-occurrence analysis, OTU curation
+- **What it does:** Self-BLAST alignment using vsearch, co-occurrence analysis, OTU curation
 - **Input:** Consensus sequences from Script 03  
 - **Output:** Curated OTU tables, cleaned representative sequences
 - **Timing:** ~3-7 minutes
@@ -333,26 +333,76 @@ mock/
 
 ---
 
-## 💻 Advanced Usage
+## 💻 Pipeline Usage
 
-### Pipeline Customization (No Script Editing Required!)
+### Basic Workflow (Mock Data)
+
+**Standard classroom workflow using the included mock dataset:**
+
+```bash
+# 1. Activate environment and setup databases
+conda activate decode-dna
+source scripts/setup_databases.sh
+
+# 2. Run complete pipeline (15-25 minutes)
+bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise
+bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
+
+# 3. View results
+# Open results/05_taxonomy/04_krona_plots/*.html in your browser
+```
+
+**What this does:**
+- Processes ~200K mock fish sequences through the complete pipeline
+- Uses default parameters (Q≥12, 100-500bp, all databases)
+- Creates species abundance tables and interactive visualizations
+- Perfect for learning and classroom demonstrations
+
+### Real Data Workflow
+
+**For processing your own Oxford Nanopore sequencing data:**
+
+**Complete Pipeline Flow:**
+```
+Raw POD5 → Dorado → ONTbarcoder2.3 → EFPQ_convert → DeCodeDNA Pipeline
+```
+
+**Step-by-step process:**
+
+```bash
+# 1. Basecalling (GPU recommended, might be done on server/gaming laptop)
+bash scripts/00_basecall_and_demux.sh
+
+# 2. Demultiplexing with ONTbarcoder2.3 (GUI application)
+# Create demultiplex sheet with 5 columns:
+# sample_name,forward_tag,reverse_tag,forward_primer,reverse_primer
+# 
+# Example entries:
+# 1_mifish_sample_a,CCATTGTATAAACC,CCATTGTATAAACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
+# 2_mifish_sample_b,CCGTATAGAGTACC,CCGTATAGAGTACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
+
+# 3. Fix ONTbarcoder output format (if needed)
+bash scripts/EFPQ_ontbarcoder_convert.sh
+
+# 4. Process your demultiplexed data (same commands as mock data)
+conda activate decode-dna
+source scripts/setup_databases.sh
+
+bash scripts/02_quick_look_clean.sh your_fastq_dir/ results/02_quicklook
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise
+bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
+```
+
+📖 **ONTbarcoder2.3 detailed usage:** https://github.com/asrivathsan/ONTbarcoder/releases
+
+### Advanced Customization
 
 **The pipeline is fully customizable without editing any scripts.** Just set environment variables before running:
 
-#### Quick Setup for Different Data Types
-
-```bash
-# For 2000bp mitochondrial data:
-export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish" THREADS=16
-
-# For standard eDNA samples:
-export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=350 DATABASES="12s coi mitofish" THREADS=8
-
-# For fast teaching demos:
-export DATABASES="mitofish" THREADS=4 SUBSET_COUNT=500
-```
-
-#### All Available Options
+#### All Available Parameters
 
 | Parameter | What it does | Default | Example |
 |-----------|--------------|---------|---------|
@@ -372,76 +422,17 @@ export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish"
 # 2. Check they're set
 echo "Quality: $QUALITY_THRESHOLD, Length: $MIN_LENGTH-$MAX_LENGTH, DB: $DATABASES, Threads: $THREADS"
 
-# 3. Run pipeline normally - no script editing needed!
+# 3. Run pipeline normally - scripts automatically use your custom parameters!
 bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
 bash scripts/04_denoise.sh results/03_consensus results/04_denoise
 bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
-
-# 4. Advanced: Enable amplicon_sorter local execution (may hang on local machines)
-RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
 ```
 
-**That's it!** The scripts automatically use your custom parameters.
+#### Example Configurations
 
-### Real Data Workflow
-
-**Complete Pipeline Flow:**
-```
-Raw POD5 → Dorado → ONTbarcoder2.3 → EFPQ_convert → DeCodeDNA Pipeline
-```
-
-**Step-by-step for your own data:**
-
+**Fast Demo Mode:**
 ```bash
-# 1. Basecalling (GPU recommended, might be done on server/gaming laptop)
-bash scripts/00_basecall_and_demux.sh
-
-# 2. Demultiplexing with ONTbarcoder2.3 (GUI application)
-# Create demultiplex sheet with 5 columns:
-# sample_name,forward_tag,reverse_tag,forward_primer,reverse_primer
-# 
-# Example entries:
-# 1_mifish_sample_a,CCATTGTATAAACC,CCATTGTATAAACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
-# 2_mifish_sample_b,CCGTATAGAGTACC,CCGTATAGAGTACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
-
-# 3. Fix ONTbarcoder output format (if needed)
-bash scripts/EFPQ_ontbarcoder_convert.sh
-
-# 4. Process your demultiplexed data (same as Quick Start Step 3)
-bash scripts/02_quick_look_clean.sh your_fastq_dir/ results/02_quicklook
-bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
-bash scripts/04_denoise.sh results/03_consensus results/04_denoise
-bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
-```
-
-📖 **ONTbarcoder2.3 detailed usage:** https://github.com/asrivathsan/ONTbarcoder/releases
-
-### Complete Workflow Examples
-
-#### Standard Classroom Workflow
-```bash
-# Always start by activating environment
-conda activate decode-dna
-
-# Setup databases (local first, USB fallback)
-source scripts/setup_databases.sh
-
-# Set parameters for typical eDNA samples
-export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=350 DATABASES="12s coi mitofish" THREADS=8
-
-# Run complete pipeline
-bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
-bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
-bash scripts/04_denoise.sh results/03_consensus results/04_denoise
-bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
-
-# View results: Open results/05_taxonomy/04_krona_plots/*.html in browser
-```
-
-#### Fast Demo Mode
-```bash
-# Quick demo with reduced dataset
 export DATABASES="mitofish" THREADS=4 SUBSET_COUNT=500
 
 # Run pipeline (faster with fewer databases and smaller dataset)
@@ -451,16 +442,28 @@ bash scripts/04_denoise.sh results/demo_consensus results/demo_denoise
 bash scripts/05_taxonomic_assignment.sh results/demo_denoise results/demo_taxonomy
 ```
 
-#### Full Mitochondrial Analysis
+**Standard eDNA Samples:**
 ```bash
-# High-quality parameters for complete mitogenomes
-export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish" THREADS=16
+export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=350 DATABASES="12s coi mitofish" THREADS=8
 
-# Run with stringent filtering
+# Run with typical eDNA parameters
+bash scripts/02_quick_look_clean.sh your_data/ results/edna_analysis
+# ... continue with remaining steps
+```
+
+**Complete Mitochondrial Genomes:**
+```bash
+export QUALITY_THRESHOLD=18 MIN_LENGTH=15000 MAX_LENGTH=18000 DATABASES="mitofish" THREADS=16
+
+# Run with stringent filtering for complete mitogenomes
 bash scripts/02_quick_look_clean.sh your_mito_data/ results/mito_analysis
-bash scripts/03_consensus_sort.sh results/mito_analysis results/mito_consensus
-bash scripts/04_denoise.sh results/mito_consensus results/mito_denoise
-bash scripts/05_taxonomic_assignment.sh results/mito_denoise results/mito_taxonomy
+# ... continue with remaining steps
+```
+
+**Advanced: Enable Local Amplicon_sorter (Educational Demo):**
+```bash
+# Warning: This may hang on local machines - demonstrates server vs local processing
+RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
 ```
 
 ---
@@ -468,7 +471,7 @@ bash scripts/05_taxonomic_assignment.sh results/mito_denoise results/mito_taxono
 ## 🔬 Scientific Background
 
 ### Key Publications
-- **Kraken2**: Wood & Salzberg (2014) - Improved metagenomic analysis with confidence scoring
+- **Kraken2**: Wood & Langmead (2019) - Improved metagenomic analysis with confidence scoring
 - **LULU**: Frøslev et al. (2017) - Post-clustering curation algorithm for OTU validation
 - **BLAST**: Altschul et al. (1990) - Basic local alignment search tool for sequence similarity
 - **amplicon_sorter**: Vierstraete et al. (2021) - Specialized ONT amplicon processing and consensus calling
@@ -491,14 +494,6 @@ bash scripts/05_taxonomic_assignment.sh results/mito_denoise results/mito_taxono
 
 ---
 
-## 📚 Documentation
-
-- 📖 **[Installation Guide](installation_guide.md)** - Detailed setup instructions
-- 🔬 **[Scientific Background](docs/scientific_background.md)** - Pipeline methodology
-- 🎓 **[Teaching Notes](docs/teaching_notes.md)** - Classroom guidance
-- 🔧 **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
-
----
 
 ## 📄 Citation
 
