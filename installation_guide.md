@@ -164,6 +164,8 @@ bash scripts/install_R_dependencies.sh
 
 # 6. Build databases (this will take ~1.5 hours)
 bash scripts/01_build_dbs_kraken_blastn.sh
+#for windows-linux machines, download unzip prior to database building
+sudo apt install zip unzip
 
 # 7. Verify installation works (5-10 minutes)
 bash scripts/02_quick_look_clean.sh mock/ results/installation_test
@@ -382,66 +384,6 @@ source scripts/setup_databases.sh
 # Build all reference databases (takes ~1.5 hours)
 echo "🗄️ Building reference databases..."
 bash scripts/01_build_dbs_kraken_blastn.sh 2>&1 | tee database_build.log
-```
-
----
-
-## 🧪 Testing Your Installation
-
-### Test 1: Verify Tools Work
-```bash
-# Make sure you're in the right environment
-conda activate decode-dna
-
-# Test that all core tools are accessible
-echo "🔍 Testing core pipeline tools..."
-
-# Make sure scripts are executable
-chmod +x scripts/*.sh
-
-# Setup databases (USB or local)
-source scripts/setup_databases.sh
-
-# Test basic pipeline functionality (should complete in 5-10 minutes)
-echo "🧪 Running installation verification test..."
-bash scripts/02_quick_look_clean.sh mock/ results/installation_test
-
-# Check if basic output was created
-if [[ -f "results/installation_test/mitofish/combined_clean_mitofish.krona.html" ]]; then
-  echo "✅ Installation test successful!"
-  echo "🌐 Test results created at: results/installation_test/"
-else
-  echo "❌ Installation test failed - check error messages above"
-fi
-```
-
-### Test 2: Verify R Integration
-```bash
-# Test R packages work
-echo "🧪 Testing R package integration..."
-bash scripts/03_consensus_sort.sh results/installation_test results/test_consensus
-bash scripts/04_denoise.sh results/test_consensus results/test_denoise
-
-# Check R-based denoising worked
-if [[ -f "results/test_denoise/mitofish/otu_table_mitofish_lulu_curated.csv" ]]; then
-  echo "✅ R integration test successful!"
-else
-  echo "❌ R integration test failed - check R package installation"
-fi
-```
-
-### Test 3: Full Pipeline Test
-```bash
-# Test complete pipeline including taxonomic assignment
-echo "🔬 Testing full taxonomic assignment..."
-bash scripts/05_taxonomic_assignment.sh results/test_denoise results/test_full
-
-if [[ -f "results/test_full/03_final_taxonomy/Overall_Method_Comparison.csv" ]]; then
-  echo "✅ Full pipeline test successful!"
-  echo "🌐 Open Krona plots: results/test_full/04_krona_plots/*.html"
-else
-  echo "❌ Full pipeline test failed - check database setup"
-fi
 ```
 
 ---
