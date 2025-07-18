@@ -22,8 +22,11 @@ This guide will take you from a fresh system to a fully functional eDNA analysis
 
 ### Check if Conda is Already Installed
 ```bash
-#If you have a Windows machine, go to cmd, type. Mac users, just go to terminal 
+#If you have a Windows machine, and do not have WSL, go to cmd, and type.
 wsl -- install
+#Proceed with conda installation
+
+# Mac users, just go to terminal 
 # Test if conda is installed
 conda --version
 
@@ -39,7 +42,7 @@ conda --version
    - **macOS Apple Silicon (M1/M2/M3)**: `Miniconda3-latest-MacOSX-arm64.sh`
    - **macOS Intel**: `Miniconda3-latest-MacOSX-x86_64.sh`
    - **Linux**: `Miniconda3-latest-Linux-x86_64.sh`
-   - **Windows**: `Miniconda3-latest-Windows-x86_64.exe`
+
 
 4. **Download and install:**
 
@@ -385,6 +388,16 @@ source scripts/setup_databases.sh
 echo "🗄️ Building reference databases..."
 bash scripts/01_build_dbs_kraken_blastn.sh 2>&1 | tee database_build.log
 ```
+
+## 🚀 Ready to Run the Pipeline?
+
+**Installation complete!** Now you can analyze eDNA data with the full pipeline.
+
+👉 **Next step:** See the [Pipeline Usage section in README.md](README.md#-pipeline-usage) for:
+- Basic workflow with mock data (15-25 minutes)
+- Real data processing instructions  
+- Advanced customization options
+- Parameter settings for different sample types
 
 ---
 
