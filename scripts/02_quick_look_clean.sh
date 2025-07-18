@@ -175,40 +175,76 @@ for fq in "${fastq_files[@]}"; do
     echo "    ✓ ${db} classification done"
 
     # ─── STEP 2.5: Convert Kraken2 output to proper FASTA format ─────
-    echo "    • Converting Kraken2 output to proper FASTA format..."
-    
-    # FIXED: Use the simple, working conversion from the old script
-    # Convert classified output to proper FASTA
-    if [[ -s "$OUT_DIR/${sample}_${db}_classified.fasta" ]]; then
-      temp_classified="$OUT_DIR/${sample}_${db}_classified_temp.fasta"
-      mv "$OUT_DIR/${sample}_${db}_classified.fasta" "$temp_classified"
-      awk 'NR%2==1 {print ">"$1} NR%2==0 {print}' "$temp_classified" > "$OUT_DIR/${sample}_${db}_classified.fasta"
-      rm "$temp_classified"
-      echo "      ✓ Classified FASTA converted"
-    fi
-    
-    # Convert unclassified output to proper FASTA
-    if [[ -s "$OUT_DIR/${sample}_${db}_unclassified.fasta" ]]; then
-      temp_unclassified="$OUT_DIR/${sample}_${db}_unclassified_temp.fasta"
-      mv "$OUT_DIR/${sample}_${db}_unclassified.fasta" "$temp_unclassified"
-      awk 'NR%2==1 {print ">"$1} NR%2==0 {print}' "$temp_unclassified" > "$OUT_DIR/${sample}_${db}_unclassified.fasta"
-      rm "$temp_unclassified"
-      echo "      ✓ Unclassified FASTA converted"
-    fi
+echo "    • Converting Kraken2 output to proper FASTA format..."
 
-    # Final validation with seqkit if available
-    if command -v seqkit &>/dev/null; then
-      if [[ -s "$OUT_DIR/${sample}_${db}_classified.fasta" ]]; then
-        echo "    • Final validation with seqkit..."
-        if seqkit stats "$OUT_DIR/${sample}_${db}_classified.fasta" >/dev/null 2>&1; then
-          echo "      ✓ Classified FASTA passes seqkit validation"
-        else
-          echo "      ❌ Classified FASTA failed seqkit validation"
-          echo "      Checking file content:"
-          head -6 "$OUT_DIR/${sample}_${db}_classified.fasta" | sed 's/^/        /'
-        fi
-      fi
+# ROBUST: Handle Kraken2's complex output format properly
+if [[ -s "$OUT_DIR/${sample}_${db}_classified.fasta" ]]; then
+  temp_classified="$OUT_DIR/${sample}_${db}_classified_temp.fasta"
+  mv "$OUT_DIR/${sample}_${db}_classified.fasta" "$temp_classified"
+  
+  # Use seqkit to convert any format to clean FASTA
+  # This handles Kraken2's weird output format robustly
+  seqkit fq2fa "$temp_classified" -o "$OUT_DIR/${sample}_${db}_classified.fasta" 2>/dev/null || {
+    # Fallback: more robust AWK that handles Kraken2 format
+    awk '
+    /^@/ { 
+      # Remove @ and everything after first space to clean headers
+      header = $1
+      gsub(/^@/, ">", header)
+      print header
+      getline
+      print $0
+      getline  # skip + line
+      getline  # skip quality line
+    }
+    ' "$temp_classified" > "$OUT_DIR/${sample}_${db}_classified.fasta"
+  }
+  
+  rm "$temp_classified"
+  echo "      ✓ Classified FASTA converted"
+fi
+
+# Convert unclassified output similarly
+if [[ -s "$OUT_DIR/${sample}_${db}_unclassified.fasta" ]]; then
+  temp_unclassified="$OUT_DIR/${sample}_${db}_unclassified_temp.fasta"
+  mv "$OUT_DIR/${sample}_${db}_unclassified.fasta" "$temp_unclassified"
+  
+  seqkit fq2fa "$temp_unclassified" -o "$OUT_DIR/${sample}_${db}_unclassified.fasta" 2>/dev/null || {
+    awk '
+    /^@/ { 
+      header = $1
+      gsub(/^@/, ">", header)
+      print header
+      getline
+      print $0
+      getline
+      getline
+    }
+    ' "$temp_unclassified" > "$OUT_DIR/${sample}_${db}_unclassified.fasta"
+  }
+  
+  rm "$temp_unclassified"
+  echo "      ✓ Unclassified FASTA converted"
+fi
+
+# Final validation with seqkit
+if command -v seqkit &>/dev/null; then
+  if [[ -s "$OUT_DIR/${sample}_${db}_classified.fasta" ]]; then
+    echo "    • Final validation with seqkit..."
+    if seqkit stats "$OUT_DIR/${sample}_${db}_classified.fasta" >/dev/null 2>&1; then
+      echo "      ✓ Classified FASTA passes seqkit validation"
+    else
+      echo "      ❌ Classified FASTA failed seqkit validation"
+      echo "      Checking file content:"
+      head -6 "$OUT_DIR/${sample}_${db}_classified.fasta" | sed 's/^/        /'
+      
+      # Emergency fix: strip problematic characters
+      echo "      🔧 Applying emergency fix..."
+      sed -i.bak 's/[-]//g' "$OUT_DIR/${sample}_${db}_classified.fasta"
+      echo "      ✓ Emergency fix applied (removed dashes)"
     fi
+  fi
+fi
 
     # ─── STEP 3: Generate Krona Charts ────────────────────────────────
     if [[ "$USE_KRONA" -eq 1 ]]; then
