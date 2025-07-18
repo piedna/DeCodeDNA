@@ -226,14 +226,14 @@ results/
     │   ├── *_kraken2_output.txt     # Classification details
     │   └── *_kraken2_report.txt     # Summary reports
     ├── 03_final_taxonomy/           # Species abundance matrices
-    │   ├── Final_*_*_6columns.csv   # Method comparison tables ⭐
+    │   ├── BLAST_vsearch_*GENE*_classified_species.csv   # Final OTU tables ⭐
     │   └── Overall_Method_Comparison.csv  # Performance summary
     └── 04_krona_plots/              # Interactive HTML visualizations ⭐
         └── *_krona_plot.html        # Method-specific taxonomic plots
 ```
 
 ### Key Result Files
-- **Species comparison tables**: `Final_*_*_6columns.csv` - Side-by-side method results
+- **Species comparison tables**: `BLAST_vsearch_*GENE*_classified_species.csv` - Final OTU tables
 - **Interactive plots**: `04_krona_plots/*.html` - Open these in your browser!
 - **Method performance**: `Overall_Method_Comparison.csv` - BLAST vs Kraken2 stats
 
