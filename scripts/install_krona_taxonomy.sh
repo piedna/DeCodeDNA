@@ -54,34 +54,20 @@ echo ""
 echo "🔍 Verifying Krona taxonomy setup..."
 ls -la
 
-# Check for required files
-required_files=("names.dmp" "nodes.dmp")
-missing_files=()
-
-for file in "${required_files[@]}"; do
-    if [[ -f "$file" ]]; then
-        echo "   ✅ $file: $(du -h "$file" | cut -f1)"
-    else
-        echo "   ❌ $file: Missing"
-        missing_files+=("$file")
-    fi
-done
-
-# Check for processed Krona files
+# Check for processed Krona files (this is what matters!)
 if [[ -f "taxonomy.tab" ]]; then
     echo "   ✅ taxonomy.tab: $(du -h taxonomy.tab | cut -f1) (Krona processed)"
+    KRONA_READY=1
 else
-    echo "   ⚠️  taxonomy.tab: Missing (Krona processing incomplete)"
+    echo "   ❌ taxonomy.tab: Missing (Krona processing failed)"
+    KRONA_READY=0
 fi
 
-if [[ ${#missing_files[@]} -eq 0 ]]; then
-    echo ""
-    echo "   ✅ Krona taxonomy setup complete!"
-    echo "   📁 Taxonomy files ready in: $CONDA_PREFIX/opt/krona/taxonomy/"
+# Check for optional raw files (may be cleaned up)
+if [[ -f "names.dmp" && -f "nodes.dmp" ]]; then
+    echo "   ✅ Raw taxonomy files: Available"
 else
-    echo ""
-    echo "   ⚠️  Setup partially complete - missing: ${missing_files[*]}"
-    echo "   💡 Krona plots may still work with available files"
+    echo "   ℹ️  Raw taxonomy files: Cleaned up (normal after processing)"
 fi
 
 echo ""
@@ -91,9 +77,21 @@ echo -e "10\tBacteria\n5\tArchaea" > /tmp/test_krona_input.txt
 if ktImportText -o /tmp/test_krona.html /tmp/test_krona_input.txt 2>/dev/null; then
     echo "   ✅ Krona basic functionality works!"
     rm -f /tmp/test_krona_input.txt /tmp/test_krona.html
+    KRONA_FUNCTIONAL=1
 else
     echo "   ❌ Krona functionality test failed"
     echo "   💡 Krona plots will be skipped in the pipeline"
+    KRONA_FUNCTIONAL=0
+fi
+
+echo ""
+if [[ $KRONA_READY -eq 1 && $KRONA_FUNCTIONAL -eq 1 ]]; then
+    echo "✅ Krona taxonomy installation SUCCESSFUL!"
+    echo "   📁 Taxonomy data ready in: $CONDA_PREFIX/opt/krona/taxonomy/"
+    echo "   🎯 Krona plots will work in the pipeline"
+else
+    echo "❌ Krona taxonomy installation incomplete"
+    echo "   💡 Pipeline will skip Krona visualizations"
 fi
 
 echo ""
