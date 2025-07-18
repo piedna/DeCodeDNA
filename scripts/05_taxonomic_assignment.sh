@@ -16,7 +16,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Database locations (created by script 01)
 BLAST_DB_ROOT="${BLAST_DB_ROOT:-$PROJECT_ROOT/../databases/blast_db}"
-KRAKEN_DB_ROOT="${KRAKEN_DB_ROOT:-$PROJECT_ROOT/../databases/kraken2_db}"
+KRAKEN_DB_ROOT="${DB_ROOT:-$PROJECT_ROOT/../databases/kraken2_db}"
 
 echo "🔬 DeCodeDNA Taxonomic Assignment - SEPARATE METHOD PROCESSING"
 echo "════════════════════════════════════════════════════════════════════════"
