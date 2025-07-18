@@ -355,7 +355,7 @@ bash scripts/install_external_tools.sh
    📱 Location: ~/eDNA_workshop/tools/ONTbarcoder2.3.app
 
 📋 Manual Installation Required:
-🔗 Please download Dorado from: https://github.com/nanoporetech/dorado/releases
+🔗 Please download Dorado from: https://github.com/nanoporetech/dorado
 📋 Choose the appropriate installer for your system:
    • macOS Apple Silicon: dorado-X.X.X-osx-arm64.zip
    • macOS Intel: dorado-X.X.X-osx-x64.zip
