@@ -22,7 +22,7 @@ DeCodeDNA transforms raw Oxford Nanopore sequencing data into species identifica
 
 ## 🚀 Quick Start
 
-### 1. Install
+### 1. Install Dependencies
 ```bash
 # Clone and setup (5 minutes)
 git clone https://github.com/piedna/DeCodeDNA.git
@@ -31,19 +31,77 @@ conda env create -f environment.yml
 conda activate decode-dna
 ```
 
-### 2. Test with Mock Data
+### 2. Setup Databases
+**Choose your setup method:**
+
+- **🏫 FHL Course Students:** → Jump to [Classroom Setup](#classroom-setup) for USB databases
+- **🔨 Build Locally:** `bash scripts/01_build_dbs_kraken_blastn.sh` (1.5 hours, one-time)
+- **🔍 Auto-detect:** `source scripts/setup_databases.sh` (finds USB or local)
+
+### 3. Run Complete Pipeline
 ```bash
-# Run complete pipeline (15 minutes)
+# Works for mock data or your own FASTQ files (15-25 minutes)
 bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
 bash scripts/04_denoise.sh results/03_consensus results/04_denoise
 bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
+
+# View results: Open results/05_taxonomy/04_krona_plots/*.html in browser
 ```
 
-### 3. View Results
-Open `results/05_taxonomy/04_krona_plots/*.html` in your browser!
-
 📖 **Need detailed setup?** → See [`installation_guide.md`](installation_guide.md)
+
+---
+
+## 🏫 Classroom Setup (Pre-built Databases)
+
+**For FHL course students only** - pre-built databases (158GB) are provided on USB drives:
+
+**Database Versions (Built: July 18, 2025):**
+- MIDORI 12S: GenBank265_2025-03-08 release
+- MIDORI COI: GenBank265_2025-03-08 release  
+- MitoFish: Complete & partial mitogenomes (July 2025)
+- Total size: 158GB (Kraken2 + BLAST databases)
+
+### Quick Setup Options:
+
+**Option A: Auto-Detection (Recommended)**
+```bash
+# Automatically detect USB or local databases
+source scripts/setup_databases.sh
+
+# Then run the pipeline normally (see Quick Start Step 3 above)
+```
+
+**Option B: Manual USB Setup**
+```bash
+# Point to USB databases (if auto-detection fails)
+export DB_ROOT="/Volumes/DeCodeDNA_DB/databases/kraken2_db"
+export BLAST_DB_ROOT="/Volumes/DeCodeDNA_DB/databases/blast_db"
+
+# Verify databases found
+ls $DB_ROOT && ls $BLAST_DB_ROOT
+```
+
+**Option C: Copy to Local Drive (Fast but needs 160GB space)**
+```bash
+# Copy from USB to local drive (faster analysis)
+cp -r /Volumes/DeCodeDNA_DB/databases ../
+
+# No exports needed - use pipeline normally
+```
+
+### Future Database Updates
+```bash
+# Update databases on USB drive (preserves for future classes)
+export DB_ROOT="/Volumes/DeCodeDNA_DB/databases/kraken2_db"
+export BLAST_DB_ROOT="/Volumes/DeCodeDNA_DB/databases/blast_db"
+
+# Run database builder to update USB
+bash scripts/01_build_dbs_kraken_blastn.sh
+```
+
+> **💡 Tip:** The USB drive doubles as storage for your updated databases after the course!
 
 ---
 
@@ -67,12 +125,6 @@ All dependencies are automatically managed via conda. Here's what each tool does
 | **LULU (R)**    | Post-clustering error correction          |
 | **ONTbarcoder** | Demultiplex custom CCI barcodes          |
 | **MinKNOW**     | Sequencer control & live basecalling     |
-
-### Automated Installation
-```bash
-conda env create -f environment.yml
-conda activate decode-dna
-```
 
 ---
 
@@ -159,6 +211,7 @@ The pipeline consists of 6 main scripts that can be run sequentially or independ
 - **What it does:** Downloads MIDORI and MitoFish sequences, builds BLAST and Kraken2 databases
 - **When to use:** Once before running taxonomic assignment (Script 05)
 - **Output:** Ready-to-use databases in `../databases/`
+- **Timing:** ~1.5 hours (one-time setup)
 
 ### Script 02: Quality Control & Classification
 **`02_quick_look_clean.sh`** - Initial processing and quality filtering
@@ -166,6 +219,7 @@ The pipeline consists of 6 main scripts that can be run sequentially or independ
 - **What it does:** Quality filtering, length filtering, initial Kraken2 classification
 - **Input:** Raw FASTQ files (from basecalling or mock data)
 - **Output:** Filtered sequences, classification reports, length distributions
+- **Timing:** ~3-5 minutes
 
 ### Script 03: Consensus Building
 **`03_consensus_sort.sh`** - Dual clustering approach demonstration
@@ -175,6 +229,7 @@ The pipeline consists of 6 main scripts that can be run sequentially or independ
   - **amplicon_sorter:** Advanced clustering (demo command provided)
 - **Input:** Classified sequences from Script 02
 - **Output:** Consensus sequences from both methods
+- **Timing:** ~5-8 minutes
 
 ### Script 04: LULU Denoising
 **`04_denoise.sh`** - Error correction and artifact removal
@@ -182,6 +237,7 @@ The pipeline consists of 6 main scripts that can be run sequentially or independ
 - **What it does:** Self-BLAST alignment, co-occurrence analysis, OTU curation
 - **Input:** Consensus sequences from Script 03  
 - **Output:** Curated OTU tables, cleaned representative sequences
+- **Timing:** ~3-7 minutes
 
 ### Script 05: Taxonomic Assignment
 **`05_taxonomic_assignment.sh`** - Final species identification and visualization
@@ -192,6 +248,9 @@ The pipeline consists of 6 main scripts that can be run sequentially or independ
   - **Krona plots:** Interactive taxonomic visualizations
 - **Input:** Denoised sequences from Script 04
 - **Output:** Species abundance tables, comparison matrices, Krona plots
+- **Timing:** ~5-10 minutes
+
+**Total Pipeline Time:** 15-25 minutes for mock data
 
 ---
 
@@ -253,11 +312,6 @@ mock/
 └── mock_amplicon_sorter_clustered_consensus_*.fasta  # Pre-computed server results
 ```
 
-### ⏱️ Realistic Timing
-- **Pipeline execution:** 15-25 minutes on mock data
-- **Individual steps:** 3-10 minutes each
-- **Database building:** 1.5 hours (one-time setup)
-
 ### 🔬 Method Comparisons
 - **Performance:** GPU vs CPU basecalling
 - **Accuracy:** Multiple taxonomic databases
@@ -265,16 +319,7 @@ mock/
 
 ---
 
-## 💻 Usage
-
-### Classroom Workflow
-```bash
-conda activate decode-dna
-bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
-bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
-bash scripts/04_denoise.sh results/03_consensus results/04_denoise
-bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
-```
+## 💻 Advanced Usage
 
 ### Real Data Workflow
 
@@ -283,14 +328,13 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 Raw POD5 → Dorado → ONTbarcoder2.3 → EFPQ_convert → DeCodeDNA Pipeline
 ```
 
-```bash
-# 1. Build databases (one-time, 1.5 hours)
-bash scripts/01_build_dbs_kraken_blastn.sh
+**Step-by-step for your own data:**
 
-# 2. Basecalling (GPU recommended, might be done on server/gaming laptop)
+```bash
+# 1. Basecalling (GPU recommended, might be done on server/gaming laptop)
 bash scripts/00_basecall_and_demux.sh
 
-# 3. Demultiplexing with ONTbarcoder2.3 (GUI application)
+# 2. Demultiplexing with ONTbarcoder2.3 (GUI application)
 # Create demultiplex sheet with 5 columns:
 # sample_name,forward_tag,reverse_tag,forward_primer,reverse_primer
 # 
@@ -298,10 +342,10 @@ bash scripts/00_basecall_and_demux.sh
 # 1_mifish_sample_a,CCATTGTATAAACC,CCATTGTATAAACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
 # 2_mifish_sample_b,CCGTATAGAGTACC,CCGTATAGAGTACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
 
-# 4. Fix ONTbarcoder output format (if needed)
+# 3. Fix ONTbarcoder output format (if needed)
 bash scripts/EFPQ_ontbarcoder_convert.sh
 
-# 5. Process your demultiplexed data
+# 4. Process your demultiplexed data (same as Quick Start Step 3)
 bash scripts/02_quick_look_clean.sh your_fastq_dir/ results/02_quicklook
 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
 bash scripts/04_denoise.sh results/03_consensus results/04_denoise
