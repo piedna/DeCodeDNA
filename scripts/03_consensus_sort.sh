@@ -368,5 +368,5 @@ echo "   • Species identification and abundance estimation"
 echo
 echo "✅ Step III complete - Ready for downstream analysis!"
 echo "🔗 Next step:"
-echo " bash scripts/04_denoise.sh results/03_consensus results/04_denoise"
+echo " bash scripts/04_denoise.sh $OUTPUT_DIR results/04_denoise"
 echo ""
