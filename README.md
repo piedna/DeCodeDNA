@@ -137,6 +137,33 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 - Creates species abundance tables and interactive visualizations
 - Perfect for learning and classroom demonstrations
 
+### Optional: Basecalling Demo
+
+**Want to try Oxford Nanopore basecalling?** (5-10 minutes)
+
+```bash
+# 1. Download and install Dorado (one-time setup)
+# Visit: https://github.com/nanoporetech/dorado/releases
+# Extract to: ~/eDNA_workshop/tools/
+
+# 2. Run basecalling demonstration
+bash scripts/00_basecall_and_demux.sh
+
+# What this demonstrates:
+# • FAST5 vs POD5 file formats (educational)
+# • GPU vs CPU basecalling performance comparison  
+# • Model downloading (FAST, HAC, SUP)
+# • Produces basecalled FASTQ files for comparison
+```
+
+**Educational Value:**
+- Compare basecalling speeds (GPU vs CPU)
+- Understand modern POD5 vs legacy FAST5 formats
+- See the complete raw signal → sequence workflow
+- Perfect for understanding ONT technology basics
+
+**Note:** This is optional - the mock data already includes basecalled FASTQ files ready for analysis!
+
 ### Real Data Workflow
 
 **For processing your own Oxford Nanopore sequencing data:**
@@ -263,35 +290,6 @@ bash scripts/01_build_dbs_kraken_blastn.sh
 ```
 
 > **💡 Tip:** The USB drive doubles as storage for your updated databases after the course!
-
----
-
-### Optional: Basecalling Demo
-
-**Want to try Oxford Nanopore basecalling?** (5-10 minutes)
-
-```bash
-# 1. Download and install Dorado (one-time setup)
-# Visit: https://github.com/nanoporetech/dorado/releases
-# Extract to: ~/eDNA_workshop/tools/
-
-# 2. Run basecalling demonstration
-bash scripts/00_basecall_and_demux.sh
-
-# What this demonstrates:
-# • FAST5 vs POD5 file formats (educational)
-# • GPU vs CPU basecalling performance comparison  
-# • Model downloading (FAST, HAC, SUP)
-# • Produces basecalled FASTQ files for comparison
-```
-
-**Educational Value:**
-- Compare basecalling speeds (GPU vs CPU)
-- Understand modern POD5 vs legacy FAST5 formats
-- See the complete raw signal → sequence workflow
-- Perfect for understanding ONT technology basics
-
-**Note:** This is optional - the mock data already includes basecalled FASTQ files ready for analysis!
 
 ---
 
