@@ -320,55 +320,49 @@ bash scripts/install_R_dependencies.sh
 **If you see any ❌ errors:** The script will try alternative installation methods automatically.
 
 ### Step 5: External Tools
+
 ```bash
-# Create tools directory
-mkdir -p ../tools
-cd ../tools
+# Run the external tools installation script
+bash scripts/install_external_tools.sh
+```
 
-echo "Installing external tools..."
+**What this script installs:**
 
-# A) Dorado (Oxford Nanopore basecaller) - Manual Download Required
-echo "📥 Downloading Dorado..."
-echo "🔗 Go to the Dorado GitHub page: https://github.com/nanoporetech/dorado"
-echo "📋 Look for the latest release and download the appropriate installer for your system:"
-echo "   • macOS Apple Silicon: dorado-X.X.X-osx-arm64.zip"
-echo "   • macOS Intel: dorado-X.X.X-osx-x64.zip"  
-echo "   • Linux x64: dorado-X.X.X-linux-x64.tar.gz"
-echo "   • Linux ARM64: dorado-X.X.X-linux-arm64.tar.gz"
-echo "   • Windows: dorado-X.X.X-win64.zip"
-echo ""
-echo "💡 After downloading, move the installer from ~/Downloads to ~/eDNA_workshop/tools/"
-echo "   Then extract and install according to the GitHub instructions"
-echo ""
+**✅ Automatic Installation (2 tools):**
+- **amplicon_sorter** - Advanced consensus sequence calling for ONT amplicons
+- **ONTbarcoder2.3** - GUI application for demultiplexing custom CCI barcodes
 
-# B) amplicon_sorter  
-echo "📥 Installing amplicon_sorter..."
-git clone https://github.com/avierstr/amplicon_sorter.git
-cp amplicon_sorter/amplicon_sorter.py $CONDA_PREFIX/bin/amplicon_sorter
-chmod +x $CONDA_PREFIX/bin/amplicon_sorter
-echo "✅ amplicon_sorter installed"
+**📋 Manual Installation Required (1 tool):**
+- **Dorado** - Oxford Nanopore SUP basecaller (requires manual download from GitHub)
 
-# C) ONTbarcoder2.3 (GUI application)
-echo "📥 Downloading ONTbarcoder2.3..."
-curl -L -o ONTbarcoder2.3.zip "https://github.com/asrivathsan/ONTbarcoder/releases/download/2.3.0/ONTbarcoder2.3.0_OSX.zip"
-unzip ONTbarcoder2.3.zip
-echo "✅ ONTbarcoder2.3 downloaded - you can open the app from Finder"
-echo "   📱 Location: $(pwd)/ONTbarcoder2.3.app"
+**Expected output - you should see:**
+```
+🔧 Installing External Tools for DeCodeDNA...
+📁 Creating tools directory at: ~/eDNA_workshop/tools/
 
-# Return to main directory
-cd ../DeCodeDNA
+📥 Installing amplicon_sorter...
+✅ amplicon_sorter installed successfully
 
-# Verify external tools
-echo "🔍 Verifying external tool installation..."
-for tool in amplicon_sorter; do
-  if command -v $tool >/dev/null; then
-    echo "✅ $tool: $(which $tool)"
-  else
-    echo "❌ $tool: not found"
-  fi
-done
+📥 Downloading ONTbarcoder2.3...
+✅ ONTbarcoder2.3 downloaded successfully
+   📱 Location: ~/eDNA_workshop/tools/ONTbarcoder2.3.app
 
-echo "📋 Note: Dorado requires manual installation from GitHub"
+📋 Manual Installation Required:
+🔗 Please download Dorado from: https://github.com/nanoporetech/dorado/releases
+📋 Choose the appropriate installer for your system:
+   • macOS Apple Silicon: dorado-X.X.X-osx-arm64.zip
+   • macOS Intel: dorado-X.X.X-osx-x64.zip
+   • Linux x64: dorado-X.X.X-linux-x64.tar.gz
+   • Linux ARM64: dorado-X.X.X-linux-arm64.tar.gz
+   • Windows: dorado-X.X.X-win64.zip
+
+💡 After downloading, extract to ~/eDNA_workshop/tools/ and follow GitHub instructions
+
+🔍 Verifying installations...
+✅ amplicon_sorter: Found
+❌ dorado: Not found (manual installation required)
+
+✅ External tools setup complete!
 ```
 
 ### Step 6: Database Setup (Choose Your Approach)
