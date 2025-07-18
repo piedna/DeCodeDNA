@@ -162,84 +162,50 @@ for fq in "${fastq_files[@]}"; do
       continue
     fi
     
-    # Use temporary files for Kraken2 output (not final FASTA format)
-    temp_classified="$OUT_DIR/${sample}_${db}_classified_raw.txt"
-    temp_unclassified="$OUT_DIR/${sample}_${db}_unclassified_raw.txt"
-    
+    # FIXED: Use the working approach from the old script
     kraken2 \
       --db "$DB_PATH" \
       --threads "$THREADS" \
       --confidence "$CONFIDENCE" \
       --report "$OUT_DIR/${sample}_${db}.report.txt" \
       --output "$OUT_DIR/${sample}_${db}.output.txt" \
-      --classified-out "$temp_classified" \
-      --unclassified-out "$temp_unclassified" \
+      --classified-out "$OUT_DIR/${sample}_${db}_classified.fasta" \
+      --unclassified-out "$OUT_DIR/${sample}_${db}_unclassified.fasta" \
       "$filtered_fq"
     echo "    ✓ ${db} classification done"
 
-    # ─── STEP 2.5: Convert Kraken2 FASTQ output to clean FASTA format ─────
-    echo "    • Converting Kraken2 FASTQ output to clean FASTA format..."
+    # ─── STEP 2.5: Convert Kraken2 output to proper FASTA format ─────
+    echo "    • Converting Kraken2 output to proper FASTA format..."
     
-    # Function to convert FASTQ to FASTA properly
-    convert_fastq_to_fasta() {
-      local input_fastq="$1"
-      local output_fasta="$2"
-      local file_type="$3"
-      
-      if [[ -s "$input_fastq" ]]; then
-        echo "      Converting $file_type FASTQ → FASTA..."
-        
-        # Use seqkit to properly convert FASTQ to FASTA, then clean sequences
-        seqkit fq2fa "$input_fastq" | \
-        awk '
-        /^>/ { 
-          header = $0
-          getline sequence
-          # Clean sequence: remove non-nucleotides and convert to uppercase
-          gsub(/[^ACGTNacgtn]/, "", sequence)
-          sequence = toupper(sequence)
-          # Only output if sequence is long enough
-          if (length(sequence) >= 50) {
-            print header
-            print sequence
-          }
-        }' > "$output_fasta"
-        
-        # Report results
-        if [[ -s "$output_fasta" ]]; then
-          local seq_count=$(grep -c "^>" "$output_fasta" 2>/dev/null || echo "0")
-          echo "      ✓ Converted $seq_count $file_type sequences to clean FASTA"
-        else
-          echo "      ⚠️  No valid $file_type sequences after conversion"
-          touch "$output_fasta"  # Create empty file to prevent downstream errors
-        fi
-      else
-        echo "      ⚠️  No $file_type FASTQ output from Kraken2"
-        touch "$output_fasta"
-      fi
-    }
+    # FIXED: Use the simple, working conversion from the old script
+    # Convert classified output to proper FASTA
+    if [[ -s "$OUT_DIR/${sample}_${db}_classified.fasta" ]]; then
+      temp_classified="$OUT_DIR/${sample}_${db}_classified_temp.fasta"
+      mv "$OUT_DIR/${sample}_${db}_classified.fasta" "$temp_classified"
+      awk 'NR%2==1 {print ">"$1} NR%2==0 {print}' "$temp_classified" > "$OUT_DIR/${sample}_${db}_classified.fasta"
+      rm "$temp_classified"
+      echo "      ✓ Classified FASTA converted"
+    fi
     
-    # Convert classified sequences (FASTQ → FASTA)
-    classified_fasta="$OUT_DIR/${sample}_${db}_classified.fasta"
-    convert_fastq_to_fasta "$temp_classified" "$classified_fasta" "classified"
-    
-    # Convert unclassified sequences (FASTQ → FASTA)
-    unclassified_fasta="$OUT_DIR/${sample}_${db}_unclassified.fasta"
-    convert_fastq_to_fasta "$temp_unclassified" "$unclassified_fasta" "unclassified"
-    
-    # Clean up temporary files
-    rm -f "$temp_classified" "$temp_unclassified"
-    
+    # Convert unclassified output to proper FASTA
+    if [[ -s "$OUT_DIR/${sample}_${db}_unclassified.fasta" ]]; then
+      temp_unclassified="$OUT_DIR/${sample}_${db}_unclassified_temp.fasta"
+      mv "$OUT_DIR/${sample}_${db}_unclassified.fasta" "$temp_unclassified"
+      awk 'NR%2==1 {print ">"$1} NR%2==0 {print}' "$temp_unclassified" > "$OUT_DIR/${sample}_${db}_unclassified.fasta"
+      rm "$temp_unclassified"
+      echo "      ✓ Unclassified FASTA converted"
+    fi
+
     # Final validation with seqkit if available
     if command -v seqkit &>/dev/null; then
-      if [[ -s "$classified_fasta" ]]; then
+      if [[ -s "$OUT_DIR/${sample}_${db}_classified.fasta" ]]; then
         echo "    • Final validation with seqkit..."
-        if seqkit stats "$classified_fasta" >/dev/null 2>&1; then
+        if seqkit stats "$OUT_DIR/${sample}_${db}_classified.fasta" >/dev/null 2>&1; then
           echo "      ✓ Classified FASTA passes seqkit validation"
         else
           echo "      ❌ Classified FASTA failed seqkit validation"
           echo "      Checking file content:"
-          head -6 "$classified_fasta" | sed 's/^/        /'
+          head -6 "$OUT_DIR/${sample}_${db}_classified.fasta" | sed 's/^/        /'
         fi
       fi
     fi
