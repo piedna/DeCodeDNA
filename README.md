@@ -366,20 +366,25 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 
 **Complete Pipeline Flow:**
 ```
-                    Raw Data Processing
-POD5 ──[Dorado]──> FASTQ ──[ONTbarcoder]──> FASTA ──[EFPQ]──> Clean FASTQ
- │                   │                        │                    │
-Raw signals      Basecalled              Demultiplexed        Quality-filtered
-                 sequences               by sample            sequences
+                        🧬 Raw Data Processing
+┌─────────┐    ┌─────────┐    ┌──────────────┐    ┌─────────┐    ┌─────────────┐
+│   📱    │    │   🔬    │    │      📋      │    │   🧹    │    │     ✨      │
+│  POD5   │───▶│ Dorado  │───▶│ ONTbarcoder  │───▶│  EFPQ   │───▶│ Clean FASTQ │
+└─────────┘    └─────────┘    └──────────────┘    └─────────┘    └─────────────┘
+     │              │               │                  │               │
+ Raw signals    Basecalled     Demultiplexed     Quality-filtered   Ready for
+                sequences       by sample         sequences         analysis
 
-                    DeCodeDNA Pipeline
-Clean FASTQ ──[02]──> Filtered ──[03]──> Consensus ──[04]──> Curated ──[05]──> Results
-    │           │        │         │         │         │         │         │
-  Input      QC+Filter  FASTQ   Clustering  FASTA   Denoising   OTUs   Taxonomy
-                                                                        
-                                                                    ┌─> Species Tables
-                                                                    │
-                                                                    └─> Krona Plots
+                          🔬 DeCodeDNA Pipeline
+┌─────────────┐    ┌─────────┐    ┌───────────┐    ┌─────────┐    ┌─────────┐    ┌─────────────┐
+│     ✨      │    │   02    │    │    03     │    │   04    │    │   05    │    │     📊      │
+│ Clean FASTQ │───▶│QC+Filter│───▶│Clustering │───▶│Denoising│───▶│Taxonomy │───▶│   Results   │
+└─────────────┘    └─────────┘    └───────────┘    └─────────┘    └─────────┘    └─────────────┘
+     │               │               │               │               │               │
+   Input         Filtered FASTQ  Consensus FASTA  Curated OTUs   Classifications      │
+                                                                                       ├─▶ 📋 Species Tables
+                                                                                       │
+                                                                                       └─▶ 🌐 Krona Plots
 ```
 
 **Step-by-step process:**
@@ -417,7 +422,7 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 
 #### All Available Parameters
 
-| Parameter | What it does | Default | Custom |
+| Parameter | What it does | Default | Example |
 |-----------|--------------|---------|---------|
 | `QUALITY_THRESHOLD` | Minimum quality score | 12 | 18 |
 | `MIN_LENGTH` | Minimum sequence length | 100 | 1500 |
@@ -444,7 +449,7 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 
 #### Example Configurations
 
-**Fast Demo Mode:**
+**🚀 Fast Demo Mode:**
 ```bash
 export DATABASES="mitofish" THREADS=4 SUBSET_COUNT=500
 
@@ -455,7 +460,7 @@ bash scripts/04_denoise.sh results/demo_consensus results/demo_denoise
 bash scripts/05_taxonomic_assignment.sh results/demo_denoise results/demo_taxonomy
 ```
 
-**Standard eDNA Samples:**
+**🐟 Standard eDNA Samples:**
 ```bash
 export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=350 DATABASES="12s coi mitofish" THREADS=8
 
@@ -464,7 +469,7 @@ bash scripts/02_quick_look_clean.sh your_data/ results/edna_analysis
 # ... continue with remaining steps
 ```
 
-**Complete Mitochondrial Genomes:**
+**🧬 Complete Mitochondrial Genomes:**
 ```bash
 export QUALITY_THRESHOLD=18 MIN_LENGTH=15000 MAX_LENGTH=18000 DATABASES="mitofish" THREADS=16
 
@@ -473,7 +478,7 @@ bash scripts/02_quick_look_clean.sh your_mito_data/ results/mito_analysis
 # ... continue with remaining steps
 ```
 
-**Advanced: Enable Local Amplicon_sorter (Educational Demo):**
+**⚙️ Advanced: Enable Local Amplicon_sorter (Educational Demo):**
 ```bash
 # Warning: This may hang on local machines - demonstrates server vs local processing
 RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
