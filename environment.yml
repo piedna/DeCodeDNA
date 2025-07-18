@@ -20,6 +20,8 @@ dependencies:
   - pod5                  # convert legacy fast5 to pod5
   - clang_osx-64          # for building Bracken on macOS
   - llvm-openmp           # OpenMP support for clang
+  - gcc_linux-64           # C compiler for Linux
+  - gxx_linux-64           # C++ compiler for Linux
 
   # everything below will be installed by pip:
   - pip:
