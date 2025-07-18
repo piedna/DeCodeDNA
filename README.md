@@ -109,39 +109,98 @@ All dependencies are automatically managed via conda. Here's what each tool does
 
 ---
 
-## 🚀 Quick Start
+---
 
-### 1. Install Dependencies
+## 💻 Pipeline Usage
+
+### Basic Workflow (Mock Data)
+
+**Standard classroom workflow using the included mock dataset:**
+
 ```bash
-# Clone and setup (5 minutes)
-git clone https://github.com/piedna/DeCodeDNA.git
-cd DeCodeDNA && chmod +x scripts/*.sh
-conda env create -f environment.yml
+# 1. Activate environment and setup databases
 conda activate decode-dna
-```
-
-### 2. Setup Databases
-**Recommended approach: Build local databases with USB backup**
-
-```bash
-# 🔨 Build local databases (1.5 hours, but you own them forever)
-bash scripts/01_build_dbs_kraken_blastn.sh
-
-# 🔍 Auto-detect will prefer local, fallback to USB
 source scripts/setup_databases.sh
-```
 
-**Alternative quick setups:**
-- **🏫 FHL Course Students:** USB drives available → See [Classroom Setup](#classroom-setup)
-- **⚡ Quick Demo:** `source scripts/setup_databases.sh` (auto-detects USB if no local DBs)
-
-### 3. Run Complete Pipeline
-```bash
-# Works for mock data or your own FASTQ files (15-25 minutes)
+# 2. Run complete pipeline (15-25 minutes)
 bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
 bash scripts/04_denoise.sh results/03_consensus results/04_denoise
 bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
+
+# 3. View results
+# Open results/05_taxonomy/04_krona_plots/*.html in your browser
+```
+
+**What this does:**
+- Processes ~200K mock fish sequences through the complete pipeline
+- Uses default parameters (Q≥12, 100-500bp, all databases)
+- Creates species abundance tables and interactive visualizations
+- Perfect for learning and classroom demonstrations
+
+### Real Data Workflow
+
+**For processing your own Oxford Nanopore sequencing data:**
+
+**Complete Pipeline Flow:**
+```
+                        🧬 Raw Data Processing
+┌─────────┐    ┌─────────┐    ┌──────────────┐    ┌─────────┐    ┌─────────────┐
+│   📱    │    │   🔬    │    │      📋      │    │   🧹    │    │     ✨      │
+│  POD5   │───▶│ Dorado  │───▶│ ONTbarcoder  │───▶│  EFPQ   │───▶│ Clean FASTQ │
+└─────────┘    └─────────┘    └──────────────┘    └─────────┘    └─────────────┘
+     │              │               │                  │               │
+ Raw signals    Basecalled     Demultiplexed     Quality-filtered   Ready for
+                sequences       by sample         sequences         analysis
+
+                          🔬 DeCodeDNA Pipeline
+┌─────────────┐    ┌─────────┐    ┌───────────┐    ┌─────────┐    ┌─────────┐    ┌─────────────┐
+│     ✨      │    │   02    │    │    03     │    │   04    │    │   05    │    │     📊      │
+│ Clean FASTQ │───▶│QC+Filter│───▶│Clustering │───▶│Denoising│───▶│Taxonomy │───▶│   Results   │
+└─────────────┘    └─────────┘    └───────────┘    └─────────┘    └─────────┘    └─────────────┘
+     │               │               │               │               │               │
+   Input         Filtered FASTQ  Consensus FASTA  Curated OTUs   Classifications      │
+                                                                                       ├─▶ 📋 Species Tables
+                                                                                       │
+                                                                                       └─▶ 🌐 Krona Plots
+```
+
+**Step-by-step process:**
+
+```bash
+# 1. Basecalling (GPU recommended, might be done on server/gaming laptop)
+bash scripts/00_basecall_and_demux.sh
+
+# 2. Demultiplexing - Choose your approach based on barcoding method:
+
+# Option A: ONT Native Barcoding (NBD104, etc.)
+# Use Dorado for demultiplexing during or after basecalling
+# Place demultiplexed FASTQ files in mock/ folder or your own directory
+
+# Option B: Custom CCI Barcodes
+# Use ONTbarcoder2.3 (GUI application) for demultiplexing
+# Create demultiplex sheet with 5 columns:
+# sample_name,forward_tag,reverse_tag,forward_primer,reverse_primer
+# 
+# Example entries:
+# 1_mifish_sample_a,CCATTGTATAAACC,CCATTGTATAAACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
+# 2_mifish_sample_b,CCGTATAGAGTACC,CCGTATAGAGTACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
+
+# 3. Fix ONTbarcoder output format (only needed for Option B)
+bash scripts/EFPQ_ontbarcoder_convert.sh
+
+# 4. Process your demultiplexed data
+# Place your demultiplexed FASTQ files in a directory (e.g., mock/ or your_samples/)
+conda activate decode-dna
+source scripts/setup_databases.sh
+
+bash scripts/02_quick_look_clean.sh your_fastq_dir/ results/02_quicklook
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise
+bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
+```
+
+📖 **ONTbarcoder2.3 detailed usage:** https://github.com/asrivathsan/ONTbarcoder/releases
 
 # View results: Open results/05_taxonomy/04_krona_plots/*.html in browser
 ```
@@ -333,96 +392,6 @@ mock/
 
 ---
 
-## 💻 Pipeline Usage
-
-### Basic Workflow (Mock Data)
-
-**Standard classroom workflow using the included mock dataset:**
-
-```bash
-# 1. Activate environment and setup databases
-conda activate decode-dna
-source scripts/setup_databases.sh
-
-# 2. Run complete pipeline (15-25 minutes)
-bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
-bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
-bash scripts/04_denoise.sh results/03_consensus results/04_denoise
-bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
-
-# 3. View results
-# Open results/05_taxonomy/04_krona_plots/*.html in your browser
-```
-
-**What this does:**
-- Processes ~200K mock fish sequences through the complete pipeline
-- Uses default parameters (Q≥12, 100-500bp, all databases)
-- Creates species abundance tables and interactive visualizations
-- Perfect for learning and classroom demonstrations
-
-### Real Data Workflow
-
-**For processing your own Oxford Nanopore sequencing data:**
-
-**Complete Pipeline Flow:**
-```
-                        🧬 Raw Data Processing
-┌─────────┐    ┌─────────┐    ┌──────────────┐    ┌─────────┐    ┌─────────────┐
-│   📱    │    │   🔬    │    │      📋      │    │   🧹    │    │     ✨      │
-│  POD5   │───▶│ Dorado  │───▶│ ONTbarcoder  │───▶│  EFPQ   │───▶│ Clean FASTQ │
-└─────────┘    └─────────┘    └──────────────┘    └─────────┘    └─────────────┘
-     │              │               │                  │               │
- Raw signals    Basecalled     Demultiplexed     Quality-filtered   Ready for
-                sequences       by sample         sequences         analysis
-
-                          🔬 DeCodeDNA Pipeline
-┌─────────────┐    ┌─────────┐    ┌───────────┐    ┌─────────┐    ┌─────────┐    ┌─────────────┐
-│     ✨      │    │   02    │    │    03     │    │   04    │    │   05    │    │     📊      │
-│ Clean FASTQ │───▶│QC+Filter│───▶│Clustering │───▶│Denoising│───▶│Taxonomy │───▶│   Results   │
-└─────────────┘    └─────────┘    └───────────┘    └─────────┘    └─────────┘    └─────────────┘
-     │               │               │               │               │               │
-   Input         Filtered FASTQ  Consensus FASTA  Curated OTUs   Classifications      │
-                                                                                       ├─▶ 📋 Species Tables
-                                                                                       │
-                                                                                       └─▶ 🌐 Krona Plots
-```
-
-**Step-by-step process:**
-
-```bash
-# 1. Basecalling (GPU recommended, might be done on server/gaming laptop)
-bash scripts/00_basecall_and_demux.sh
-
-# 2. Demultiplexing - Choose your approach based on barcoding method:
-
-# Option A: ONT Native Barcoding (NBD104, etc.)
-# Use Dorado for demultiplexing during or after basecalling
-# Place demultiplexed FASTQ files in mock/ folder or your own directory
-
-# Option B: Custom CCI Barcodes
-# Use ONTbarcoder2.3 (GUI application) for demultiplexing
-# Create demultiplex sheet with 5 columns:
-# sample_name,forward_tag,reverse_tag,forward_primer,reverse_primer
-# 
-# Example entries:
-# 1_mifish_sample_a,CCATTGTATAAACC,CCATTGTATAAACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
-# 2_mifish_sample_b,CCGTATAGAGTACC,CCGTATAGAGTACC,GCCGGTAAAACTCGTGCCAGC,CATAGTGGGGTATCTAATCCCAGTTTG
-
-# 3. Fix ONTbarcoder output format (only needed for Option B)
-bash scripts/EFPQ_ontbarcoder_convert.sh
-
-# 4. Process your demultiplexed data
-# Place your demultiplexed FASTQ files in a directory (e.g., mock/ or your_samples/)
-conda activate decode-dna
-source scripts/setup_databases.sh
-
-bash scripts/02_quick_look_clean.sh your_fastq_dir/ results/02_quicklook
-bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
-bash scripts/04_denoise.sh results/03_consensus results/04_denoise
-bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
-```
-
-📖 **ONTbarcoder2.3 detailed usage:** https://github.com/asrivathsan/ONTbarcoder/releases
 
 ### Advanced Customization
 
