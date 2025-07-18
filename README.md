@@ -20,6 +20,95 @@ DeCodeDNA transforms raw Oxford Nanopore sequencing data into species identifica
 
 ---
 
+## 🔄 Pipeline Workflow Overview
+
+```mermaid
+flowchart TB
+  %% Define styling for different stages
+  classDef wetlab fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
+  classDef database fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
+  classDef analysis fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px,color:#000
+  classDef results fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
+
+  %% Wet lab processing
+  subgraph wetlab ["🧪 Sample to Data"]
+    direction LR
+    A["Sample Collection<br/>& Filtration"] 
+    B["PCR, Library Prep<br/>MinION Sequencing"]
+    C["00: Basecalling<br/>& Demultiplexing"]
+    A --> B --> C
+  end
+
+  %% Database preparation
+  subgraph database ["🗄️ Reference Databases"]
+    direction TB
+    D["01: Database Building<br/>MIDORI + MitoFish"]
+    D1["Kraken2 DBs<br/>(fast k-mer)"]
+    D2["BLAST DBs<br/>(precise alignment)"]
+    D --> D1
+    D --> D2
+  end
+
+  %% Core analysis pipeline
+  subgraph analysis ["🔬 Core Analysis Pipeline"]
+    direction LR
+    E["02: Quality Control<br/>& Classification"]
+    F["03: Consensus<br/>Building"]
+    G["04: LULU<br/>Denoising"]
+    H["05: Taxonomic<br/>Assignment"]
+    E --> F --> G --> H
+  end
+
+  %% Final outputs
+  subgraph results ["📊 Results & Visualization"]
+    direction TB
+    I["Species Lists<br/>& Abundance Tables"]
+    J["Interactive Krona Plots<br/>& Method Comparisons"]
+  end
+
+  %% Connect workflow stages
+  wetlab --> analysis
+  database --> analysis
+  analysis --> results
+
+  %% Apply styling
+  class A,B,C wetlab
+  class D,D1,D2 database
+  class E,F,G,H analysis
+  class I,J results
+```
+
+**Educational Comparisons Built-In:**
+- **Clustering:** vsearch (fast) vs amplicon_sorter (thorough)
+- **Classification:** BLAST (similarity) vs Kraken2 (k-mer)
+- **Databases:** 12S vs COI vs MitoFish
+- **Visualization:** Multiple interactive Krona plots
+
+---
+
+## 📋 Dependencies
+
+All dependencies are automatically managed via conda. Here's what each tool does:
+
+| Tool            | Purpose                                   |
+|-----------------|-------------------------------------------|
+| **Dorado**      | SUP basecalling for Oxford Nanopore data |
+| **Cutadapt**    | Primer trimming and adapter removal      |
+| **NanoFilt**    | Quality & length filtering                |
+| **SeqKit**      | FASTA/Q utilities and statistics         |
+| **Kraken2**     | Rapid taxonomic classification            |
+| **VSEARCH**     | Fast clustering & sequence comparison     |
+| **CD-HIT**      | Alternative sequence clustering           |
+| **BLAST**       | Sequence alignment & taxonomic assignment|
+| **TaxonKit**    | Taxonomy database utilities              |
+| **Krona**       | Interactive HTML taxonomic visualizations|
+| **Amplicon_sorter** | Advanced consensus sequence calling   |
+| **LULU (R)**    | Post-clustering error correction          |
+| **ONTbarcoder** | Demultiplex custom CCI barcodes          |
+| **MinKNOW**     | Sequencer control & live basecalling     |
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Install Dependencies
@@ -116,95 +205,6 @@ bash scripts/01_build_dbs_kraken_blastn.sh
 ```
 
 > **💡 Tip:** The USB drive doubles as storage for your updated databases after the course!
-
----
-
-## 📋 Dependencies
-
-All dependencies are automatically managed via conda. Here's what each tool does:
-
-| Tool            | Purpose                                   |
-|-----------------|-------------------------------------------|
-| **Dorado**      | SUP basecalling for Oxford Nanopore data |
-| **Cutadapt**    | Primer trimming and adapter removal      |
-| **NanoFilt**    | Quality & length filtering                |
-| **SeqKit**      | FASTA/Q utilities and statistics         |
-| **Kraken2**     | Rapid taxonomic classification            |
-| **VSEARCH**     | Fast clustering & sequence comparison     |
-| **CD-HIT**      | Alternative sequence clustering           |
-| **BLAST**       | Sequence alignment & taxonomic assignment|
-| **TaxonKit**    | Taxonomy database utilities              |
-| **Krona**       | Interactive HTML taxonomic visualizations|
-| **Amplicon_sorter** | Advanced consensus sequence calling   |
-| **LULU (R)**    | Post-clustering error correction          |
-| **ONTbarcoder** | Demultiplex custom CCI barcodes          |
-| **MinKNOW**     | Sequencer control & live basecalling     |
-
----
-
-## 🔄 Pipeline Workflow Overview
-
-```mermaid
-flowchart TB
-  %% Define styling for different stages
-  classDef wetlab fill:#e1f5fe,stroke:#01579b,stroke-width:2px,color:#000
-  classDef database fill:#f3e5f5,stroke:#4a148c,stroke-width:2px,color:#000
-  classDef analysis fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px,color:#000
-  classDef results fill:#fff3e0,stroke:#e65100,stroke-width:2px,color:#000
-
-  %% Wet lab processing
-  subgraph wetlab ["🧪 Sample to Data"]
-    direction LR
-    A["Sample Collection<br/>& Filtration"] 
-    B["PCR, Library Prep<br/>MinION Sequencing"]
-    C["00: Basecalling<br/>& Demultiplexing"]
-    A --> B --> C
-  end
-
-  %% Database preparation
-  subgraph database ["🗄️ Reference Databases"]
-    direction TB
-    D["01: Database Building<br/>MIDORI + MitoFish"]
-    D1["Kraken2 DBs<br/>(fast k-mer)"]
-    D2["BLAST DBs<br/>(precise alignment)"]
-    D --> D1
-    D --> D2
-  end
-
-  %% Core analysis pipeline
-  subgraph analysis ["🔬 Core Analysis Pipeline"]
-    direction LR
-    E["02: Quality Control<br/>& Classification"]
-    F["03: Consensus<br/>Building"]
-    G["04: LULU<br/>Denoising"]
-    H["05: Taxonomic<br/>Assignment"]
-    E --> F --> G --> H
-  end
-
-  %% Final outputs
-  subgraph results ["📊 Results & Visualization"]
-    direction TB
-    I["Species Lists<br/>& Abundance Tables"]
-    J["Interactive Krona Plots<br/>& Method Comparisons"]
-  end
-
-  %% Connect workflow stages
-  wetlab --> analysis
-  database --> analysis
-  analysis --> results
-
-  %% Apply styling
-  class A,B,C wetlab
-  class D,D1,D2 database
-  class E,F,G,H analysis
-  class I,J results
-```
-
-**Educational Comparisons Built-In:**
-- **Clustering:** vsearch (fast) vs amplicon_sorter (thorough)
-- **Classification:** BLAST (similarity) vs Kraken2 (k-mer)
-- **Databases:** 12S vs COI vs MitoFish
-- **Visualization:** Multiple interactive Krona plots
 
 ---
 
@@ -335,6 +335,55 @@ mock/
 
 ## 💻 Advanced Usage
 
+### Pipeline Customization (No Script Editing Required!)
+
+**The pipeline is fully customizable without editing any scripts.** Just set environment variables before running:
+
+#### Quick Setup for Different Data Types
+
+```bash
+# For 2000bp mitochondrial data:
+export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish" THREADS=16
+
+# For standard eDNA samples:
+export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=350 DATABASES="12s coi mitofish" THREADS=8
+
+# For fast teaching demos:
+export DATABASES="mitofish" THREADS=4 SUBSET_COUNT=500
+```
+
+#### All Available Options
+
+| Parameter | What it does | Default | Example |
+|-----------|--------------|---------|---------|
+| `QUALITY_THRESHOLD` | Minimum quality score | 12 | 18 |
+| `MIN_LENGTH` | Minimum sequence length | 100 | 1500 |
+| `MAX_LENGTH` | Maximum sequence length | 500 | 3000 |
+| `DATABASES` | Which databases to use | "12s coi mitofish" | "mitofish" |
+| `THREADS` | CPU cores to use | 8 | 16 |
+| `SUBSET_COUNT` | Max sequences for taxonomy | 2000 | 1000 |
+
+#### How to Use Custom Parameters
+
+```bash
+# 1. Set your parameters once
+export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish" THREADS=16
+
+# 2. Check they're set
+echo "Quality: $QUALITY_THRESHOLD, Length: $MIN_LENGTH-$MAX_LENGTH, DB: $DATABASES, Threads: $THREADS"
+
+# 3. Run pipeline normally - no script editing needed!
+bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise
+bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
+
+# 4. Advanced: Enable amplicon_sorter local execution (may hang on local machines)
+RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus
+```
+
+**That's it!** The scripts automatically use your custom parameters.
+
 ### Real Data Workflow
 
 **Complete Pipeline Flow:**
@@ -368,16 +417,50 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 
 📖 **ONTbarcoder2.3 detailed usage:** https://github.com/asrivathsan/ONTbarcoder/releases
 
-### Customization Options
-```bash
-# For 2000bp mitochondrial data:
-export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish" THREADS=16
+### Complete Workflow Examples
 
-# For standard eDNA samples:
+#### Standard Classroom Workflow
+```bash
+# Always start by activating environment
+conda activate decode-dna
+
+# Setup databases (local first, USB fallback)
+source scripts/setup_databases.sh
+
+# Set parameters for typical eDNA samples
 export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=350 DATABASES="12s coi mitofish" THREADS=8
 
-# For fast teaching demos:
+# Run complete pipeline
+bash scripts/02_quick_look_clean.sh mock/ results/02_quicklook
+bash scripts/03_consensus_sort.sh results/02_quicklook results/03_consensus  
+bash scripts/04_denoise.sh results/03_consensus results/04_denoise
+bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
+
+# View results: Open results/05_taxonomy/04_krona_plots/*.html in browser
+```
+
+#### Fast Demo Mode
+```bash
+# Quick demo with reduced dataset
 export DATABASES="mitofish" THREADS=4 SUBSET_COUNT=500
+
+# Run pipeline (faster with fewer databases and smaller dataset)
+bash scripts/02_quick_look_clean.sh mock/ results/demo
+bash scripts/03_consensus_sort.sh results/demo results/demo_consensus
+bash scripts/04_denoise.sh results/demo_consensus results/demo_denoise
+bash scripts/05_taxonomic_assignment.sh results/demo_denoise results/demo_taxonomy
+```
+
+#### Full Mitochondrial Analysis
+```bash
+# High-quality parameters for complete mitogenomes
+export QUALITY_THRESHOLD=18 MIN_LENGTH=1500 MAX_LENGTH=3000 DATABASES="mitofish" THREADS=16
+
+# Run with stringent filtering
+bash scripts/02_quick_look_clean.sh your_mito_data/ results/mito_analysis
+bash scripts/03_consensus_sort.sh results/mito_analysis results/mito_consensus
+bash scripts/04_denoise.sh results/mito_consensus results/mito_denoise
+bash scripts/05_taxonomic_assignment.sh results/mito_denoise results/mito_taxonomy
 ```
 
 ---
