@@ -205,8 +205,6 @@ bash scripts/05_taxonomic_assignment.sh results/04_denoise results/05_taxonomy
 
 ```
 
-
-
 📖 **Need detailed setup?** → See [`installation_guide.md`](installation_guide.md)
 
 ---
