@@ -22,6 +22,8 @@ This guide will take you from a fresh system to a fully functional eDNA analysis
 
 ### Check if Conda is Already Installed
 ```bash
+#If you have a Windows machine, go to cmd, type. Mac users, just go to terminal 
+wsl -- install
 # Test if conda is installed
 conda --version
 
