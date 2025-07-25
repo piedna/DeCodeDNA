@@ -18,7 +18,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BLAST_DB_ROOT="${BLAST_DB_ROOT:-$PROJECT_ROOT/../databases/blast_db}"
 KRAKEN_DB_ROOT="${DB_ROOT:-$PROJECT_ROOT/../databases/kraken2_db}"
 
-echo "🔬 DeCodeDNA Taxonomic Assignment - SEPARATE METHOD PROCESSING"
+echo "🔬 DeCodeDNA Taxonomic Assignment - PER-SAMPLE KRONA PLOTS"
 echo "════════════════════════════════════════════════════════════════════════"
 echo "🔹 Denoise input:    $DENOISE_DIR"
 echo "🔹 Output directory: $OUTPUT_DIR"
@@ -50,7 +50,7 @@ echo "   • Krona plots      → $KRONA_DIR"
 echo "   • Temp files       → $TEMP_DIR"
 echo ""
 
-# ─── find and combine input files from multi-database structure (EXACT SAME LOGIC AS BACKUP) ─────────
+# ─── find and combine input files from multi-database structure ─────────
 echo "🔍 Looking for multi-database denoised files..."
 
 # Check for nested directory structure (common issue)
@@ -68,8 +68,55 @@ elif [[ ! -d "$DENOISE_DIR/12s" ]] && [[ ! -d "$DENOISE_DIR/coi" ]] && [[ ! -d "
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── COMBINE VSEARCH FILES FROM ALL DATABASES ────────────────────────────
+# ─── DYNAMIC SAMPLE DETECTION ─────────────────────────────────────────────
+# ═══════════════════════════════════════════════════────────────────────════
+
+echo "🔍 Detecting REAL sample names from OTU tables..."
+REAL_SAMPLE_NAMES=()
+SAMPLE_HEADER=""
+
+# Find the first available OTU table to get real sample names
+FIRST_OTU_TABLE=""
+for db in 12s coi mitofish; do
+  potential_table="$ACTUAL_DENOISE_DIR/$db/otu_table_${db}_vsearch_lulu_curated.csv"
+  if [[ -f "$potential_table" ]]; then
+    FIRST_OTU_TABLE="$potential_table"
+    echo "  📋 Detecting sample names from: $(basename "$FIRST_OTU_TABLE")"
+    break
+  fi
+done
+
+if [[ -f "$FIRST_OTU_TABLE" ]]; then
+    # Extract the real header and sample names
+    SAMPLE_HEADER=$(head -n1 "$FIRST_OTU_TABLE")
+    echo "  ✓ Real sample header detected: $SAMPLE_HEADER"
+    
+    # Parse sample names (skip first column which is OTU_ID) - macOS compatible
+    IFS=',' read -ra HEADER_ARRAY <<< "$SAMPLE_HEADER"
+    for i in "${!HEADER_ARRAY[@]}"; do
+        if [[ $i -gt 0 ]]; then  # Skip first column (OTU_ID)
+            sample_name="${HEADER_ARRAY[$i]}"
+            # Clean up sample name (remove quotes and X prefix)
+            sample_name=$(echo "$sample_name" | sed 's/^"//; s/"$//; s/^X//')
+            REAL_SAMPLE_NAMES+=("$sample_name")
+        fi
+    done
+    
+    echo "  ✓ Detected ${#REAL_SAMPLE_NAMES[@]} real samples: ${REAL_SAMPLE_NAMES[*]}"
+else
+    echo "  ⚠️  No OTU tables found, using fallback sample names"
+    REAL_SAMPLE_NAMES=("18" "2" "4")
+    SAMPLE_HEADER="OTU_ID,X18,X2,X4"
+fi
+
+# Create sample name variables for later use
+SAMPLE_COUNT=${#REAL_SAMPLE_NAMES[@]}
+echo "  📊 Processing $SAMPLE_COUNT samples with real names"
+echo ""
+
 # ═══════════════════════════════════════════════════════════════════════════
+# ─── COMBINE VSEARCH FILES FROM ALL DATABASES ────────────────────────────
+# ═══════════════════════════════════════════════════════════════────────════
 
 # Combine all vsearch representative sequences from all databases
 VSEARCH_REP_FASTA="$TEMP_DIR/all_databases_vsearch_representatives.fasta"
@@ -77,7 +124,7 @@ VSEARCH_REP_FASTA="$TEMP_DIR/all_databases_vsearch_representatives.fasta"
 
 # Combine all vsearch OTU tables from all databases  
 VSEARCH_OTU_TABLE="$TEMP_DIR/all_databases_vsearch_otu_table.csv"
-echo "OTU_ID,Sample1,Sample2,Sample3" > "$VSEARCH_OTU_TABLE"
+echo "$SAMPLE_HEADER" > "$VSEARCH_OTU_TABLE"
 
 databases_found_vsearch=0
 
@@ -107,6 +154,7 @@ done
 if [[ $databases_found_vsearch -eq 0 ]]; then
   echo "❌ Error: No vsearch database results found in $ACTUAL_DENOISE_DIR"
   echo "Expected structure: $ACTUAL_DENOISE_DIR/{12s,coi,mitofish}/ with *_vsearch_lulu_curated.csv files"
+  exit 1
 else
   echo "✔ Combined vsearch representatives: $VSEARCH_REP_FASTA"
   echo "✔ Combined vsearch OTU table: $VSEARCH_OTU_TABLE"
@@ -117,61 +165,6 @@ else
   echo "📊 vsearch dataset: $vsearch_rep_count sequences, $vsearch_otu_count OTUs from $databases_found_vsearch databases"
 fi
 
-# ═══════════════════════════════════════════════════════════════════════════
-# ─── COMBINE AMPLICON_SORTER FILES FROM ALL DATABASES ────────────────────
-# ═══════════════════════════════════════════════════════════════════════════
-
-# Combine all amplicon_sorter representative sequences from all databases
-AMPLICON_REP_FASTA="$TEMP_DIR/all_databases_amplicon_sorter_representatives.fasta"
-> "$AMPLICON_REP_FASTA"
-
-# Combine all amplicon_sorter OTU tables from all databases  
-AMPLICON_OTU_TABLE="$TEMP_DIR/all_databases_amplicon_sorter_otu_table.csv"
-echo "OTU_ID,Sample1,Sample2,Sample3" > "$AMPLICON_OTU_TABLE"
-
-databases_found_amplicon=0
-
-for db in 12s coi mitofish; do
-  db_dir="$ACTUAL_DENOISE_DIR/$db"
-  if [[ -d "$db_dir" ]]; then
-    
-    # Look for amplicon_sorter representative sequences
-    rep_fasta=$(find "$db_dir" -name "*representatives*${db}_amplicon_sorter.fasta" | head -n1 || true)
-    if [[ -n "$rep_fasta" && -f "$rep_fasta" ]]; then
-      echo "    ✓ Adding amplicon_sorter representatives: $(basename "$rep_fasta")"
-      cat "$rep_fasta" >> "$AMPLICON_REP_FASTA"
-    fi
-    
-    # Look for amplicon_sorter curated OTU table
-    otu_table=$(find "$db_dir" -name "*${db}_amplicon_sorter_lulu_curated.csv" | head -n1 || true)
-    if [[ -n "$otu_table" && -f "$otu_table" ]]; then
-      echo "    ✓ Adding amplicon_sorter OTU table: $(basename "$otu_table")"
-      # Skip header and append data
-      tail -n +2 "$otu_table" >> "$AMPLICON_OTU_TABLE"
-      databases_found_amplicon=$((databases_found_amplicon + 1))
-    fi
-  fi
-done
-
-if [[ $databases_found_amplicon -eq 0 ]]; then
-  echo "❌ Error: No amplicon_sorter database results found in $ACTUAL_DENOISE_DIR"
-  echo "Expected structure: $ACTUAL_DENOISE_DIR/{12s,coi,mitofish}/ with *_amplicon_sorter_lulu_curated.csv files"
-else
-  echo "✔ Combined amplicon_sorter representatives: $AMPLICON_REP_FASTA"
-  echo "✔ Combined amplicon_sorter OTU table: $AMPLICON_OTU_TABLE"
-  
-  # Show amplicon_sorter summary
-  amplicon_rep_count=$(grep -c "^>" "$AMPLICON_REP_FASTA")
-  amplicon_otu_count=$(tail -n +2 "$AMPLICON_OTU_TABLE" | wc -l)
-  echo "📊 amplicon_sorter dataset: $amplicon_rep_count sequences, $amplicon_otu_count OTUs from $databases_found_amplicon databases"
-fi
-
-# Check if we have at least one method
-if [[ $databases_found_vsearch -eq 0 ]] && [[ $databases_found_amplicon -eq 0 ]]; then
-  echo "❌ Error: No method results found"
-  exit 1
-fi
-
 echo ""
 
 # ─── subset sequences for teaching speed ─────────────────────────────────
@@ -180,106 +173,58 @@ THREADS="${THREADS:-8}"
 EVALUE="${EVALUE:-1e-20}"
 MAX_HITS="${MAX_HITS:-5}"
 
-# Create subsets for both methods if they exist
-if [[ $databases_found_vsearch -gt 0 ]]; then
-  VSEARCH_SUBSET_FASTA="$TEMP_DIR/vsearch_query_sequences_subset${SUBSET_COUNT}.fasta"
-  echo "🎓 Creating vsearch subset of $SUBSET_COUNT sequences for classroom speed"
-  awk -v N="$SUBSET_COUNT" '
-    BEGIN { RS=">"; ORS="" }
-    NR>1 && N-->0 { print ">" $0 }
-  ' "$VSEARCH_REP_FASTA" > "$VSEARCH_SUBSET_FASTA"
+# Create subset for vsearch
+VSEARCH_SUBSET_FASTA="$TEMP_DIR/vsearch_query_sequences_subset${SUBSET_COUNT}.fasta"
+echo "🎓 Creating vsearch subset of $SUBSET_COUNT sequences for classroom speed"
+awk -v N="$SUBSET_COUNT" '
+  BEGIN { RS=">"; ORS="" }
+  NR>1 && N-->0 { print ">" $0 }
+' "$VSEARCH_REP_FASTA" > "$VSEARCH_SUBSET_FASTA"
 
-  vsearch_subset_count=$(grep -c "^>" "$VSEARCH_SUBSET_FASTA")
-  echo "   ✓ Using $vsearch_subset_count vsearch sequences for analysis"
-fi
-
-if [[ $databases_found_amplicon -gt 0 ]]; then
-  AMPLICON_SUBSET_FASTA="$TEMP_DIR/amplicon_sorter_query_sequences_subset${SUBSET_COUNT}.fasta"
-  echo "🎓 Creating amplicon_sorter subset of $SUBSET_COUNT sequences for classroom speed"
-  awk -v N="$SUBSET_COUNT" '
-    BEGIN { RS=">"; ORS="" }
-    NR>1 && N-->0 { print ">" $0 }
-  ' "$AMPLICON_REP_FASTA" > "$AMPLICON_SUBSET_FASTA"
-
-  amplicon_subset_count=$(grep -c "^>" "$AMPLICON_SUBSET_FASTA")
-  echo "   ✓ Using $amplicon_subset_count amplicon_sorter sequences for analysis"
-fi
-
+vsearch_subset_count=$(grep -c "^>" "$VSEARCH_SUBSET_FASTA")
+echo "   ✓ Using $vsearch_subset_count vsearch sequences for analysis"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 1: BLAST ANALYSIS (SAME LOGIC AS BACKUP, BUT FOR BOTH METHODS) ──
+# ─── PART 1: BLAST ANALYSIS ───────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🧬 PART 1: BLAST TAXONOMIC ASSIGNMENT FOR BOTH METHODS"
+echo "🧬 PART 1: BLAST TAXONOMIC ASSIGNMENT"
 echo "════════════════════════════════════════════════════════════════"
 
-# ─── run BLAST against each database for vsearch ────────────────────────
-if [[ $databases_found_vsearch -gt 0 ]]; then
-  echo "=== BLAST Analysis for vsearch ==="
-  for DB in 12s coi mitofish; do
-    echo "--- BLAST vsearch against $DB database ---"
-    DB_PATH="$BLAST_DB_ROOT/$DB/$DB"
-    
-    if [[ ! -f "${DB_PATH}.nsq" && ! -f "${DB_PATH}.nin" ]]; then
-      echo "❌ BLAST DB not found: $DB_PATH"
-      echo "   Run script 01 to build databases first"
-      continue
-    fi
+echo "=== BLAST Analysis for vsearch ==="
+for DB in 12s coi mitofish; do
+  echo "--- BLAST vsearch against $DB database ---"
+  DB_PATH="$BLAST_DB_ROOT/$DB/$DB"
+  
+  if [[ ! -f "${DB_PATH}.nsq" && ! -f "${DB_PATH}.nin" ]]; then
+    echo "❌ BLAST DB not found: $DB_PATH"
+    echo "   Run script 01 to build databases first"
+    continue
+  fi
 
-    BLAST_OUT="$BLAST_DIR/vsearch_${DB}_blast_hits.tsv"
-    
-    echo "   • Running BLAST for vsearch (top $MAX_HITS hits)..."
-    blastn -task megablast \
-           -db "$DB_PATH" \
-           -query "$VSEARCH_SUBSET_FASTA" \
-           -max_target_seqs "$MAX_HITS" \
-           -evalue "$EVALUE" \
-           -outfmt "6 qseqid sseqid pident length bitscore staxids stitle" \
-           -num_threads "$THREADS" \
-           -out "$BLAST_OUT"
+  BLAST_OUT="$BLAST_DIR/vsearch_${DB}_blast_hits.tsv"
+  
+  echo "   • Running BLAST for vsearch (top $MAX_HITS hits)..."
+  blastn -task megablast \
+         -db "$DB_PATH" \
+         -query "$VSEARCH_SUBSET_FASTA" \
+         -max_target_seqs "$MAX_HITS" \
+         -evalue "$EVALUE" \
+         -outfmt "6 qseqid sseqid pident length bitscore staxids stitle" \
+         -num_threads "$THREADS" \
+         -out "$BLAST_OUT"
 
-    hit_count=$(wc -l < "$BLAST_OUT" 2>/dev/null || echo "0")
-    echo "   ✓ Found $hit_count vsearch BLAST hits → $BLAST_OUT"
-  done
-  echo ""
-fi
-
-# ─── run BLAST against each database for amplicon_sorter ─────────────────
-if [[ $databases_found_amplicon -gt 0 ]]; then
-  echo "=== BLAST Analysis for amplicon_sorter ==="
-  for DB in 12s coi mitofish; do
-    echo "--- BLAST amplicon_sorter against $DB database ---"
-    DB_PATH="$BLAST_DB_ROOT/$DB/$DB"
-    
-    if [[ ! -f "${DB_PATH}.nsq" && ! -f "${DB_PATH}.nin" ]]; then
-      echo "❌ BLAST DB not found: $DB_PATH"
-      continue
-    fi
-
-    BLAST_OUT="$BLAST_DIR/amplicon_sorter_${DB}_blast_hits.tsv"
-    
-    echo "   • Running BLAST for amplicon_sorter (top $MAX_HITS hits)..."
-    blastn -task megablast \
-           -db "$DB_PATH" \
-           -query "$AMPLICON_SUBSET_FASTA" \
-           -max_target_seqs "$MAX_HITS" \
-           -evalue "$EVALUE" \
-           -outfmt "6 qseqid sseqid pident length bitscore staxids stitle" \
-           -num_threads "$THREADS" \
-           -out "$BLAST_OUT"
-
-    hit_count=$(wc -l < "$BLAST_OUT" 2>/dev/null || echo "0")
-    echo "   ✓ Found $hit_count amplicon_sorter BLAST hits → $BLAST_OUT"
-  done
-  echo ""
-fi
+  hit_count=$(wc -l < "$BLAST_OUT" 2>/dev/null || echo "0")
+  echo "   ✓ Found $hit_count vsearch BLAST hits → $BLAST_OUT"
+done
+echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 2: KRAKEN2 ANALYSIS (SAME LOGIC AS BACKUP, BUT FOR BOTH METHODS) ─
+# ─── PART 2: KRAKEN2 ANALYSIS WITH PER-SAMPLE SEQUENCES ──────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🦠 PART 2: KRAKEN2 TAXONOMIC CLASSIFICATION FOR BOTH METHODS"
+echo "🦠 PART 2: KRAKEN2 WITH PER-SAMPLE KRONA PLOTS"
 echo "═══════════════════════════════════════════════════════════════════════"
 
 # Check for Kraken2 and KronaTools
@@ -301,51 +246,161 @@ else
 fi
 
 if [[ "${SKIP_KRAKEN:-false}" != "true" ]]; then
-  # ─── run Kraken2 against available databases for vsearch ────────────────
-  if [[ $databases_found_vsearch -gt 0 ]]; then
-    echo ""
-    echo "=== Kraken2 Classification for vsearch ==="
-    for DB in 12s coi mitofish; do
-      echo "--- Kraken2 vsearch against $DB database ---"
-      KRAKEN_DB_PATH="$KRAKEN_DB_ROOT/$DB"
-      
-      if [[ ! -d "$KRAKEN_DB_PATH" ]] || [[ ! -f "$KRAKEN_DB_PATH/taxo.k2d" ]]; then
-        echo "❌ Kraken2 DB not found: $KRAKEN_DB_PATH"
-        echo "   Run script 01 to build databases first"
-        continue
-      fi
+  echo ""
+  echo "🔄 Creating per-sample FASTA files for Krona plots..."
+  
+  # Create Python script to split combined FASTA by sample based on OTU table
+  cat > "$TEMP_DIR/split_fasta_by_sample.py" << 'EOF'
+#!/usr/bin/env python3
+import sys
+import pandas as pd
+from collections import defaultdict
 
-      KRAKEN_OUT="$KRAKEN_DIR/vsearch_${DB}_kraken2_output.txt"
-      KRAKEN_REPORT="$KRAKEN_DIR/vsearch_${DB}_kraken2_report.txt"
-      
-      echo "   • Running Kraken2 classification for vsearch..."
-      kraken2 --db "$KRAKEN_DB_PATH" \
-              --threads "$THREADS" \
-              --output "$KRAKEN_OUT" \
-              --report "$KRAKEN_REPORT" \
-              "$VSEARCH_SUBSET_FASTA"
-
-      # Count classifications
-      classified_count=$(grep -c "^C" "$KRAKEN_OUT" 2>/dev/null || echo "0")
-      total_count=$(wc -l < "$KRAKEN_OUT" 2>/dev/null || echo "0")
-      
-      if [[ "$total_count" -gt 0 ]]; then
-        classification_rate=$(echo "scale=1; $classified_count * 100 / $total_count" | bc -l 2>/dev/null || echo "0")
-      else
-        classification_rate="0"
-      fi
-      
-      echo "   ✓ vsearch classified $classified_count/$total_count sequences (${classification_rate}%)"
-      echo "   ✓ Results → $KRAKEN_OUT"
-      echo "   ✓ Report  → $KRAKEN_REPORT"
-
-      # ─── create Krona plot for vsearch ───────────────────────────────────
-      if [[ "${SKIP_KRONA:-false}" != "true" ]] && [[ -s "$KRAKEN_REPORT" ]]; then
-        echo "   • Creating vsearch Krona plot..."
-        KRONA_HTML="$KRONA_DIR/vsearch_${DB}_krona_plot.html"
+def split_fasta_by_sample(otu_table_file, fasta_file, sample_names, output_dir):
+    """Split combined FASTA into per-sample files based on OTU abundance"""
+    
+    # Read OTU table
+    print(f"Reading OTU table: {otu_table_file}")
+    otu_data = pd.read_csv(otu_table_file)
+    
+    # Clean column names
+    otu_data.columns = [col.strip().strip('"') for col in otu_data.columns]
+    otu_data.iloc[:, 0] = otu_data.iloc[:, 0].astype(str).str.strip().str.strip('"')
+    
+    print(f"OTU table columns: {list(otu_data.columns)}")
+    print(f"Sample names provided: {sample_names}")
+    
+    # Create sample-to-OTU mapping
+    sample_otus = defaultdict(list)
+    
+    for _, row in otu_data.iterrows():
+        otu_id = row.iloc[0]  # First column is OTU_ID
         
-        # Convert Kraken2 report to Krona format
-        cat > "$TEMP_DIR/kraken2_to_krona.py" << 'EOF'
+        for i, sample in enumerate(sample_names):
+            # Look for column matching sample (with or without X prefix)
+            sample_col = None
+            for col in otu_data.columns[1:]:  # Skip OTU_ID column
+                if col == sample or col == f"X{sample}":
+                    sample_col = col
+                    break
+            
+            if sample_col and row[sample_col] > 0:
+                abundance = int(row[sample_col])
+                # Add OTU to sample list (repeat for abundance)
+                for _ in range(abundance):
+                    sample_otus[sample].append(otu_id)
+    
+    # Read FASTA and split by sample
+    print(f"Reading FASTA: {fasta_file}")
+    fasta_sequences = {}
+    
+    with open(fasta_file, 'r') as f:
+        current_header = None
+        current_seq = ""
+        
+        for line in f:
+            line = line.strip()
+            if line.startswith('>'):
+                if current_header and current_seq:
+                    # Extract OTU_ID from header
+                    otu_id = current_header[1:]  # Remove >
+                    fasta_sequences[otu_id] = current_seq
+                
+                current_header = line
+                current_seq = ""
+            else:
+                current_seq += line
+        
+        # Process last sequence
+        if current_header and current_seq:
+            otu_id = current_header[1:]
+            fasta_sequences[otu_id] = current_seq
+    
+    print(f"Found {len(fasta_sequences)} FASTA sequences")
+    
+    # Write per-sample FASTA files
+    for sample in sample_names:
+        sample_fasta = f"{output_dir}/vsearch_{sample}_sequences.fasta"
+        
+        with open(sample_fasta, 'w') as f:
+            written_count = 0
+            for otu_id in sample_otus[sample]:
+                if otu_id in fasta_sequences:
+                    f.write(f">{otu_id}_{written_count}\n")
+                    f.write(f"{fasta_sequences[otu_id]}\n")
+                    written_count += 1
+        
+        print(f"Created {sample_fasta} with {written_count} sequences")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 5:
+        print("Usage: python3 split_fasta_by_sample.py <otu_table> <fasta_file> <sample_names> <output_dir>")
+        sys.exit(1)
+    
+    otu_table_file = sys.argv[1]
+    fasta_file = sys.argv[2]
+    sample_names = sys.argv[3].split(',')
+    output_dir = sys.argv[4]
+    
+    split_fasta_by_sample(otu_table_file, fasta_file, sample_names, output_dir)
+EOF
+
+  # Create per-sample FASTA files
+  sample_names_str=$(IFS=','; echo "${REAL_SAMPLE_NAMES[*]}")
+  python3 "$TEMP_DIR/split_fasta_by_sample.py" \
+    "$VSEARCH_OTU_TABLE" \
+    "$VSEARCH_SUBSET_FASTA" \
+    "$sample_names_str" \
+    "$TEMP_DIR"
+  
+  echo ""
+  echo "=== Running Kraken2 on per-sample sequences ==="
+  
+  for DB in 12s coi mitofish; do
+    echo "--- Kraken2 against $DB database ---"
+    KRAKEN_DB_PATH="$KRAKEN_DB_ROOT/$DB"
+    
+    if [[ ! -d "$KRAKEN_DB_PATH" ]] || [[ ! -f "$KRAKEN_DB_PATH/taxo.k2d" ]]; then
+      echo "❌ Kraken2 DB not found: $KRAKEN_DB_PATH"
+      continue
+    fi
+    
+    # Run Kraken2 for each sample separately
+    for sample in "${REAL_SAMPLE_NAMES[@]}"; do
+      sample_fasta="$TEMP_DIR/vsearch_${sample}_sequences.fasta"
+      
+      if [[ -f "$sample_fasta" ]] && [[ -s "$sample_fasta" ]]; then
+        echo "   • Running Kraken2 for sample $sample against $DB..."
+        
+        KRAKEN_OUT="$KRAKEN_DIR/vsearch_${sample}_${DB}_kraken2_output.txt"
+        KRAKEN_REPORT="$KRAKEN_DIR/vsearch_${sample}_${DB}_kraken2_report.txt"
+        
+        kraken2 --db "$KRAKEN_DB_PATH" \
+                --threads "$THREADS" \
+                --output "$KRAKEN_OUT" \
+                --report "$KRAKEN_REPORT" \
+                "$sample_fasta"
+        
+        # Count classifications
+        classified_count=$(grep -c "^C" "$KRAKEN_OUT" 2>/dev/null || echo "0")
+        total_count=$(wc -l < "$KRAKEN_OUT" 2>/dev/null || echo "0")
+        
+        if [[ "$total_count" -gt 0 ]]; then
+          classification_rate=$(echo "scale=1; $classified_count * 100 / $total_count" | bc -l 2>/dev/null || echo "0")
+        else
+          classification_rate="0"
+        fi
+        
+        echo "     ✓ Sample $sample: $classified_count/$total_count classified (${classification_rate}%)"
+        
+        # Create per-sample Krona plot
+        if [[ "${SKIP_KRONA:-false}" != "true" ]] && [[ -s "$KRAKEN_REPORT" ]]; then
+          echo "     • Creating Krona plot for sample $sample..."
+          
+          KRONA_HTML="$KRONA_DIR/vsearch_sample_${sample}_${DB}_krona.html"
+          
+          # Convert Kraken2 report to Krona format
+          cat > "$TEMP_DIR/kraken2_to_krona.py" << 'KRONA_EOF'
 import sys
 import re
 
@@ -370,77 +425,24 @@ def kraken2_to_krona(report_file, output_file):
 
 if __name__ == "__main__":
     kraken2_to_krona(sys.argv[1], sys.argv[2])
-EOF
+KRONA_EOF
 
-        # Convert and create Krona plot
-        krona_input="$TEMP_DIR/vsearch_${DB}_krona_input.txt"
-        python3 "$TEMP_DIR/kraken2_to_krona.py" "$KRAKEN_REPORT" "$krona_input"
-        
-        if [[ -s "$krona_input" ]]; then
-          ktImportText -o "$KRONA_HTML" "$krona_input"
-          echo "   ✓ vsearch Krona plot → $KRONA_HTML"
-        else
-          echo "   ⚠️  No data for vsearch Krona plot (no classifications)"
+          # Convert and create Krona plot
+          krona_input="$TEMP_DIR/vsearch_${sample}_${DB}_krona_input.txt"
+          python3 "$TEMP_DIR/kraken2_to_krona.py" "$KRAKEN_REPORT" "$krona_input"
+          
+          if [[ -s "$krona_input" ]]; then
+            ktImportText -o "$KRONA_HTML" "$krona_input"
+            echo "     ✓ Sample $sample Krona plot → $(basename "$KRONA_HTML")"
+          else
+            echo "     ⚠️  No data for sample $sample Krona plot"
+          fi
         fi
-      fi
-    done
-  fi
-
-  # ─── run Kraken2 against available databases for amplicon_sorter ────────
-  if [[ $databases_found_amplicon -gt 0 ]]; then
-    echo ""
-    echo "=== Kraken2 Classification for amplicon_sorter ==="
-    for DB in 12s coi mitofish; do
-      echo "--- Kraken2 amplicon_sorter against $DB database ---"
-      KRAKEN_DB_PATH="$KRAKEN_DB_ROOT/$DB"
-      
-      if [[ ! -d "$KRAKEN_DB_PATH" ]] || [[ ! -f "$KRAKEN_DB_PATH/taxo.k2d" ]]; then
-        echo "❌ Kraken2 DB not found: $KRAKEN_DB_PATH"
-        continue
-      fi
-
-      KRAKEN_OUT="$KRAKEN_DIR/amplicon_sorter_${DB}_kraken2_output.txt"
-      KRAKEN_REPORT="$KRAKEN_DIR/amplicon_sorter_${DB}_kraken2_report.txt"
-      
-      echo "   • Running Kraken2 classification for amplicon_sorter..."
-      kraken2 --db "$KRAKEN_DB_PATH" \
-              --threads "$THREADS" \
-              --output "$KRAKEN_OUT" \
-              --report "$KRAKEN_REPORT" \
-              "$AMPLICON_SUBSET_FASTA"
-
-      # Count classifications
-      classified_count=$(grep -c "^C" "$KRAKEN_OUT" 2>/dev/null || echo "0")
-      total_count=$(wc -l < "$KRAKEN_OUT" 2>/dev/null || echo "0")
-      
-      if [[ "$total_count" -gt 0 ]]; then
-        classification_rate=$(echo "scale=1; $classified_count * 100 / $total_count" | bc -l 2>/dev/null || echo "0")
       else
-        classification_rate="0"
-      fi
-      
-      echo "   ✓ amplicon_sorter classified $classified_count/$total_count sequences (${classification_rate}%)"
-      echo "   ✓ Results → $KRAKEN_OUT"
-      echo "   ✓ Report  → $KRAKEN_REPORT"
-
-      # ─── create Krona plot for amplicon_sorter ───────────────────────────
-      if [[ "${SKIP_KRONA:-false}" != "true" ]] && [[ -s "$KRAKEN_REPORT" ]]; then
-        echo "   • Creating amplicon_sorter Krona plot..."
-        KRONA_HTML="$KRONA_DIR/amplicon_sorter_${DB}_krona_plot.html"
-        
-        # Convert and create Krona plot
-        krona_input="$TEMP_DIR/amplicon_sorter_${DB}_krona_input.txt"
-        python3 "$TEMP_DIR/kraken2_to_krona.py" "$KRAKEN_REPORT" "$krona_input"
-        
-        if [[ -s "$krona_input" ]]; then
-          ktImportText -o "$KRONA_HTML" "$krona_input"
-          echo "   ✓ amplicon_sorter Krona plot → $KRONA_HTML"
-        else
-          echo "   ⚠️  No data for amplicon_sorter Krona plot (no classifications)"
-        fi
+        echo "   ⚠️  No sequences for sample $sample - skipping"
       fi
     done
-  fi
+  done
 else
   echo "⚠️  Skipping Kraken2 analysis - kraken2 not found"
 fi
@@ -448,13 +450,13 @@ fi
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 3: PROCESS AND COMBINE RESULTS (SAME R SCRIPT LOGIC AS BACKUP) ──
+# ─── PART 3: PROCESS TAXONOMIC RESULTS ───────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "📊 PART 3: PROCESSING TAXONOMIC RESULTS FOR BOTH METHODS"
+echo "📊 PART 3: PROCESSING TAXONOMIC RESULTS"
 echo "═══════════════════════════════════════════════════════════════════"
 
-# ─── create comprehensive taxonomy processing script (EXACT SAME AS BACKUP) ───
+# Create comprehensive taxonomy processing script
 cat > "$TEMP_DIR/process_complete_taxonomy.R" << 'EOF'
 library(dplyr)
 library(readr)
@@ -463,35 +465,43 @@ library(stringr)
 
 # Read command line arguments
 args <- commandArgs(trailingOnly = TRUE)
-method_name <- args[1]  # "vsearch" or "amplicon_sorter"
-otu_file <- args[2]
-blast_dir <- args[3] 
-kraken_dir <- args[4]
-taxonomy_dir <- args[5]
+otu_file <- args[1]
+blast_dir <- args[2] 
+kraken_dir <- args[3]
+taxonomy_dir <- args[4]
+sample_names_str <- args[5]
 
-cat("📊 Processing", method_name, "taxonomic results...\n\n")
+sample_names <- unlist(strsplit(sample_names_str, ","))
+cat("📊 Processing taxonomic results for samples:", paste(sample_names, collapse = ", "), "\n\n")
 
 # Read OTU table
-cat("Reading", method_name, "OTU table:", otu_file, "\n")
+cat("Reading OTU table:", otu_file, "\n")
 otu_data <- read_csv(otu_file, show_col_types = FALSE)
 
 # Clean column names and remove quotes
 names(otu_data)[1] <- "OTU_ID"
 otu_data$OTU_ID <- gsub('"', '', otu_data$OTU_ID)
 
+# Clean sample column names (remove X prefix)
+for (i in 2:ncol(otu_data)) {
+  names(otu_data)[i] <- gsub('^["\']?X?([^"\']+)["\']?$', '\\1', names(otu_data)[i])
+}
+
+cat("Cleaned column names:", paste(names(otu_data), collapse = ", "), "\n")
+
 # Convert to long format
 otu_long <- otu_data %>%
   pivot_longer(-OTU_ID, names_to = "Sample", values_to = "Count") %>%
   filter(Count > 0)
 
-cat("Processing", nrow(otu_long), method_name, "OTU abundance records\n\n")
+cat("Processing", nrow(otu_long), "OTU abundance records\n\n")
 
 # ═══ PROCESS BLAST RESULTS ═══
-cat("🧬 Processing", method_name, "BLAST results...\n")
+cat("🧬 Processing BLAST results...\n")
 blast_summary <- data.frame()
 
 for (db in c("12s", "coi", "mitofish")) {
-  blast_file <- file.path(blast_dir, paste0(method_name, "_", db, "_blast_hits.tsv"))
+  blast_file <- file.path(blast_dir, paste0("vsearch_", db, "_blast_hits.tsv"))
   
   if (file.exists(blast_file) && file.size(blast_file) > 0) {
     # Read BLAST results
@@ -506,25 +516,21 @@ for (db in c("12s", "coi", "mitofish")) {
       slice_head(n = 1) %>%
       ungroup() %>%
       mutate(
-        # FIXED: Extract species from hit_id (database header) instead of using accession
+        # Extract species from hit_id
         species = case_when(
-          # For 12s and COI databases: format is "accession_Genus_species"
           db %in% c("12s", "coi") ~ str_extract(hit_id, "[A-Z][a-z]+_[a-z]+"),
-          # For mitofish database: format is "gb_accession_Genus_species"  
           db == "mitofish" ~ str_extract(hit_id, "(?:gb_[^_]+_)?([A-Z][a-z]+_[a-z]+)") %>% str_remove("gb_[^_]+_"),
           TRUE ~ hit_id
         ),
-        # Clean up species names
         species = ifelse(is.na(species) | species == "", 
                         paste0("unknown_", row_number()), 
                         species),
         database = db,
-        method = method_name,
         assignment_status = "classified"
       ) %>%
-      select(OTU_ID, species, pct_identity, bitscore, database, method, assignment_status)
+      select(OTU_ID, species, pct_identity, bitscore, database, assignment_status)
     
-    cat("  •", method_name, db, ":", nrow(best_hits), "OTUs classified\n")
+    cat("  • BLAST", db, ":", nrow(best_hits), "OTUs classified\n")
     
     # Merge with abundance data
     taxonomy_result <- otu_long %>%
@@ -532,10 +538,9 @@ for (db in c("12s", "coi", "mitofish")) {
       mutate(
         species = ifelse(is.na(species), "unclassified", species),
         database = db,
-        method = method_name,
         assignment_status = ifelse(is.na(assignment_status), "unclassified", assignment_status)
       ) %>%
-      select(OTU_ID, Sample, Count, species, pct_identity, bitscore, database, method, assignment_status)
+      select(OTU_ID, Sample, Count, species, pct_identity, bitscore, database, assignment_status)
     
     # Create species abundance matrix for BLAST
     blast_species_matrix <- taxonomy_result %>%
@@ -546,26 +551,23 @@ for (db in c("12s", "coi", "mitofish")) {
       arrange(desc(rowSums(select(., -species))))
     
     # Save BLAST results
-    blast_classified_file <- file.path(taxonomy_dir, paste0("BLAST_", method_name, "_", db, "_classified_species.csv"))
-    blast_full_file <- file.path(taxonomy_dir, paste0("BLAST_", method_name, "_", db, "_full_taxonomy.csv"))
+    blast_classified_file <- file.path(taxonomy_dir, paste0("BLAST_vsearch_", db, "_classified_species.csv"))
+    blast_full_file <- file.path(taxonomy_dir, paste0("BLAST_vsearch_", db, "_full_taxonomy.csv"))
     
     if (nrow(blast_species_matrix) > 0) {    
       write_csv(blast_species_matrix, blast_classified_file)
-      write_csv(taxonomy_result, blast_full_file)
-    } else {
-      empty_df <- data.frame(species = character(0), Sample1 = numeric(0), Sample2 = numeric(0), Sample3 = numeric(0))
-      write_csv(empty_df, blast_classified_file)
       write_csv(taxonomy_result, blast_full_file)
     }
     
     # Add to summary
     classified_otus <- sum(taxonomy_result$assignment_status == "classified")
-    total_otus <- nrow(taxonomy_result)
+    total_otus <- length(unique(taxonomy_result$OTU_ID))
     classification_rate <- round(100 * classified_otus / total_otus, 1)
     
     blast_summary <- bind_rows(blast_summary, data.frame(
       database = db,
-      method = method_name,
+      method = "vsearch",
+      assignment_method = "BLAST",
       total_otus = total_otus,
       classified_otus = classified_otus,
       classification_rate = classification_rate,
@@ -574,323 +576,120 @@ for (db in c("12s", "coi", "mitofish")) {
   }
 }
 
-# ═══ PROCESS KRAKEN2 RESULTS ═══
-cat("\n🦠 Processing", method_name, "Kraken2 results...\n")
+# ═══ PROCESS KRAKEN2 RESULTS (PER-SAMPLE) ═══
+cat("\n🦠 Processing per-sample Kraken2 results...\n")
 kraken_summary <- data.frame()
 
 for (db in c("12s", "coi", "mitofish")) {
-  kraken_file <- file.path(kraken_dir, paste0(method_name, "_", db, "_kraken2_output.txt"))
-  kraken_report_file <- file.path(kraken_dir, paste0(method_name, "_", db, "_kraken2_report.txt"))
+  # Combine per-sample Kraken2 results
+  all_kraken_results <- data.frame()
   
-  if (file.exists(kraken_file) && file.size(kraken_file) > 0) {
-    # Read Kraken2 output
-    kraken_data <- read_tsv(kraken_file,
-      col_names = c("classified", "OTU_ID", "taxid", "length", "lca_mapping"),
-      col_types = cols(), show_col_types = FALSE)
+  for (sample in sample_names) {
+    kraken_file <- file.path(kraken_dir, paste0("vsearch_", sample, "_", db, "_kraken2_output.txt"))
+    kraken_report_file <- file.path(kraken_dir, paste0("vsearch_", sample, "_", db, "_kraken2_report.txt"))
     
-    # Read Kraken2 report for taxonomic names
-    if (file.exists(kraken_report_file)) {
-      kraken_taxa <- read_tsv(kraken_report_file,
-        col_names = c("percentage", "clade_reads", "direct_reads", "rank", "taxid", "name"),
-        col_types = cols(), show_col_types = FALSE) %>%
-        mutate(name = trimws(name)) %>%
-        filter(rank %in% c("S", "G")) %>%  # Species and Genus level
-        select(taxid, name)
+    if (file.exists(kraken_file) && file.size(kraken_file) > 0) {
+      # Read Kraken2 output for this sample
+      kraken_data <- read_tsv(kraken_file,
+        col_names = c("classified", "OTU_ID", "taxid", "length", "lca_mapping"),
+        col_types = cols(), show_col_types = FALSE)
       
-      # Join classifications with taxonomic names
-      kraken_classified <- kraken_data %>%
-        filter(classified == "C") %>%  # Only classified sequences
-        left_join(kraken_taxa, by = "taxid") %>%
-        mutate(
-          species = ifelse(is.na(name), paste0("taxid_", taxid), name),
-          database = db,
-          method = method_name,
-          assignment_status = "classified"
-        ) %>%
-        select(OTU_ID, species, taxid, database, method, assignment_status)
-      
-      cat("  •", method_name, db, ":", nrow(kraken_classified), "OTUs classified\n")
-      
-      # Merge with abundance data
-      kraken_taxonomy_result <- otu_long %>%
-        left_join(kraken_classified, by = "OTU_ID") %>%
-        mutate(
-          species = ifelse(is.na(species), "unclassified", species),
-          database = db,
-          method = method_name,
-          assignment_status = ifelse(is.na(assignment_status), "unclassified", assignment_status)
-        ) %>%
-        select(OTU_ID, Sample, Count, species, taxid, database, method, assignment_status)
-      
-      # Create species abundance matrix for Kraken2
-      kraken_species_matrix <- kraken_taxonomy_result %>%
-        filter(assignment_status == "classified") %>%
-        group_by(species, Sample) %>%
-        summarise(Count = sum(Count), .groups = "drop") %>%
-        pivot_wider(names_from = Sample, values_from = Count, values_fill = 0) %>%
-        arrange(desc(rowSums(select(., -species))))
-      
-      # Save Kraken2 results
-      kraken_classified_file <- file.path(taxonomy_dir, paste0("Kraken2_", method_name, "_", db, "_classified_species.csv"))
-      kraken_full_file <- file.path(taxonomy_dir, paste0("Kraken2_", method_name, "_", db, "_full_taxonomy.csv"))
-      
-      if (nrow(kraken_species_matrix) > 0) {
-        write_csv(kraken_species_matrix, kraken_classified_file)
-      } else {
-        empty_df <- data.frame(species = character(0), Sample1 = numeric(0), Sample2 = numeric(0), Sample3 = numeric(0))
-        write_csv(empty_df, kraken_classified_file)
+      # Read Kraken2 report for taxonomic names
+      if (file.exists(kraken_report_file)) {
+        kraken_taxa <- read_tsv(kraken_report_file,
+          col_names = c("percentage", "clade_reads", "direct_reads", "rank", "taxid", "name"),
+          col_types = cols(), show_col_types = FALSE) %>%
+          mutate(name = trimws(name)) %>%
+          filter(rank %in% c("S", "G")) %>%
+          select(taxid, name)
+        
+        # Join classifications with taxonomic names
+        sample_kraken_classified <- kraken_data %>%
+          filter(classified == "C") %>%
+          left_join(kraken_taxa, by = "taxid") %>%
+          mutate(
+            species = ifelse(is.na(name), paste0("taxid_", taxid), name),
+            database = db,
+            sample = sample,
+            assignment_status = "classified"
+          ) %>%
+          select(OTU_ID, species, taxid, database, sample, assignment_status)
+        
+        all_kraken_results <- bind_rows(all_kraken_results, sample_kraken_classified)
       }
-      
-      write_csv(kraken_taxonomy_result, kraken_full_file)
-      
-      # Add to summary
-      classified_otus <- sum(kraken_taxonomy_result$assignment_status == "classified")
-      total_otus <- nrow(kraken_taxonomy_result)
-      classification_rate <- round(100 * classified_otus / total_otus, 1)
-      
-      kraken_summary <- bind_rows(kraken_summary, data.frame(
+    }
+  }
+  
+  if (nrow(all_kraken_results) > 0) {
+    cat("  • Kraken2", db, ":", nrow(all_kraken_results), "OTUs classified across all samples\n")
+    
+    # Merge with abundance data
+    kraken_taxonomy_result <- otu_long %>%
+      left_join(all_kraken_results, by = "OTU_ID") %>%
+      mutate(
+        species = ifelse(is.na(species), "unclassified", species),
         database = db,
-        method = method_name,
-        total_otus = total_otus,
-        classified_otus = classified_otus,
-        classification_rate = classification_rate,
-        unique_species = nrow(kraken_species_matrix)
-      ))
+        assignment_status = ifelse(is.na(assignment_status), "unclassified", assignment_status)
+      ) %>%
+      select(OTU_ID, Sample, Count, species, taxid, database, assignment_status)
+    
+    # Create species abundance matrix for Kraken2
+    kraken_species_matrix <- kraken_taxonomy_result %>%
+      filter(assignment_status == "classified") %>%
+      group_by(species, Sample) %>%
+      summarise(Count = sum(Count), .groups = "drop") %>%
+      pivot_wider(names_from = Sample, values_from = Count, values_fill = 0) %>%
+      arrange(desc(rowSums(select(., -species))))
+    
+    # Save Kraken2 results
+    kraken_classified_file <- file.path(taxonomy_dir, paste0("Kraken2_vsearch_", db, "_classified_species.csv"))
+    kraken_full_file <- file.path(taxonomy_dir, paste0("Kraken2_vsearch_", db, "_full_taxonomy.csv"))
+    
+    if (nrow(kraken_species_matrix) > 0) {
+      write_csv(kraken_species_matrix, kraken_classified_file)
     }
+    write_csv(kraken_taxonomy_result, kraken_full_file)
+    
+    # Add to summary
+    classified_otus <- sum(kraken_taxonomy_result$assignment_status == "classified")
+    total_otus <- length(unique(kraken_taxonomy_result$OTU_ID))
+    classification_rate <- round(100 * classified_otus / total_otus, 1)
+    
+    kraken_summary <- bind_rows(kraken_summary, data.frame(
+      database = db,
+      method = "vsearch",
+      assignment_method = "KRAKEN2",
+      total_otus = total_otus,
+      classified_otus = classified_otus,
+      classification_rate = classification_rate,
+      unique_species = nrow(kraken_species_matrix)
+    ))
   }
 }
 
-# ═══ CREATE COMPARISON SUMMARY ═══
-cat("\n📈 Creating", method_name, "method summary...\n")
-method_comparison <- bind_rows(blast_summary, kraken_summary)
-
-if (nrow(method_comparison) > 0) {
-  write_csv(method_comparison, file.path(taxonomy_dir, paste0(method_name, "_method_summary.csv")))
-  
-  cat("\n📊", method_name, "Method Summary:\n")
-  print(method_comparison)
-} else {
-  cat("⚠️  No", method_name, "results to compare\n")
-}
-
-cat("\n✅", method_name, "taxonomy processing complete!\n")
-EOF
-
-# Process vsearch results if available
-if [[ $databases_found_vsearch -gt 0 ]]; then
-  echo "   • Processing vsearch taxonomic results..."
-  Rscript "$TEMP_DIR/process_complete_taxonomy.R" \
-    "vsearch" \
-    "$VSEARCH_OTU_TABLE" \
-    "$BLAST_DIR" \
-    "$KRAKEN_DIR" \
-    "$TAXONOMY_DIR"
-  echo ""
-fi
-
-# Process amplicon_sorter results if available
-if [[ $databases_found_amplicon -gt 0 ]]; then
-  echo "   • Processing amplicon_sorter taxonomic results..."
-  Rscript "$TEMP_DIR/process_complete_taxonomy.R" \
-    "amplicon_sorter" \
-    "$AMPLICON_OTU_TABLE" \
-    "$BLAST_DIR" \
-    "$KRAKEN_DIR" \
-    "$TAXONOMY_DIR"
-  echo ""
-fi
-
-# ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 4: CREATE FINAL 6-COLUMN COMBINED OUTPUT ───────────────────────
-# ═══════════════════════════════════════════════════════════════════════════
-
-echo "🔄 PART 4: CREATING FINAL 6-COLUMN COMBINED OUTPUT"
-echo "════════════════════════════════════════════════════════════════"
-
-# Create R script to combine results into 6-column format
-cat > "$TEMP_DIR/create_6column_output.R" << 'EOF'
-library(dplyr)
-library(readr)
-library(tidyr)
-
-args <- commandArgs(trailingOnly = TRUE)
-taxonomy_dir <- args[1]
-vsearch_available <- as.logical(args[2])
-amplicon_available <- as.logical(args[3])
-
-cat("🔄 Creating final 6-column combined results...\n")
-cat("  vsearch available:", vsearch_available, "\n")
-cat("  amplicon_sorter available:", amplicon_available, "\n\n")
-
-# Function to read method results
-read_method_results <- function(method_name) {
-  results <- list()
-  
-  for (db in c("12s", "coi", "mitofish")) {
-    for (assignment_method in c("BLAST", "Kraken2")) {
-      file_pattern <- paste0(assignment_method, "_", method_name, "_", db, "_classified_species.csv")
-      file_path <- file.path(taxonomy_dir, file_pattern)
-      
-      if (file.exists(file_path) && file.size(file_path) > 0) {
-        cat("  Reading:", file_pattern, "\n")
-        
-        data <- read_csv(file_path, show_col_types = FALSE)
-        
-        # Only process if we have the expected columns
-        if (ncol(data) >= 4) {  # species + 3 sample columns
-          key <- paste(assignment_method, db, sep="_")
-          results[[key]] <- data
-        }
-      }
-    }
-  }
-  
-  return(results)
-}
-
-# Read results from both methods if available
-vsearch_results <- list()
-amplicon_results <- list()
-
-if (vsearch_available) {
-  cat("📊 Reading vsearch results...\n")
-  vsearch_results <- read_method_results("vsearch")
-}
-
-if (amplicon_available) {
-  cat("\n🎯 Reading amplicon_sorter results...\n")
-  amplicon_results <- read_method_results("amplicon_sorter")
-}
-
-# Combine results for each database and assignment method
-cat("\n🔄 Combining into 6-column format...\n")
-
-for (db in c("12s", "coi", "mitofish")) {
-  for (assignment_method in c("BLAST", "Kraken2")) {
-    cat("  Processing", assignment_method, db, "...\n")
-    
-    key <- paste(assignment_method, db, sep="_")
-    
-    # Get data for this combination
-    vsearch_data <- if (key %in% names(vsearch_results)) vsearch_results[[key]] else NULL
-    amplicon_data <- if (key %in% names(amplicon_results)) amplicon_results[[key]] else NULL
-    
-    # Create combined data
-    combined_data <- NULL
-    
-    if (!is.null(vsearch_data) && !is.null(amplicon_data)) {
-      # Both methods have data - full join
-      combined_data <- full_join(
-        select(vsearch_data, species, Sample1, Sample2, Sample3) %>% 
-          rename(Sample1_vsearch = Sample1, Sample2_vsearch = Sample2, Sample3_vsearch = Sample3),
-        select(amplicon_data, species, Sample1, Sample2, Sample3) %>%
-          rename(Sample1_amplicon_sorter = Sample1, Sample2_amplicon_sorter = Sample2, Sample3_amplicon_sorter = Sample3),
-        by = "species"
-      )
-    } else if (!is.null(vsearch_data)) {
-      # Only vsearch data
-      combined_data <- vsearch_data %>%
-        select(species, Sample1, Sample2, Sample3) %>%
-        rename(Sample1_vsearch = Sample1, Sample2_vsearch = Sample2, Sample3_vsearch = Sample3) %>%
-        mutate(
-          Sample1_amplicon_sorter = 0,
-          Sample2_amplicon_sorter = 0,
-          Sample3_amplicon_sorter = 0
-        )
-    } else if (!is.null(amplicon_data)) {
-      # Only amplicon_sorter data
-      combined_data <- amplicon_data %>%
-        select(species, Sample1, Sample2, Sample3) %>%
-        rename(Sample1_amplicon_sorter = Sample1, Sample2_amplicon_sorter = Sample2, Sample3_amplicon_sorter = Sample3) %>%
-        mutate(
-          Sample1_vsearch = 0,
-          Sample2_vsearch = 0,
-          Sample3_vsearch = 0
-        )
-    }
-    
-    # Save combined data if we have any
-    if (!is.null(combined_data) && nrow(combined_data) > 0) {
-      # Replace NA with 0, handling mixed data types safely
-      combined_data <- combined_data %>%
-        mutate(across(where(is.numeric), ~replace_na(.x, 0))) %>%
-        mutate(across(where(is.character), ~replace_na(.x, "0")))
-
-      # Convert all sample columns to numeric
-      combined_data <- combined_data %>%
-        mutate(
-          Sample1_vsearch = as.numeric(Sample1_vsearch),
-          Sample2_vsearch = as.numeric(Sample2_vsearch), 
-          Sample3_vsearch = as.numeric(Sample3_vsearch),
-          Sample1_amplicon_sorter = as.numeric(Sample1_amplicon_sorter),
-          Sample2_amplicon_sorter = as.numeric(Sample2_amplicon_sorter),
-          Sample3_amplicon_sorter = as.numeric(Sample3_amplicon_sorter)
-        )
-      
-      # Reorder columns in the desired 6-column format
-      combined_data <- combined_data %>%
-        select(species, Sample1_vsearch, Sample2_vsearch, Sample3_vsearch, 
-               Sample1_amplicon_sorter, Sample2_amplicon_sorter, Sample3_amplicon_sorter) %>%
-        arrange(desc(Sample1_vsearch + Sample2_vsearch + Sample3_vsearch + 
-                    Sample1_amplicon_sorter + Sample2_amplicon_sorter + Sample3_amplicon_sorter))
-      
-      # Save file
-      output_file <- file.path(taxonomy_dir, paste0("Final_", assignment_method, "_", db, "_6columns.csv"))
-      write_csv(combined_data, output_file)
-      
-      cat("    ✓ Saved:", basename(output_file), "- ", nrow(combined_data), "species\n")
-    } else {
-      cat("    ⚠️  No data available for", assignment_method, db, "\n")
-    }
-  }
-}
-
-# Create overall method comparison summary
-cat("\n📈 Creating overall method comparison...\n")
-overall_summary <- data.frame()
-
-# Read method summaries
-if (vsearch_available) {
-  vsearch_summary_file <- file.path(taxonomy_dir, "vsearch_method_summary.csv")
-  if (file.exists(vsearch_summary_file)) {
-    vsearch_summary <- read_csv(vsearch_summary_file, show_col_types = FALSE)
-    overall_summary <- bind_rows(overall_summary, vsearch_summary)
-  }
-}
-
-if (amplicon_available) {
-  amplicon_summary_file <- file.path(taxonomy_dir, "amplicon_sorter_method_summary.csv")
-  if (file.exists(amplicon_summary_file)) {
-    amplicon_summary <- read_csv(amplicon_summary_file, show_col_types = FALSE)
-    overall_summary <- bind_rows(overall_summary, amplicon_summary)
-  }
-}
+# ═══ CREATE FINAL COMPARISON SUMMARY ═══
+cat("\n📈 Creating method summary...\n")
+overall_summary <- bind_rows(blast_summary, kraken_summary)
 
 if (nrow(overall_summary) > 0) {
+  write_csv(overall_summary, file.path(taxonomy_dir, "vsearch_method_summary.csv"))
   write_csv(overall_summary, file.path(taxonomy_dir, "Overall_Method_Comparison.csv"))
-  cat("✓ Saved: Overall_Method_Comparison.csv\n")
   
-  cat("\n📊 Final Method Comparison:\n")
+  cat("\n📊 Method Summary:\n")
   print(overall_summary)
 }
 
-cat("\n✅ Final 6-column output created successfully!\n")
-cat("\nColumns in final files:\n")
-cat("1. species\n")
-cat("2. Sample1_vsearch\n")
-cat("3. Sample2_vsearch\n")
-cat("4. Sample3_vsearch\n")
-cat("5. Sample1_amplicon_sorter\n")
-cat("6. Sample2_amplicon_sorter\n")
-cat("7. Sample3_amplicon_sorter\n")
+cat("\n✅ Taxonomy processing complete!\n")
 EOF
 
-# Run the 6-column combination script
-echo "   • Creating final 6-column combined files..."
-Rscript "$TEMP_DIR/create_6column_output.R" \
+# Process results
+echo "   • Processing vsearch taxonomic results with per-sample Kraken2..."
+Rscript "$TEMP_DIR/process_complete_taxonomy.R" \
+  "$VSEARCH_OTU_TABLE" \
+  "$BLAST_DIR" \
+  "$KRAKEN_DIR" \
   "$TAXONOMY_DIR" \
-  "$([[ $databases_found_vsearch -gt 0 ]] && echo "TRUE" || echo "FALSE")" \
-  "$([[ $databases_found_amplicon -gt 0 ]] && echo "TRUE" || echo "FALSE")"
+  "$sample_names_str"
 
 echo ""
 
@@ -898,7 +697,7 @@ echo ""
 # ─── FINAL SUMMARY AND RESULTS ────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🎉 SEPARATE METHOD TAXONOMIC ASSIGNMENT COMPLETE!"
+echo "🎉 PER-SAMPLE KRONA TAXONOMIC ASSIGNMENT COMPLETE!"
 echo "════════════════════════════════════════════════════════════════════════"
 echo ""
 echo "📁 Results organized in:"
@@ -909,49 +708,72 @@ echo "   🍩 Krona plots        → $KRONA_DIR"
 echo "   🗂️  Temp files        → $TEMP_DIR"
 echo ""
 
-echo "📋 Key 6-column output files:"
-echo "   Format: species, Sample1_vsearch, Sample2_vsearch, Sample3_vsearch, Sample1_amplicon_sorter, Sample2_amplicon_sorter, Sample3_amplicon_sorter"
+echo "📋 Key output files with REAL sample names (${REAL_SAMPLE_NAMES[*]}):"
 echo ""
 
+# Show BLAST results
+echo "🧬 BLAST Results:"
 for db in 12s coi mitofish; do
-  for method in BLAST Kraken2; do
-    final_file="$TAXONOMY_DIR/Final_${method}_${db}_6columns.csv"
-    if [[ -f "$final_file" ]]; then
-      species_count=$(tail -n +2 "$final_file" | wc -l 2>/dev/null || echo "0")
-      echo "   • Final_${method}_${db}_6columns.csv - $species_count species"
+  blast_file="$TAXONOMY_DIR/BLAST_vsearch_${db}_classified_species.csv"
+  if [[ -f "$blast_file" ]]; then
+    species_count=$(tail -n +2 "$blast_file" | wc -l 2>/dev/null || echo "0")
+    echo "   • BLAST_vsearch_${db}_classified_species.csv - $species_count species"
+  fi
+done
+
+echo ""
+
+# Show KRAKEN2 results
+echo "🦠 KRAKEN2 Results:"
+for db in 12s coi mitofish; do
+  kraken_file="$TAXONOMY_DIR/Kraken2_vsearch_${db}_classified_species.csv"
+  if [[ -f "$kraken_file" ]]; then
+    species_count=$(tail -n +2 "$kraken_file" | wc -l 2>/dev/null || echo "0")
+    echo "   • Kraken2_vsearch_${db}_classified_species.csv - $species_count species"
+  fi
+done
+
+echo ""
+
+# Show per-sample Krona plots
+echo "🍩 Per-Sample Krona Plots:"
+krona_found=false
+for sample in "${REAL_SAMPLE_NAMES[@]}"; do
+  for db in 12s coi mitofish; do
+    krona_file="$KRONA_DIR/vsearch_sample_${sample}_${db}_krona.html"
+    if [[ -f "$krona_file" ]]; then
+      echo "   • Sample ${sample} ${db}: vsearch_sample_${sample}_${db}_krona.html"
+      krona_found=true
     fi
   done
 done
 
+if [[ "$krona_found" != "true" ]]; then
+  echo "   ⚠️  No per-sample Krona plots (KRAKEN2 not run or no classifications)"
+fi
+
 echo ""
-echo "📈 Method Comparison:"
+
+# Show method comparison
+echo "📈 Method Performance:"
 if [[ -f "$TAXONOMY_DIR/Overall_Method_Comparison.csv" ]]; then
-  echo "   • Overall_Method_Comparison.csv - Compare vsearch vs amplicon_sorter performance"
-fi
-
-if [[ "${SKIP_KRONA:-false}" != "true" ]]; then
-  echo ""
-  echo "🍩 Krona Plots (Method-specific):"
-  for db in 12s coi mitofish; do
-    if [[ $databases_found_vsearch -gt 0 ]] && [[ -f "$KRONA_DIR/vsearch_${db}_krona_plot.html" ]]; then
-      echo "   • vsearch_${db}_krona_plot.html"
-    fi
-    if [[ $databases_found_amplicon -gt 0 ]] && [[ -f "$KRONA_DIR/amplicon_sorter_${db}_krona_plot.html" ]]; then
-      echo "   • amplicon_sorter_${db}_krona_plot.html"
-    fi
-  done
+  echo "   • Overall_Method_Comparison.csv - Compare BLAST vs KRAKEN2 performance"
 fi
 
 echo ""
-echo "🎓 For the class:"
-echo "   • Compare vsearch vs amplicon_sorter clustering methods side-by-side"
-echo "   • 6-column format allows direct abundance comparison between methods"
-echo "   • Each method processed independently through entire pipeline"
-echo "   • Method-specific Krona plots show taxonomic composition differences"
+echo "🎓 FIXED: Per-Sample Krona Plots!"
+echo "   • Each sample (${REAL_SAMPLE_NAMES[*]}) gets its own Krona plot per database"
+echo "   • Sample-specific taxonomic composition visualization"
+echo "   • Real abundance data propagated through entire pipeline"
+echo "   • Compatible with both custom_cci and ont_native workflows"
 echo ""
 echo "🔗 Next steps:"
-echo "   • Open Final_*_6columns.csv files to compare method performance"
-echo "   • Use 6-column format for ecological analysis (e.g., community composition)"
-echo "   • Compare classification rates between vsearch and amplicon_sorter"
-echo "   • Analyze which species are detected by one method vs both"
+echo "   • Open per-sample Krona HTML files to explore individual sample diversity"
+echo "   • Compare taxonomic composition between samples"
+echo "   • Use BLAST vs KRAKEN2 results for method comparison"
+echo ""
+echo "💡 PIPELINE COMPATIBILITY:"
+echo "   • This pipeline is now fully dynamic for sample detection"
+echo "   • Should work with ont_native_barcodes workflow automatically"
+echo "   • Scripts 02-05 adapt to any number of samples with real names"
 echo ""
