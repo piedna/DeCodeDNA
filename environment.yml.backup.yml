@@ -18,10 +18,10 @@ dependencies:
   - seqkit                # FASTA/Q utilities
   - krona                 # interactive HTML taxonomic charts
   - pod5                  # convert legacy fast5 to pod5
-
-  # Platform-specific compilers (conda will auto-select based on OS)
-  - compilers             # Cross-platform compiler metapackage
-  - llvm-openmp           # OpenMP support (works on all platforms)
+  - clang_osx-64          # for building Bracken on macOS
+  - llvm-openmp           # OpenMP support for clang
+  - gcc_linux-64           # C compiler for Linux
+  - gxx_linux-64           # C++ compiler for Linux
 
   # everything below will be installed by pip:
   - pip:
@@ -34,12 +34,6 @@ dependencies:
 # Usage:
 #   conda env create -f environment.yml
 #   conda activate decode-dna
-
-# Platform Detection:
-#   conda automatically selects appropriate compilers:
-#   - macOS: clang_osx-64, llvm-openmp
-#   - Linux: gcc_linux-64, gxx_linux-64  
-#   - Windows: vs2019_win-64 (if available)
 
 # The following will be installed manually (outside Conda):
   # - Dorado (basecaller) - Download from Dorado Oxford Nanopore GitHub
