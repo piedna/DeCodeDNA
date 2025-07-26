@@ -367,6 +367,3 @@ echo "   • Compare clustering methods with Krona plots"
 echo "   • Species identification and abundance estimation"
 echo
 echo "✅ Step III complete - Ready for downstream analysis!"
-echo "🔗 Next step:"
-echo " bash scripts/04_denoise.sh $OUTPUT_DIR results/04_denoise"
-echo ""

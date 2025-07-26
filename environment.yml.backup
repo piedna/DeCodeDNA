@@ -1,0 +1,48 @@
+name: decode-dna
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python>=3.11          # modern Python that Bioconda supports
+  - pip                   # to run pip installs
+  - r-base                # R for LULU package
+  - r-devtools            # R devtools for installing LULU
+  - nanofilt=2.8.0        # to filter quality and length if needed
+  - cutadapt              # primer trimming
+  - kraken2               # quick look taxonomic classification
+  - vsearch               # clustering / dereplication
+  - cd-hit                # sequence clustering
+  - blast                 # NCBI BLAST+
+  - taxonkit              # taxonomy utilities
+  - seqkit                # FASTA/Q utilities
+  - krona                 # interactive HTML taxonomic charts
+  - pod5                  # convert legacy fast5 to pod5
+
+  # Platform-specific compilers (conda will auto-select based on OS)
+  - compilers             # Cross-platform compiler metapackage
+  - llvm-openmp           # OpenMP support (works on all platforms)
+
+  # everything below will be installed by pip:
+  - pip:
+    - edlib
+    - biopython
+    - matplotlib
+    - pandas
+    - numpy
+
+# Usage:
+#   conda env create -f environment.yml
+#   conda activate decode-dna
+
+# Platform Detection:
+#   conda automatically selects appropriate compilers:
+#   - macOS: clang_osx-64, llvm-openmp
+#   - Linux: gcc_linux-64, gxx_linux-64  
+#   - Windows: vs2019_win-64 (if available)
+
+# The following will be installed manually (outside Conda):
+  # - Dorado (basecaller) - Download from Dorado Oxford Nanopore GitHub
+  # - amplicon_sorter - Git clone + copy to PATH
+  # - ONTBarcoder2.3  - Download GUI application
+  # - LULU R package - Install via devtools::install_github("tobiasgf/lulu")
