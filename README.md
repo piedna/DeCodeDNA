@@ -379,6 +379,25 @@ bash ../../scripts/02_quick_look_clean.sh . ../../results/class_test/02_quickloo
 
 ---
 
+## 🎯 Checkpoint: Ready for Your Own Data!
+
+**If you've reached this point successfully**, you're ready to start working with your own datasets! You now understand:
+
+✅ **Both workflows** and when to use each  
+✅ **Complete pipeline flow** from raw data to species tables  
+✅ **Basic troubleshooting** for common issues  
+✅ **Result interpretation** with Krona plots and species tables  
+
+**Next steps with your data:**
+- Use **Workflow B (Custom CCI)** for your field samples
+- Apply the **same 4-step process** (02→03→04→05)
+- **Customize parameters** for your specific amplicons
+- **Compare methods** to validate your results
+
+**Everything below is technical reference** - detailed information for advanced users, troubleshooting, and understanding the science behind the pipeline. Most users won't need these details for basic analysis.
+
+---
+
 # 📋 Technical Reference
 
 *Detailed technical information for advanced users and instructors*
