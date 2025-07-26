@@ -2,7 +2,7 @@
 
 **Quick start for ONT Native Barcode Tags (standard workflow)**
 
-✅ **Perfect for**: FHL students, beginners, two-step PCR workflows  
+✅ **Perfect for**: Two-step PCR workflows, non-custom primer tag design needed  
 🎯 **Goal**: Focus on bioinformatics analysis with ready-to-go data  
 📊 **Dataset**: 12S fish community mock data (~200-300bp amplicons)
 
@@ -11,7 +11,7 @@
 ## 🧬 What is ONT Native Barcode Tags?
 
 **ONT Native Barcode Tags** use Oxford Nanopore's official barcoding system (they call it "Native" because it's built into their platform):
-- **eDNA-compatible kits**: NBD114.24, NBD114.96, EXP-PBC096 
+- **eDNA workflow-compatible kits**: NBD114.24, NBD114.96, EXP-PBC096 
 - **Two-step PCR**: Amplify target → Add ONT barcode tags → Sequence
 - **Integrated demultiplexing**: Built into MinKNOW GUI or Dorado command line
 - **Ready-to-analyze**: Demultiplexing happens during basecalling, no manual steps
@@ -107,7 +107,7 @@ open ../../results/ont_native_results/05_taxonomy/04_krona_plots/*.html
 ONT Native workflows include **integrated demultiplexing** that happens during basecalling:
 
 ### **Option 1: MinKNOW GUI (Real-time)**
-- Toggle demultiplexing **during sequencing** in MinKNOW interface
+- Toggle demultiplexing **during sequencing with live basecalling** in MinKNOW interface
 - Select your barcode kit → automatic sample separation
 - Get individual sample files directly from sequencer
 
