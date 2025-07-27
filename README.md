@@ -106,16 +106,15 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/ont_na
 
 ```bash
 # Complete custom CCI workflow
-cd workflows/custom_cci_barcodes/
 # Step 1: Quality filter raw data
-bash ../../scripts/00_quality_filter_predemux.sh 00_raw_data/test_fhl_customcci.fastq 01_filtered/quality_filtered.fastq
+bash scripts/00_quality_filter_predemux.sh workflows/custom_cci_barcodes/00_raw_data/test_fhl_customcci.fastq workflows/custom_cci_barcodes/01_filtered/quality_filtered.fastq
 
 # Step 2: Manual demultiplexing (GUI)
-# Use ONTbarcoder2.3 with 01_filtered/quality_filtered.fastq
-# Output to: 02_demultiplexed/
+# Use ONTbarcoder2.3 with workflows/custom_cci_barcodes/01_filtered/quality_filtered.fastq
+# Output to: workflows/custom_cci_barcodes/02_demultiplexed/
 
 # Step 3: Continue with core pipeline
-bash ../../scripts/02_quick_look_clean.sh 02_demultiplexed/ results/custom_cci_02_quicklook
+bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplexed/ results/custom_cci_02_quicklook
 # Continue with scripts 03, 04, 05...
 ```
 
@@ -225,13 +224,11 @@ bash scripts/05_taxonomic_assignment.sh results/ont_native_04_denoise results/on
 
 **Custom CCI Workflow (Real samples with 2500bp D-loop data):**
 ```bash
-cd workflows/custom_cci_barcodes/
-
 # Same script progression (02→03→04→05) but with custom CCI data
-bash ../../scripts/02_quick_look_clean.sh 02_demultiplexed/ ../../results/custom_cci_02_quicklook
-bash ../../scripts/03_consensus_sort.sh ../../results/custom_cci_02_quicklook ../../results/custom_cci_03_consensus
-bash ../../scripts/04_denoise.sh ../../results/custom_cci_03_consensus ../../results/custom_cci_04_denoise
-bash ../../scripts/05_taxonomic_assignment.sh ../../results/custom_cci_04_denoise ../../results/custom_cci_05_taxonomy
+bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplexed/ results/custom_cci_02_quicklook
+bash scripts/03_consensus_sort.sh results/custom_cci_02_quicklook results/custom_cci_03_consensus
+bash scripts/04_denoise.sh results/custom_cci_03_consensus results/custom_cci_04_denoise
+bash scripts/05_taxonomic_assignment.sh results/custom_cci_04_denoise results/custom_cci_05_taxonomy
 ```
 
 **Total Pipeline Time:** 15-25 minutes for mock data
@@ -257,8 +254,9 @@ results/
 ### Key Result Files
 - **Consensus sequences**: `04_denoise/*/otu_representatives_*_vsearch.fasta` - Filtered sequences ready for custom analysis (haplotyping, phylogenetics)
 - **Species tables**: `*_classified_species.csv` - Final abundance matrices
+- **TaxonKit LCA results**: `TaxonKit_LCA_species_abundance.csv` - Most robust consensus taxonomy
 - **Interactive plots**: `*_krona_plot.html` - Open in browser for exploration
-- **Method comparison**: `Overall_Method_Comparison.csv` - BLAST vs Kraken2 performance
+- **Method comparison**: `Overall_Method_Comparison.csv` - BLAST vs Kraken2 vs TaxonKit performance
 
 ---
 
@@ -416,6 +414,7 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 | **BLAST** | Sequence alignment & taxonomic assignment | Similarity-based classification |
 | **LULU (R)** | Post-clustering error correction | Bioinformatics error correction |
 | **Krona** | Interactive HTML taxonomic visualizations | Data visualization principles |
+| **TaxonKit** | NCBI taxonomy data toolkit for LCA consensus | Advanced taxonomy processing |
 | **amplicon_sorter** | Advanced consensus calling for ONT data | ONT-specific processing |
 | **ONTbarcoder** | Demultiplex custom CCI barcode tags | Custom barcode tag handling |
 
@@ -469,6 +468,7 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 - **Purpose:** Comprehensive taxonomic assignment with method comparison
 - **What it does:**
   - **BLAST:** Similarity-based assignment against multiple databases
+  - **TaxonKit LCA:** Consensus taxonomy from multiple BLAST hits (most robust)
   - **Kraken2:** K-mer based classification  
   - **Krona plots:** Interactive taxonomic visualizations
 - **Input:** Denoised sequences from Script 04
@@ -513,6 +513,7 @@ results/
 │       ├── 03_final_taxonomy/           # Species abundance matrices
 │       │   ├── BLAST_vsearch_*_classified_species.csv   # Final OTU tables ⭐
 │       │   ├── Kraken2_vsearch_*_classified_species.csv # Alternative classifications
+│       │   ├── TaxonKit_LCA_species_abundance.csv       # Most robust consensus taxonomy ⭐
 │       │   └── Overall_Method_Comparison.csv  # Performance summary
 │       └── 04_krona_plots/              # Interactive HTML visualizations ⭐
 │           └── *_krona_plot.html        # Method-specific taxonomic plots
