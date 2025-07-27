@@ -76,6 +76,31 @@ else
   echo "⚠️  Warning: KronaTools not found → skipping Krona charts"
 fi
 
+# ─── OPTIONAL: amplicon_sorter? ────────────────────────────────────────────
+USE_AMPLICON_SORTER=0
+AMPLICON_SORTER_CMD=""
+
+# Check for amplicon_sorter in multiple locations
+if command -v amplicon_sorter &>/dev/null; then
+  USE_AMPLICON_SORTER=1
+  AMPLICON_SORTER_CMD="amplicon_sorter"
+  echo "✅ amplicon_sorter found (in PATH)"
+elif [[ -f "$PROJECT_ROOT/../tools/amplicon_sorter/amplicon_sorter.py" ]]; then
+  USE_AMPLICON_SORTER=1
+  AMPLICON_SORTER_CMD="python3 $PROJECT_ROOT/../tools/amplicon_sorter/amplicon_sorter.py"
+  echo "✅ amplicon_sorter found (as Python script)"
+elif [[ -f "$PROJECT_ROOT/tools/amplicon_sorter/amplicon_sorter.py" ]]; then
+  USE_AMPLICON_SORTER=1
+  AMPLICON_SORTER_CMD="python3 $PROJECT_ROOT/tools/amplicon_sorter/amplicon_sorter.py"
+  echo "✅ amplicon_sorter found (as Python script)"
+else
+  echo "⚠️  Warning: amplicon_sorter not found → skipping length distribution plots"
+  echo "   Looked for:"
+  echo "   - amplicon_sorter in PATH"
+  echo "   - $PROJECT_ROOT/../tools/amplicon_sorter/amplicon_sorter.py"
+  echo "   - $PROJECT_ROOT/tools/amplicon_sorter/amplicon_sorter.py"
+fi
+
 # ─── CHECK INPUT DIRECTORY & AUTO-SETUP ───────────────────────────────────
 if [[ ! -d "$INPUT_DIR" ]]; then
   echo "❌ Error: Input directory not found: $INPUT_DIR"
@@ -279,7 +304,7 @@ for input_file in "${input_files[@]}"; do
   echo "    ✓ Processed file: $filtered_file"
 
   # ─── STEP 1.5: Generate Length Distribution PDF ───────────────────────────
-  if command -v amplicon_sorter &>/dev/null; then
+  if [[ "$USE_AMPLICON_SORTER" -eq 1 ]]; then
     echo "    • Generating length distribution PDF..."
     
     # Convert to FASTA temporarily for amplicon_sorter (regardless of input type)
@@ -291,7 +316,7 @@ for input_file in "${input_files[@]}"; do
     fi
     
     # Generate histogram PDF using amplicon_sorter
-    python3 "$(which amplicon_sorter)" \
+    $AMPLICON_SORTER_CMD \
       --input "$temp_fa" \
       --minlength "$MIN_LENGTH" \
       --maxlength "$MAX_LENGTH" \
@@ -304,7 +329,7 @@ for input_file in "${input_files[@]}"; do
     rm -f "$temp_fa"
     echo "      ✓ Length distribution: $FILTERED_DIR/${sample}_length_dist/"
   else
-    echo "      ⚠️  amplicon_sorter not found, skipping length distribution"
+    echo "      ⚠️  amplicon_sorter not available, skipping length distribution"
   fi
 
   # ─── STEP 2: Kraken2 Taxonomic Classification ─────────────────────────────
@@ -457,7 +482,9 @@ echo
 echo "📊 Results summary:"
 echo " • Processed input:           $INPUT_TYPE files"
 echo " • Filtered sequences         → $FILTERED_DIR/"
-echo " • Length distribution PDFs   → $FILTERED_DIR/<sample>_length_dist/"
+if [[ "$USE_AMPLICON_SORTER" -eq 1 ]]; then
+  echo " • Length distribution PDFs   → $FILTERED_DIR/<sample>_length_dist/"
+fi
 echo " • Kraken2 classification     → $OUTPUT_DIR/{${DBS[*]}}"
 echo " • Fish-classified sequences  → $OUTPUT_DIR/mitofish/*_classified.fasta"
 if [[ "$USE_KRONA" -eq 1 ]]; then
