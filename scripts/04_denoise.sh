@@ -474,10 +474,25 @@ for DATABASE in $DATABASES; do
 done
 
 echo ""
-echo "🔧 SIMPLE WORKING FIXES:"
-echo "   ✅ Each sample gets its own column with proper name (18, 2, 4)"
-echo "   ✅ Abundance extracted from size= field in consensus sequences"
-echo "   ✅ No more fake 1,1,1 or 2,1,1 patterns"
-echo "   ✅ Each sequence appears in correct sample column"
+echo "🎓 Teaching Benefits of Separate Method Files:"
+echo "   • Same proven database-centric processing"
+echo "   • Each method gets separate files per database"
+echo "   • Method-specific prefixes prevent ID conflicts"
+echo "   • Ready for separate taxonomic assignment"
+echo ""
+echo "🔬 Next steps:"
+echo "   • Run script 05 with separate method file structure"
+echo "   • Compare species identification between methods"
+echo "   • Analyze method-specific community patterns"
 echo "   ✅ Ready for script 05"
+echo ""
+echo "🔗 Next step:"
+# Detect workflow from OUTPUT_DIR path
+if [[ "$OUTPUT_DIR_ABS" == *"ont_native"* ]]; then
+  echo " bash scripts/05_taxonomic_assignment.sh $OUTPUT_DIR_ABS results/ont_native_05_taxonomy"
+elif [[ "$OUTPUT_DIR_ABS" == *"custom_cci"* ]]; then
+  echo " bash scripts/05_taxonomic_assignment.sh $OUTPUT_DIR_ABS results/custom_cci_05_taxonomy"
+else
+  echo " bash scripts/05_taxonomic_assignment.sh $OUTPUT_DIR_ABS results/05_taxonomy"
+fi
 echo ""

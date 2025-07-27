@@ -125,25 +125,17 @@ if [[ "$OUTPUT_FASTQ" == *"custom_cci_barcodes"* ]]; then
     
     echo "   📁 Detected Custom CCI workflow: $WORKFLOW_DIR"
     
-    # Create ONTbarcoder demo output directory (for student practice)
-    ONTBARCODER_DEMO_OUTPUT="$WORKFLOW_DIR/02_demultiplexed_demo"
-    mkdir -p "$ONTBARCODER_DEMO_OUTPUT"
-    echo "   ✅ Created ONTbarcoder demo directory: $ONTBARCODER_DEMO_OUTPUT"
-    
-    # Note: The real 02_demultiplexed directory should already exist with pre-demultiplexed data
-    ONTBARCODER_REAL_OUTPUT="$WORKFLOW_DIR/02_demultiplexed"
-    if [[ -d "$ONTBARCODER_REAL_OUTPUT" ]]; then
-        echo "   ✅ Real demultiplexed directory exists: $ONTBARCODER_REAL_OUTPUT"
-    else
-        echo "   ⚠️  Real demultiplexed directory not found: $ONTBARCODER_REAL_OUTPUT"
-    fi
+    # Create ONTbarcoder output directory
+    ONTBARCODER_OUTPUT="$WORKFLOW_DIR/02_demultiplexed"
+    mkdir -p "$ONTBARCODER_OUTPUT"
+    echo "   ✅ Created ONTbarcoder output directory: $ONTBARCODER_OUTPUT"
     
     # Create demux_config directory
     DEMUX_CONFIG_DIR="$WORKFLOW_DIR/demux_config"
     mkdir -p "$DEMUX_CONFIG_DIR"
     echo "   ✅ Created demux config directory: $DEMUX_CONFIG_DIR"
     
-    # Copy filtered FASTQ to demux_config for ONTbarcoder practice
+    # Copy filtered FASTQ to demux_config for easy ONTbarcoder access
     DEMUX_CONFIG_FASTQ="$DEMUX_CONFIG_DIR/quality_filtered.fastq"
     cp "$OUTPUT_FASTQ" "$DEMUX_CONFIG_FASTQ"
     echo "   ✅ Copied filtered FASTQ to: $DEMUX_CONFIG_FASTQ"
@@ -163,7 +155,7 @@ fi
 echo ""
 echo "✅ Pre-demultiplexing quality filter complete!"
 echo ""
-echo "📁 Files ready for ONTbarcoder practice:"
+echo "📁 Files ready for ONTbarcoder:"
 echo "   • Primary output:   $OUTPUT_FASTQ"
 if [[ "$OUTPUT_FASTQ" == *"custom_cci_barcodes"* ]]; then
     echo "   • ONTbarcoder copy: $DEMUX_CONFIG_FASTQ"
@@ -172,43 +164,29 @@ echo ""
 
 # ─── ONTBARCODER INSTRUCTIONS ─────────────────────────────────────────────
 if [[ "$OUTPUT_FASTQ" == *"custom_cci_barcodes"* ]]; then
-    echo "🖥️  ONTbarcoder2.3 GUI Practice Instructions:"
-    echo "─────────────────────────────────────────────────"
-    echo "⚠️  NOTE: This is for PRACTICE ONLY - the filtered data may not demultiplex well"
-    echo ""
+    echo "🖥️  ONTbarcoder2.3 GUI Setup Instructions:"
+    echo "────────────────────────────────────────────"
     echo "1. Launch ONTbarcoder2.3 GUI application"
     echo "2. Configure settings:"
     echo "   • Input file:           $DEMUX_CONFIG_FASTQ"
-    echo "   • Output directory:     $ONTBARCODER_DEMO_OUTPUT"
+    echo "   • Output directory:     $ONTBARCODER_OUTPUT"
     if [[ -f "$DEMUX_SHEET" ]]; then
         echo "   • Demultiplexing sheet: $DEMUX_SHEET"
     else
         echo "   • Demultiplexing sheet: CREATE $DEMUX_SHEET"
     fi
-    echo "3. Run demultiplexing (practice run)"
+    echo "3. Run demultiplexing"
     echo ""
-    echo "📂 Demo output structure (practice):"
-    echo "   $ONTBARCODER_DEMO_OUTPUT/"
-    echo "   ├── demultiplexed/"
+    echo "📂 Expected ONTbarcoder output structure:"
+    echo "   $ONTBARCODER_OUTPUT/"
+    echo "   ├── demultiplexed/           ← Script 02 will look here"
     echo "   │   ├── sample1_all.fa"
     echo "   │   ├── sample2_all.fa"
     echo "   │   └── sample3_all.fa"
     echo "   └── [other ONTbarcoder files]"
     echo ""
-    echo "📂 Real pipeline uses pre-demultiplexed data:"
-    echo "   $ONTBARCODER_REAL_OUTPUT/"
-    echo "   ├── demultiplexed/           ← Script 02 continues from here"
-    echo "   │   ├── 18_all.fa"
-    echo "   │   ├── 2_all.fa"
-    echo "   │   └── 4_all.fa"
-    echo "   └── [existing mock data]"
-    echo ""
-    echo "🔗 Continue with main pipeline using real data:"
+    echo "🔗 After ONTbarcoder completes, continue with:"
     echo "   bash scripts/02_quick_look_clean.sh $WORKFLOW_DIR/02_demultiplexed/demultiplexed/ results/custom_cci_02_quicklook"
-    echo ""
-    echo "💡 Why two directories?"
-    echo "   • $ONTBARCODER_DEMO_OUTPUT → Practice ONTbarcoder workflow"
-    echo "   • $ONTBARCODER_REAL_OUTPUT → Continue with robust mock data"
 else
     echo "🔗 Next steps:"
     echo "   1. Demultiplex with ONTbarcoder2.3 GUI using: $OUTPUT_FASTQ"
@@ -216,6 +194,6 @@ else
 fi
 
 echo ""
-echo "💡 Alternative - Skip demux practice and use ONT Native mock data:"
+echo "💡 Alternative - Skip demux and use ONT Native mock data:"
 echo "   bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes/ results/ont_native_02_quicklook"
 echo ""

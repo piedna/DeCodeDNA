@@ -492,5 +492,11 @@ if [[ "$USE_KRONA" -eq 1 ]]; then
 fi
 echo
 echo "🔗 Next step:"
-echo " bash scripts/03_consensus_sort.sh $OUTPUT_DIR results/03_consensus"
+if [[ "$WORKFLOW_TYPE" == "ONT Native Barcoding" ]]; then
+  echo " bash scripts/03_consensus_sort.sh $OUTPUT_DIR results/ont_native_03_consensus"
+elif [[ "$WORKFLOW_TYPE" == "Custom CCI Barcoding" ]]; then
+  echo " bash scripts/03_consensus_sort.sh $OUTPUT_DIR results/custom_cci_03_consensus"
+else
+  echo " bash scripts/03_consensus_sort.sh $OUTPUT_DIR results/03_consensus"
+fi
 echo ""

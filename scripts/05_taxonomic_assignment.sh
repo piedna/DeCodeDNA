@@ -5,6 +5,10 @@ set -euo pipefail
 if [[ $# -ne 2 ]]; then
   echo "Usage: $0 <DENOISE_DIR> <OUTPUT_DIR>"
   echo "Example: $0 results/04_denoise results/05_taxonomy"
+  echo ""
+  echo "Environment variables:"
+  echo "  SUBSET_COUNT - Limit number of sequences to process (default: 0 = all sequences)"
+  echo "  Example: export SUBSET_COUNT=1000"
   exit 1
 fi
 DENOISE_DIR="$1"
@@ -171,15 +175,40 @@ fi
 
 echo ""
 
-# ─── NO SUBSET - USE ALL SEQUENCES ─────────────────────────────────────
+# ─── SUBSET OPTION - LIMIT SEQUENCES IF REQUESTED ─────────────────────────
 THREADS="${THREADS:-8}"
 EVALUE="${EVALUE:-1e-40}"
 MAX_HITS="${MAX_HITS:-50}"
+SUBSET_COUNT="${SUBSET_COUNT:-0}"  # Default to 0 (no limit)
 
-# Use ALL sequences (no subset limit like your working script)
-VSEARCH_SUBSET_FASTA="$VSEARCH_REP_FASTA"
-vsearch_subset_count=$(grep -c "^>" "$VSEARCH_SUBSET_FASTA")
-echo "🔬 Using ALL $vsearch_subset_count vsearch sequences for analysis (no subset limit)"
+if [[ "$SUBSET_COUNT" -gt 0 ]]; then
+  echo "🔬 Subsetting to $SUBSET_COUNT sequences (SUBSET_COUNT=$SUBSET_COUNT)"
+  
+  # Create subset FASTA file
+  VSEARCH_SUBSET_FASTA="$TEMP_DIR/vsearch_subset_${SUBSET_COUNT}.fasta"
+  
+  # Use seqtk to randomly sample sequences (if available)
+  if command -v seqtk >/dev/null 2>&1; then
+    echo "   • Using seqtk for random sampling..."
+    seqtk sample "$VSEARCH_REP_FASTA" "$SUBSET_COUNT" > "$VSEARCH_SUBSET_FASTA"
+  else
+    # Fallback: take first N sequences
+    echo "   • Taking first $SUBSET_COUNT sequences (seqtk not available for random sampling)"
+    awk -v count="$SUBSET_COUNT" '
+      /^>/ { if (seq_count >= count) exit; seq_count++ }
+      { print }
+    ' "$VSEARCH_REP_FASTA" > "$VSEARCH_SUBSET_FASTA"
+  fi
+  
+  vsearch_subset_count=$(grep -c "^>" "$VSEARCH_SUBSET_FASTA")
+  echo "   ✓ Created subset with $vsearch_subset_count sequences"
+else
+  # Use ALL sequences (original behavior)
+  VSEARCH_SUBSET_FASTA="$VSEARCH_REP_FASTA"
+  vsearch_subset_count=$(grep -c "^>" "$VSEARCH_SUBSET_FASTA")
+  echo "🔬 Using ALL $vsearch_subset_count vsearch sequences for analysis (no subset limit)"
+fi
+
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -798,15 +827,15 @@ for (db in c("12s", "coi", "mitofish")) {
         
         # Join classifications with taxonomic names
         sample_kraken_classified <- kraken_data %>%
-          filter(classified == "C") %>%
-          left_join(kraken_taxa, by = "taxid") %>%
-          mutate(
-            species = ifelse(is.na(name), paste0("taxid_", taxid), name),
-            database = db,
-            sample = sample,
-            assignment_status = "classified"
-          ) %>%
-          select(OTU_ID, species, taxid, database, sample, assignment_status)
+  filter(classified == "C") %>%
+  left_join(kraken_taxa, by = "taxid") %>%
+  mutate(
+    species = as.character(ifelse(is.na(name), paste0("taxid_", taxid), name)),
+    database = db,
+    sample = sample,
+    assignment_status = "classified"
+  ) %>%
+  select(OTU_ID, species, taxid, database, sample, assignment_status)
         
         all_kraken_results <- bind_rows(all_kraken_results, sample_kraken_classified)
       }
@@ -974,16 +1003,21 @@ echo ""
 echo "🎓 ENHANCED PIPELINE FEATURES:"
 echo "   ✅ TaxonKit LCA consensus taxonomy from multiple BLAST hits (EXACTLY like LULU-BLAST)"
 echo "   ✅ Per-sample Kraken2 analysis with Krona visualizations"
-echo "   ✅ NO sequence subset limit - uses ALL sequences"
+if [[ "$SUBSET_COUNT" -gt 0 ]]; then
+  echo "   ✅ LIMITED to $SUBSET_COUNT sequences (SUBSET_COUNT=$SUBSET_COUNT)"
+else
+  echo "   ✅ NO sequence subset limit - uses ALL sequences"
+fi
 echo "   ✅ Multi-hit filtering (100%, 99.3%, 98%, 96% thresholds)"
 echo "   ✅ Sample-specific abundance preservation: ${REAL_SAMPLE_NAMES[*]}"
 echo "   ✅ Species × sample abundance matrices"
 echo "   ✅ Compatible with both custom_cci and ont_native workflows"
 echo ""
-echo "🔗 Next steps:"
-echo "   • Review TaxonKit_LCA_species_abundance.csv for most robust species identification"
-echo "   • Compare classification methods using the comprehensive comparison file"
-echo "   • Open per-sample Krona HTML files to explore taxonomic composition"
-echo "   • Use BLAST vs KRAKEN2 vs TaxonKit LCA for method validation"
+echo "🔗 Analysis complete! Key results:"
+echo "   • TaxonKit_LCA_species_abundance.csv - Most robust species identification"
+echo "   • BLAST_vsearch_*_classified_species.csv - Database-specific species tables"
+echo "   • *_krona.html - Interactive taxonomic visualizations"
+echo "   • Comprehensive_Method_Comparison.csv - Compare all methods"
 echo ""
-echo "💡 Full taxonomic assignment pipeline complete!"
+echo "🎉 Pipeline complete! Ready for biological interpretation."
+echo ""

@@ -54,13 +54,33 @@ else
   echo "✅ seqkit found"
 fi
 
-# Check for amplicon_sorter (optional for demo)
+# ─── SMART AMPLICON_SORTER DETECTION ──────────────────────────────────────
+AMPLICON_AVAILABLE=0
+AMPLICON_SORTER_CMD=""
+
+# Get script directory for relative path detection
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Check for amplicon_sorter in multiple locations
 if command -v amplicon_sorter &>/dev/null; then
-  echo "✅ amplicon_sorter found (available for demo)"
   AMPLICON_AVAILABLE=1
+  AMPLICON_SORTER_CMD="amplicon_sorter"
+  echo "✅ amplicon_sorter found (in PATH)"
+elif [[ -f "$PROJECT_ROOT/../tools/amplicon_sorter/amplicon_sorter.py" ]]; then
+  AMPLICON_AVAILABLE=1
+  AMPLICON_SORTER_CMD="python3 $PROJECT_ROOT/../tools/amplicon_sorter/amplicon_sorter.py"
+  echo "✅ amplicon_sorter found (as Python script)"
+elif [[ -f "$PROJECT_ROOT/tools/amplicon_sorter/amplicon_sorter.py" ]]; then
+  AMPLICON_AVAILABLE=1
+  AMPLICON_SORTER_CMD="python3 $PROJECT_ROOT/tools/amplicon_sorter/amplicon_sorter.py"
+  echo "✅ amplicon_sorter found (as Python script)"
 else
   echo "⚠️  amplicon_sorter not found (demo commands will be provided)"
-  AMPLICON_AVAILABLE=0
+  echo "   Looked for:"
+  echo "   - amplicon_sorter in PATH"
+  echo "   - $PROJECT_ROOT/../tools/amplicon_sorter/amplicon_sorter.py"
+  echo "   - $PROJECT_ROOT/tools/amplicon_sorter/amplicon_sorter.py"
 fi
 
 echo
@@ -164,7 +184,11 @@ for DATABASE in $DATABASES; do
   echo "🎯 APPROACH 2: amplicon_sorter Demo for $DATABASE (Advanced Clustering)"
   echo "   Purpose: Sophisticated clustering designed for ONT/eDNA data"
   echo "   Best for: Real eDNA samples, final publication results"
-  echo "   Status: Command provided for demonstration"
+  if [[ "$AMPLICON_AVAILABLE" -eq 1 ]]; then
+    echo "   Status: Available for execution"
+  else
+    echo "   Status: Command provided for demonstration"
+  fi
   echo
 
   for classified_file in "${classified_files[@]}"; do
@@ -177,7 +201,25 @@ for DATABASE in $DATABASES; do
     # Generate the amplicon_sorter command
     sample_output="$DB_AMPLICON_DIR/${sample}_${DATABASE}_amplicons"
     
-    cat << EOF
+    if [[ "$AMPLICON_AVAILABLE" -eq 1 ]]; then
+      cat << EOF
+    
+    📋 amplicon_sorter Command for $DATABASE (Available):
+    ────────────────────────────────────────────────────────────────
+    $AMPLICON_SORTER_CMD \\
+      -i '$classified_file' \\
+      -min $AMPLICON_MINLEN \\
+      -max $AMPLICON_MAXLEN \\
+      -ar -ra \\
+      -maxr $AMPLICON_MAXREADS \\
+      -ssg 95 -ss 97 -sc 98 \\
+      -np 1 \\
+      -o '$sample_output'
+    ────────────────────────────────────────────────────────────────
+    
+EOF
+    else
+      cat << EOF
     
     📋 amplicon_sorter Command for $DATABASE (Copy & Paste to Try):
     ────────────────────────────────────────────────────────────────
@@ -196,11 +238,12 @@ for DATABASE in $DATABASES; do
         For real analysis, run on a server with more resources.
     
 EOF
+    fi
 
     # Only run if specifically requested and available
     if [[ "${RUN_AMPLICON_SORTER:-0}" -eq 1 && "$AMPLICON_AVAILABLE" -eq 1 ]]; then
       echo "  🔄 Running amplicon_sorter (this may take a while or hang)..."
-      python3 "$(which amplicon_sorter)" \
+      $AMPLICON_SORTER_CMD \
         -i "$classified_file" \
         -min "$AMPLICON_MINLEN" \
         -max "$AMPLICON_MAXLEN" \
@@ -212,7 +255,11 @@ EOF
           echo "  ❌ amplicon_sorter failed (expected for local execution)"
         }
     else
-      echo "  💡 To enable amplicon_sorter execution: RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh ..."
+      if [[ "$AMPLICON_AVAILABLE" -eq 1 ]]; then
+        echo "  💡 To enable amplicon_sorter execution: RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh ..."
+      else
+        echo "  💡 Install amplicon_sorter to enable execution (currently showing demo commands only)"
+      fi
     fi
     echo
   done
@@ -228,10 +275,6 @@ echo "════════════════════════�
 echo "   For this class, we provide pre-computed amplicon_sorter results:"
 echo "   Generated on high-performance server with optimized parameters"
 echo
-
-# Check if pre-computed results exist
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Look for multiple pre-computed files (for multi-sample workflow)
 shopt -s nullglob
@@ -352,6 +395,12 @@ echo "   • Cons: Conservative clustering, may preserve errors"
 echo "   • Use case: Mock communities, quick analysis"
 echo
 echo "2. 🎯 amplicon_sorter (Advanced & Thorough):"
+if [[ "$AMPLICON_AVAILABLE" -eq 1 ]]; then
+  echo "   • Status: Available for execution"
+  echo "   • Command: $AMPLICON_SORTER_CMD"
+else
+  echo "   • Status: Demo commands provided (not installed)"
+fi
 echo "   • Results: $OUTPUT_DIR/amplicon_sorter_consensus.fasta (pre-computed)"
 echo "   • Pros: Sophisticated error correction, designed for ONT data"
 echo "   • Cons: Slow locally, requires server resources"
@@ -366,4 +415,14 @@ echo "   • Taxonomic assignment of consensus sequences"
 echo "   • Compare clustering methods with Krona plots"
 echo "   • Species identification and abundance estimation"
 echo
+echo "🔗 Next step:"
+# Detect workflow from OUTPUT_DIR path
+if [[ "$OUTPUT_DIR" == *"ont_native"* ]]; then
+  echo " bash scripts/04_denoise.sh $OUTPUT_DIR results/ont_native_04_denoise"
+elif [[ "$OUTPUT_DIR" == *"custom_cci"* ]]; then
+  echo " bash scripts/04_denoise.sh $OUTPUT_DIR results/custom_cci_04_denoise"
+else
+  echo " bash scripts/04_denoise.sh $OUTPUT_DIR results/04_denoise"
+fi
+echo ""
 echo "✅ Step III complete - Ready for downstream analysis!"
