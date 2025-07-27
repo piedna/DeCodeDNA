@@ -93,8 +93,7 @@ DeCodeDNA supports **two distinct barcode tag approaches**. Choose the one that 
 
 ```bash
 # Quick start - ONT Native Workflow
-cd workflows/ont_native_barcodes/
-bash ../../scripts/02_quick_look_clean.sh . ../../results/ont_native_results/02_quicklook
+bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/ont_native_02_quicklook
 # Continue with scripts 03, 04, 05...
 ```
 
@@ -116,7 +115,7 @@ bash ../../scripts/00_quality_filter_predemux.sh 00_raw_data/test_fhl_customcci.
 # Output to: 02_demultiplexed/
 
 # Step 3: Continue with core pipeline
-bash ../../scripts/02_quick_look_clean.sh 02_demultiplexed/ ../../results/custom_cci_results/02_quicklook
+bash ../../scripts/02_quick_look_clean.sh 02_demultiplexed/ results/custom_cci_02_quicklook
 # Continue with scripts 03, 04, 05...
 ```
 
@@ -203,27 +202,25 @@ bash scripts/01_build_dbs_kraken_blastn.sh
 
 **ONT Native Workflow (Learning with 12S data):**
 ```bash
-cd workflows/ont_native_barcodes/
-
 # Script 02: Quality Control & Classification (~3-5 minutes)
 # • Quality filtering, length filtering, initial Kraken2 classification
 # • Input: Raw FASTQ files | Output: Filtered sequences, classification reports
-bash ../../scripts/02_quick_look_clean.sh . ../../results/ont_native_results/02_quicklook
+bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/ont_native_02_quicklook
 
 # Script 03: Consensus Building (~5-8 minutes)
 # • vsearch: Fast local clustering | amplicon_sorter: Advanced clustering (demo)
 # • Input: Classified sequences | Output: Consensus sequences from both methods
-bash ../../scripts/03_consensus_sort.sh ../../results/ont_native_results/02_quicklook ../../results/ont_native_results/03_consensus
+bash scripts/03_consensus_sort.sh results/ont_native_02_quicklook results/ont_native_03_consensus
 
 # Script 04: LULU Denoising (~3-7 minutes)
 # • Remove sequencing errors using LULU algorithm
 # • Input: Consensus sequences | Output: Curated OTU tables, cleaned sequences
-bash ../../scripts/04_denoise.sh ../../results/ont_native_results/03_consensus ../../results/ont_native_results/04_denoise
+bash scripts/04_denoise.sh results/ont_native_03_consensus results/ont_native_04_denoise
 
 # Script 05: Taxonomic Assignment (~5-10 minutes)
 # • BLAST + Kraken2 classification, Krona visualizations
 # • Input: Denoised sequences | Output: Species tables, interactive plots
-bash ../../scripts/05_taxonomic_assignment.sh ../../results/ont_native_results/04_denoise ../../results/ont_native_results/05_taxonomy
+bash scripts/05_taxonomic_assignment.sh results/ont_native_04_denoise results/ont_native_05_taxonomy
 ```
 
 **Custom CCI Workflow (Real samples with 2500bp D-loop data):**
@@ -231,10 +228,10 @@ bash ../../scripts/05_taxonomic_assignment.sh ../../results/ont_native_results/0
 cd workflows/custom_cci_barcodes/
 
 # Same script progression (02→03→04→05) but with custom CCI data
-bash ../../scripts/02_quick_look_clean.sh 02_demultiplexed/ ../../results/custom_cci_results/02_quicklook
-bash ../../scripts/03_consensus_sort.sh ../../results/custom_cci_results/02_quicklook ../../results/custom_cci_results/03_consensus
-bash ../../scripts/04_denoise.sh ../../results/custom_cci_results/03_consensus ../../results/custom_cci_results/04_denoise
-bash ../../scripts/05_taxonomic_assignment.sh ../../results/custom_cci_results/04_denoise ../../results/custom_cci_results/05_taxonomy
+bash ../../scripts/02_quick_look_clean.sh 02_demultiplexed/ ../../results/custom_cci_02_quicklook
+bash ../../scripts/03_consensus_sort.sh ../../results/custom_cci_02_quicklook ../../results/custom_cci_03_consensus
+bash ../../scripts/04_denoise.sh ../../results/custom_cci_03_consensus ../../results/custom_cci_04_denoise
+bash ../../scripts/05_taxonomic_assignment.sh ../../results/custom_cci_04_denoise ../../results/custom_cci_05_taxonomy
 ```
 
 **Total Pipeline Time:** 15-25 minutes for mock data
@@ -285,7 +282,7 @@ export SUBSET_COUNT=1000           # Default: 2000
 **Example custom run:**
 ```bash
 export QUALITY_THRESHOLD=18 MIN_LENGTH=200 MAX_LENGTH=300 DATABASES="mitofish"
-bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes/ results/custom_analysis/02_quicklook
+bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes/ results/custom_analysis_02_quicklook
 ```
 
 ---
@@ -319,8 +316,7 @@ bash scripts/install_krona_taxonomy.sh
 source scripts/setup_databases.sh
 
 # Verify installation
-cd workflows/ont_native_barcodes/
-bash ../../scripts/02_quick_look_clean.sh . ../../results/class_test/02_quicklook
+bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_test_02_quicklook
 ```
 
 ### Teaching Strategy
