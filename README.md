@@ -74,7 +74,7 @@ flowchart TB
 ```
 
 **Pipeline Scripts:**
-- **Script 00:** Basecalling demo (optional)
+- **Script 00:** Quality filtering for Custom CCI (recommended before demultiplexing)
 - **Script 01:** Database building (one-time setup)
 - **Scripts 02-05:** Core analysis pipeline (both workflows)
 
@@ -99,6 +99,7 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/ont_na
 
 ### 🔹 Workflow B: Custom CCI Barcode Tags  
 **For samples using custom primer-barcode tag combinations**
+- **Recommended**: Quality filtering before demultiplexing improves accuracy
 - Requires manual demultiplexing with ONTbarcoder2.3 GUI
 - Includes quality filtering and EFPQ base conversion
 - **Best for**: One-step PCR workflows, custom primer designs, research applications
@@ -106,15 +107,15 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/ont_na
 
 ```bash
 # Complete custom CCI workflow
-# Step 1: Quality filter raw data
-bash scripts/00_quality_filter_predemux.sh workflows/custom_cci_barcodes/00_raw_data/test_fhl_customcci.fastq workflows/custom_cci_barcodes/01_filtered/quality_filtered.fastq
+# Step 1: Quality filter raw data (RECOMMENDED - improves demultiplexing accuracy)
+bash scripts/00_quality_filter_predemux.sh workflows/custom_cci_barcodes/00_raw_data/test_fhl_customcci.fastq
 
 # Step 2: Manual demultiplexing (GUI)
-# Use ONTbarcoder2.3 with workflows/custom_cci_barcodes/01_filtered/quality_filtered.fastq
+# Use ONTbarcoder2.3 with workflows/custom_cci_barcodes/demux_config/quality_filtered.fastq
 # Output to: workflows/custom_cci_barcodes/02_demultiplexed/
 
 # Step 3: Continue with core pipeline
-bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplexed/ results/custom_cci_02_quicklook
+bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplexed/demultiplexed/ results/custom_cci_02_quicklook
 # Continue with scripts 03, 04, 05...
 ```
 
@@ -224,8 +225,11 @@ bash scripts/05_taxonomic_assignment.sh results/ont_native_04_denoise results/on
 
 **Custom CCI Workflow (Real samples with 2500bp D-loop data):**
 ```bash
-# Same script progression (02→03→04→05) but with custom CCI data
-bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplexed/ results/custom_cci_02_quicklook
+# Step 0: Quality filter before demultiplexing (RECOMMENDED)
+bash scripts/00_quality_filter_predemux.sh workflows/custom_cci_barcodes/00_raw_data/test_fhl_customcci.fastq
+
+# Then: Same script progression (02→03→04→05) but with custom CCI data
+bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplexed/demultiplexed/ results/custom_cci_02_quicklook
 bash scripts/03_consensus_sort.sh results/custom_cci_02_quicklook results/custom_cci_03_consensus
 bash scripts/04_denoise.sh results/custom_cci_03_consensus results/custom_cci_04_denoise
 bash scripts/05_taxonomic_assignment.sh results/custom_cci_04_denoise results/custom_cci_05_taxonomy
@@ -274,7 +278,10 @@ export DATABASES="12s coi mitofish" # Default: all three
 
 # Performance tuning
 export THREADS=16                  # Default: 8
-export SUBSET_COUNT=1000           # Default: 2000
+export SUBSET_COUNT=1000           # Default: 0 (no limit) - for Script 05 taxonomic assignment
+
+# Custom CCI workflow
+export QUALITY_THRESHOLD=15        # Recommended for pre-demux filtering (Script 00)
 ```
 
 **Example custom run:**
@@ -420,13 +427,14 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 
 ## 📜 Complete Pipeline Scripts Reference
 
-### Script 00: Basecalling Demo
-**`00_basecall_and_demux.sh`** - Oxford Nanopore basecalling demonstration
-- **Purpose:** Educational showcase of basecalling process
-- **What it does:** Downloads models, converts FAST5→POD5 (if needed), demonstrates GPU vs CPU basecalling
-- **When to use:** Optional demo for understanding ONT basecalling workflow
-- **Output:** Basecalled FASTQ files for comparison
-- **Timing:** 5-10 minutes
+### Script 00: Quality Filter for Custom CCI
+**`00_quality_filter_predemux.sh`** - Pre-demultiplexing quality filtering
+- **Purpose:** Clean raw data before demultiplexing to improve accuracy
+- **What it does:** Quality filtering (Q≥12), length filtering, automatic output path detection
+- **When to use:** **RECOMMENDED** for Custom CCI workflow before ONTbarcoder demultiplexing
+- **Output:** Filtered FASTQ in both `01_filtered/` and `demux_config/` directories
+- **Timing:** 2-3 minutes
+- **Environment variables:** `QUALITY_THRESHOLD`, `MIN_LENGTH`, `MAX_LENGTH`
 
 ### Script 01: Database Builder  
 **`01_build_dbs_kraken_blastn.sh`** - Reference database construction
@@ -474,6 +482,7 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 - **Input:** Denoised sequences from Script 04
 - **Output:** Species abundance tables, comparison matrices, Krona plots
 - **Timing:** ~5-10 minutes
+- **Environment variables:** `SUBSET_COUNT` (default: 0 = no limit, set to 500-1000 for classroom demos)
 
 **Total Pipeline Time:** 15-25 minutes for mock data
 
@@ -530,7 +539,7 @@ results/
 | `MAX_LENGTH` | Maximum sequence length (bp) | 500 | 350 (12S specific) |
 | `DATABASES` | Which reference databases to use | "12s coi mitofish" | "mitofish" (fish only) |
 | `THREADS` | CPU cores for parallel processing | 8 | 16 (high-end machine) |
-| `SUBSET_COUNT` | Max sequences for taxonomy (speed) | 2000 | 1000 (demo mode) |
+| `SUBSET_COUNT` | Max sequences for taxonomy (Script 05) | 0 (no limit) | 1000 (classroom demo) |
 | `CONFIDENCE` | Kraken2 confidence threshold | 0.05 | 0.1 (conservative) |
 | `VSEARCH_SIMILARITY` | Clustering similarity threshold | 0.97 | 0.95 (looser clustering) |
 
@@ -556,8 +565,8 @@ export QUALITY_THRESHOLD=18 MIN_LENGTH=15000 MAX_LENGTH=18000 DATABASES="mitofis
 
 **⚙️ High-Performance Server:**
 ```bash
-export THREADS=32 SUBSET_COUNT=10000 CONFIDENCE=0.1
-# Maximum performance with conservative classification
+export THREADS=32 SUBSET_COUNT=0 CONFIDENCE=0.1
+# Maximum performance with no sequence limit, conservative classification
 ```
 
 ## 🗄️ Database Information
