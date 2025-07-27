@@ -30,6 +30,27 @@ Improving demultiplexing rates for custom barcodes remains an active area of res
 
 ---
 
+## 🎓 Learning Progression
+
+**For FHL Course Strategy:**
+1. **First**: Complete ONT Native workflow (learn pipeline basics with 12S data)
+2. **Then**: Practice Custom CCI demultiplexing (understand the process)  
+3. **Finally**: Analyze real Custom CCI data (apply to your research samples)
+
+### **Why Start with ONT Native?**
+- Simpler workflow helps you learn the core pipeline steps
+- Pre-demultiplexed data lets you focus on bioinformatics concepts
+- Shorter amplicons (12S ~200-300bp) process faster for learning
+
+### **Why 2500bp D-loop Mock Data?**
+- **Research relevance**: Mitochondrial control region is highly variable for species ID
+- **Technical challenge**: Longer reads test quality filtering and consensus calling
+- **Phylogenetic value**: Suitable for species identification and detailed haplotyping
+- **Real-world preparation**: Similar to what you'd encounter in actual research projects
+- **Method comparison**: Shows how pipeline handles different amplicon lengths
+
+---
+
 ## 📁 Files in this directory:
 
 ```
@@ -37,23 +58,31 @@ workflows/custom_cci_barcodes/
 ├── 00_raw_data/
 │   └── test_fhl_customcci.fastq    # Raw pooled data (all samples together)
 ├── 01_filtered/                    # Quality-filtered data (created by pipeline)
-├── 02_demultiplexed/              # ONTbarcoder output (you create this)
-│   ├── sample1.fa                 # Individual sample files
-│   ├── sample2.fa                 # (after demultiplexing)
+├── 02_demultiplexed/              # Pre-demultiplexed mock data (for robust pipeline analysis)
+│   ├── sample1.fa                 # Individual sample files (ready for analysis)
+│   ├── sample2.fa                 # Real demultiplexed data
 │   └── sample3.fa
+├── 02_demultiplexed_demo/         # Practice directory (ONTbarcoder output for learning)
 └── demux_config/
-    └── demux_sheet.csv            # Demultiplexing configuration
+    └── demux_sheet.csv            # Demultiplexing configuration example
 ```
 
 ### **File Purposes:**
 - **Raw pooled data**: All samples sequenced together, requiring separation
+- **Pre-demultiplexed data**: Ready-to-use mock data for pipeline learning
+- **Practice demo directory**: For ONTbarcoder demultiplexing practice
 - **Demux configuration**: CSV file mapping barcodes to sample names
-- **Individual samples**: Separated files ready for analysis after demultiplexing
-- **2500bp D-loop mock data**: Long mitochondrial control region sequences for educational purposes
+- **2500bp D-loop sequences**: Long mitochondrial control region data for advanced analysis
 
 ---
 
-## 🚀 Complete workflow (25-35 minutes):
+## 🚀 Complete Workflow Options
+
+### **OPTION A: Practice Demultiplexing (Learning Exercise)**
+
+**Purpose**: Learn the demultiplexing process with ONTbarcoder2.3 GUI  
+**Time**: ~15-20 minutes  
+**Best for**: Understanding custom barcode tag handling
 
 ```bash
 # Navigate to this directory first
@@ -62,63 +91,102 @@ cd workflows/custom_cci_barcodes/
 # Step 1: Quality filter raw pooled data (3-5 min)
 # • Removes low-quality reads before demultiplexing (improves accuracy)
 # • Input: Raw pooled FASTQ | Output: Quality-filtered pooled data
-bash ../../scripts/00_quality_filter_predemux.sh 00_raw_data/test_fhl_customcci.fastq 01_filtered/quality_filtered.fastq
+bash ../../scripts/00_quality_filter_predemux.sh 00_raw_data/test_fhl_customcci.fastq
 
-# Step 2: Manual demultiplexing with GUI (5-10 min)
+# Step 2: Manual demultiplexing practice with GUI (10-15 min)
 # • Use ONTbarcoder2.3 GUI to separate samples by barcode sequences
 # • Input: 01_filtered/quality_filtered.fastq
 # • Config: demux_config/demux_sheet.csv  
-# • Output: 02_demultiplexed/*.fa (individual sample files)
+# • Output: 02_demultiplexed_demo/*.fa (practice files)
+# • NOTE: This is for learning only - pipeline uses pre-demultiplexed data
 
-# Step 3: Base conversion (1-2 min)
+# Step 3: Base conversion practice (1-2 min)
 # • Convert ONTbarcoder output format for pipeline compatibility
-# • Required: ONTbarcoder outputs EFPQ format, pipeline needs standard FASTA
-cd 02_demultiplexed/
+cd 02_demultiplexed_demo/
 bash ../../../scripts/EFPQ_ontbarcoder_convert.sh
 cd ..
+```
 
-# Step 4: Core pipeline analysis (15-20 min)
+### **OPTION B: Full Pipeline Analysis (Robust Results)**
+
+**Purpose**: Complete analysis with pre-demultiplexed mock data  
+**Time**: ~15-20 minutes  
+**Best for**: Learning the core pipeline and getting reliable results
+
+```bash
+# Navigate to this directory first
+cd workflows/custom_cci_barcodes/
+
+# Core pipeline analysis using robust pre-demultiplexed data (15-20 min)
 # • Same 4-step analysis as ONT Native workflow
 # • Quality control → Consensus → Denoising → Taxonomy
-bash ../../scripts/02_quick_look_clean.sh 02_demultiplexed/ ../../results/custom_cci_results/02_quicklook
-bash ../../scripts/03_consensus_sort.sh ../../results/custom_cci_results/02_quicklook ../../results/custom_cci_results/03_consensus
-bash ../../scripts/04_denoise.sh ../../results/custom_cci_results/03_consensus ../../results/custom_cci_results/04_denoise
-bash ../../scripts/05_taxonomic_assignment.sh ../../results/custom_cci_results/04_denoise ../../results/custom_cci_results/05_taxonomy
+bash ../../scripts/02_quick_look_clean.sh 02_demultiplexed/ ../../results/custom_cci_02_quicklook
+bash ../../scripts/03_consensus_sort.sh ../../results/custom_cci_02_quicklook ../../results/custom_cci_03_consensus
+bash ../../scripts/04_denoise.sh ../../results/custom_cci_03_consensus ../../results/custom_cci_04_denoise
+bash ../../scripts/05_taxonomic_assignment.sh ../../results/custom_cci_04_denoise ../../results/custom_cci_05_taxonomy
 
-# Step 5: View results
-open ../../results/custom_cci_results/05_taxonomy/04_krona_plots/*.html
+# View results
+open ../../results/custom_cci_05_taxonomy/04_krona_plots/*.html
+```
+
+### **OPTION C: Complete Workflow (Advanced)**
+
+**Purpose**: Full experience from raw data through analysis  
+**Time**: ~25-35 minutes  
+**Best for**: Research preparation and complete workflow mastery
+
+```bash
+# Combine both options for complete experience
+# 1. Practice demultiplexing (Option A steps 1-3)
+# 2. Then run pipeline analysis (Option B)
+# 3. Compare results between practice and robust data
 ```
 
 ---
 
 ## 🎓 What you'll learn:
 
-### **Advanced Workflow Skills:**
+### **Workflow Management Skills:**
 - **Pre-demultiplexing quality filtering**: Why filter before sample separation
 - **Manual demultiplexing**: Using ONTbarcoder2.3 GUI for custom barcode schemes
 - **File format conversion**: Handling ONTbarcoder EFPQ output format
 - **Custom primer design**: Understanding primer-barcode combinations
+- **Data flow management**: Practice vs production data handling
 
-### **Bioinformatics Expertise:**
-- **Long amplicon analysis**: Working with 2500bp mitochondrial sequences
-- **Quality assessment**: Managing longer reads and their challenges
+### **Advanced Bioinformatics Expertise:**
+- **Long amplicon analysis**: Working with 2500bp mitochondrial sequences vs 200-300bp
+- **Quality assessment**: Managing longer reads and their unique challenges
 - **Complete pipeline mastery**: End-to-end processing from raw data to species tables
 - **Research applications**: Preparing for real-world custom eDNA projects
+- **Method comparison**: Understanding when custom approaches are worth the complexity
+
+### **Technical Skills:**
+- **Custom barcode design principles**: Hamming distance, error resilience
+- **ONT-specific considerations**: Error profiles and correction strategies
+- **Research workflow planning**: Wet lab → bioinformatics integration
+- **Troubleshooting**: Debugging demultiplexing and format conversion issues
 
 ---
 
 ## 📊 Expected results:
 
-- **Demultiplexed samples**: 3-4 individual sample files from pooled data
-- **Species identified**: 10-30 fish species from 2500bp D-loop sequences
-- **Processing time**: 25-35 minutes total (including demultiplexing)
-- **Skills gained**: Complete wet lab → analysis workflow for custom designs
+### **From Practice Demultiplexing (Option A):**
+- **Experience**: Understanding ONTbarcoder2.3 GUI workflow
+- **File handling**: Practice with EFPQ format conversion
+- **Skills**: Demultiplexing troubleshooting and optimization
+
+### **From Pipeline Analysis (Option B):**
+- **Demultiplexed samples**: 3-4 individual sample files from 2500bp D-loop data
+- **Species identified**: 10-30 fish species from mitochondrial control region sequences
+- **Processing time**: 15-20 minutes for core pipeline
+- **Comparative data**: Results to compare with ONT Native 12S workflow
 
 ### **Key Learning Outcomes:**
 - Understand when to use custom vs standard barcode approaches
 - Master manual demultiplexing for research applications
-- Analyze longer amplicons (2500bp vs 200-300bp in ONT Native)
+- Analyze longer amplicons and their unique challenges
 - Prepare for processing your own field collection data
+- Appreciate the trade-offs between standardized and custom approaches
 
 ---
 
@@ -132,12 +200,13 @@ open ../../results/custom_cci_results/05_taxonomy/04_krona_plots/*.html
 2. **Load input file**: `01_filtered/quality_filtered.fastq`
 3. **Load demux sheet**: `demux_config/demux_sheet.csv`
 4. **Configure settings**:
-   - Output directory: `02_demultiplexed/`
+   - Output directory: `02_demultiplexed_demo/` (for practice)
    - File format: FASTA (.fa)
    - Quality threshold: Default (12)
    - **Advanced tip**: Adjust threshold based on your barcode design quality
 5. **Run demultiplexing** (5-10 minutes)
-6. **Verify output**: Check for individual sample files in `02_demultiplexed/`
+6. **Verify output**: Check for individual sample files in output directory
+7. **Convert format**: Run EFPQ conversion script for pipeline compatibility
 
 ### **Demux Sheet Format (demux_config/demux_sheet.csv):**
 ```csv
@@ -147,20 +216,35 @@ sample2,TTGCAATTGCAATTGCAA
 sample3,CCGTAACCGTAACCGTAA
 ```
 
+### **Quality vs Assignment Trade-offs:**
+- **Higher thresholds (15-18)**: More accurate assignments, fewer total reads
+- **Lower thresholds (8-12)**: More reads assigned, potential for more errors
+- **Sweet spot (12-15)**: Balance accuracy and yield for most applications
+
 ### **Optimizing Demultiplexing Success:**
-- **Barcode design**: Ensure sufficient Hamming distance between sequences
+- **Barcode design**: Ensure sufficient Hamming distance between sequences (≥3 differences)
 - **Quality thresholds**: Balance between assignment rate and accuracy
 - **Primer-barcode junction**: Verify clean transitions in your design
 - **Error correction**: Consider redundancy in barcode design for ONT error profiles
+- **Read quality**: Pre-filtering improves downstream assignment accuracy
 
 ### **Troubleshooting Demultiplexing:**
-- **No output files**: Check barcode sequences match your primer design exactly
+- **No output files**: 
+  - Check barcode sequences match your primer design exactly
+  - Verify file paths and permissions
+  - Ensure demux sheet format is correct
 - **Low assignment rates**: 
   - Adjust quality threshold (try 10-15 range)
   - Verify primer-barcode junction sequences
   - Check for insufficient Hamming distance between barcodes
-- **EFPQ format issues**: Ensure base conversion step (Step 3) is completed
-- **Poor separation**: Consider redesigning barcodes with better error resilience
+  - Review raw data quality distribution
+- **EFPQ format issues**: 
+  - Ensure base conversion step is completed before pipeline
+  - Check that EFPQ_ontbarcoder_convert.sh script is accessible
+- **Poor separation**: 
+  - Consider redesigning barcodes with better error resilience
+  - Review barcode placement and primer design
+  - Test with known positive controls
 
 ---
 
@@ -171,27 +255,78 @@ sample3,CCGTAACCGTAACCGTAA
 | **PCR Steps** | One-step (primer + barcode) | Two-step (amplify → tag) |
 | **Demultiplexing** | Manual (ONTbarcoder2.3) | Automated (MinKNOW/Dorado) |
 | **Primer Design** | Complete flexibility | Limited to ONT kits |
+| **Sample Capacity** | Unlimited (custom design) | 24-96 samples (kit limited) |
 | **Mock Data** | 2500bp D-loop sequences | 200-300bp 12S sequences |
 | **Learning Curve** | Steeper (more steps) | Gentler (ready data) |
 | **Research Value** | High (real-world skills) | Medium (standardized) |
-| **Processing Time** | 25-35 minutes | 15-20 minutes |
+| **Processing Time** | 25-35 minutes (full) | 15-20 minutes |
+| **Cost per Sample** | Lower (bulk reagents) | Higher (kit costs) |
+| **Troubleshooting** | More complex | More standardized |
+| **Applications** | Research, novel targets | Standardized surveys |
 
 ---
 
-## 💡 Next steps:
+## 🔬 When to Choose Custom CCI
 
+### **Best Applications:**
+- **Novel target genes**: When standard primers don't exist
+- **Large-scale studies**: 100+ samples benefit from cost efficiency
+- **Specific organism groups**: Designing taxon-specific primers
+- **Research projects**: When flexibility outweighs standardization
+- **One-step workflows**: Simplifying wet lab procedures
+
+### **Consider ONT Native Instead:**
+- **Learning bioinformatics**: Focus on analysis over technical steps
+- **Small sample sizes**: ≤24 samples where kit costs are reasonable
+- **Standardized targets**: Well-established gene regions (12S, COI)
+- **Quick surveys**: When speed trumps customization
+- **Collaborative projects**: Ensuring reproducibility across labs
+
+---
+
+## 💡 Next Steps & Applications
+
+### **Immediate Next Steps:**
 1. **Complete this workflow** with the 2500bp D-loop mock data
 2. **Compare results** with ONT Native workflow outcomes
-3. **Design custom primers** for your target organisms/genes
-4. **Apply to field samples** using your custom CCI approach
-5. **Advanced analysis**: Use consensus sequences for phylogenetics or haplotyping
+3. **Analyze differences** in species detection between amplicon lengths
+4. **Practice troubleshooting** demultiplexing issues
+
+### **Research Applications:**
+1. **Design custom primers** for your target organisms/genes
+2. **Plan barcode schemes** with sufficient Hamming distances
+3. **Apply to field samples** using your custom CCI approach
+4. **Advanced analysis**: Use consensus sequences for phylogenetics or haplotyping
+
+### **Advanced Techniques:**
+- **Haplotype analysis**: Longer amplicons enable detailed genetic variation studies
+- **Phylogenetic reconstruction**: 2500bp sequences provide better resolution
+- **Population genetics**: Custom primers can target specific variable regions
+- **Metabarcoding optimization**: Design primers for your specific ecosystem
 
 ---
 
-## 🔗 Related Workflows
+## 🔗 Related Workflows & Resources
 
-- **Start here if**: You need custom primer designs or one-step PCR workflows
-- **Try ONT Native first**: If you're new to eDNA bioinformatics ([ONT Native README](../ont_native_barcodes/README_ont_native.md))
-- **Advanced applications**: Custom CCI is ideal for research projects requiring specific primer combinations
+### **Course Progression:**
+- **Prerequisites**: Complete [ONT Native workflow](../ont_native_barcodes/README_ont_native.md) first
+- **Next step**: Apply Custom CCI to your field collection data
+- **Advanced**: Combine results with phylogenetic analysis tools
 
-**📖 See [main README.md](../../README.md) for installation, database setup, and comprehensive troubleshooting.**
+### **Technical Resources:**
+- **Main documentation**: [DeCodeDNA README.md](../../README.md)
+- **Installation guide**: [installation_guide.md](../../installation_guide.md)
+- **Database setup**: Scripts 01 in main README
+- **Troubleshooting**: Comprehensive guide in main README
+
+### **Scientific Background:**
+- **Custom primer design**: Review amplicon length vs taxonomic resolution trade-offs
+- **Barcode optimization**: Study Hamming distance calculations for your application
+- **ONT error profiles**: Understand systematic errors for better primer design
+- **Comparative genomics**: Use longer amplicons for detailed evolutionary studies
+
+---
+
+**📖 For comprehensive installation, database setup, and troubleshooting, see the [main README.md](../../README.md)**
+
+**💡 Remember**: This workflow builds advanced skills for research applications. Start with ONT Native for pipeline basics, then return here for custom design mastery!
