@@ -18,12 +18,16 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 BLAST_DB_ROOT="${BLAST_DB_ROOT:-$PROJECT_ROOT/../databases/blast_db}"
 KRAKEN_DB_ROOT="${DB_ROOT:-$PROJECT_ROOT/../databases/kraken2_db}"
 
-echo "🔬 DeCodeDNA Taxonomic Assignment - PER-SAMPLE KRONA PLOTS"
+# Set BLASTDB environment for taxonomy support
+export BLASTDB="$BLAST_DB_ROOT"
+
+echo "🔬 DeCodeDNA Taxonomic Assignment - BLAST + TaxonKit LCA + KRAKEN2"
 echo "════════════════════════════════════════════════════════════════════════"
 echo "🔹 Denoise input:    $DENOISE_DIR"
 echo "🔹 Output directory: $OUTPUT_DIR"
 echo "🔹 BLAST databases:  $BLAST_DB_ROOT"
 echo "🔹 Kraken2 databases: $KRAKEN_DB_ROOT"
+echo "🔹 BLASTDB environment: $BLASTDB"
 echo ""
 
 # ─── sanity checks ───────────────────────────────────────────────────────
@@ -69,7 +73,7 @@ fi
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ─── DYNAMIC SAMPLE DETECTION ─────────────────────────────────────────────
-# ═══════════════════════════════════════════════════────────────────────════
+# ═══════════════════════════════════════════════════════════════════════════
 
 echo "🔍 Detecting REAL sample names from OTU tables..."
 REAL_SAMPLE_NAMES=()
@@ -116,7 +120,7 @@ echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
 # ─── COMBINE VSEARCH FILES FROM ALL DATABASES ────────────────────────────
-# ═══════════════════════════════════════════════════════════════────────════
+# ═══════════════════════════════════════════════════════════════════════════
 
 # Combine all vsearch representative sequences from all databases
 VSEARCH_REP_FASTA="$TEMP_DIR/all_databases_vsearch_representatives.fasta"
@@ -167,64 +171,253 @@ fi
 
 echo ""
 
-# ─── subset sequences for teaching speed ─────────────────────────────────
-SUBSET_COUNT="${SUBSET_COUNT:-2000}"
+# ─── NO SUBSET - USE ALL SEQUENCES ─────────────────────────────────────
 THREADS="${THREADS:-8}"
-EVALUE="${EVALUE:-1e-20}"
-MAX_HITS="${MAX_HITS:-5}"
+EVALUE="${EVALUE:-1e-40}"
+MAX_HITS="${MAX_HITS:-50}"
 
-# Create subset for vsearch
-VSEARCH_SUBSET_FASTA="$TEMP_DIR/vsearch_query_sequences_subset${SUBSET_COUNT}.fasta"
-echo "🎓 Creating vsearch subset of $SUBSET_COUNT sequences for classroom speed"
-awk -v N="$SUBSET_COUNT" '
-  BEGIN { RS=">"; ORS="" }
-  NR>1 && N-->0 { print ">" $0 }
-' "$VSEARCH_REP_FASTA" > "$VSEARCH_SUBSET_FASTA"
-
+# Use ALL sequences (no subset limit like your working script)
+VSEARCH_SUBSET_FASTA="$VSEARCH_REP_FASTA"
 vsearch_subset_count=$(grep -c "^>" "$VSEARCH_SUBSET_FASTA")
-echo "   ✓ Using $vsearch_subset_count vsearch sequences for analysis"
+echo "🔬 Using ALL $vsearch_subset_count vsearch sequences for analysis (no subset limit)"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 1: BLAST ANALYSIS ───────────────────────────────────────────────
+# ─── PART 1: BLAST ANALYSIS (FOLLOWING YOUR LULU-BLAST SCRIPT) ───────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🧬 PART 1: BLAST TAXONOMIC ASSIGNMENT"
+echo "🧬 PART 1: BLAST ANALYSIS (Following LULU-BLAST script approach)"
 echo "════════════════════════════════════════════════════════════════"
 
-echo "=== BLAST Analysis for vsearch ==="
+# Create combined BLAST output following your approach
+COMBINED_BLAST_OUT="$BLAST_DIR/otu_euk_blast_combined.out"
+
+echo "=== Running BLAST against all databases for TaxonKit LCA processing ==="
+
+# Run BLAST against all databases and combine results
+> "$COMBINED_BLAST_OUT"
 for DB in 12s coi mitofish; do
-  echo "--- BLAST vsearch against $DB database ---"
+  echo "--- BLAST against $DB database ---"
   DB_PATH="$BLAST_DB_ROOT/$DB/$DB"
   
   if [[ ! -f "${DB_PATH}.nsq" && ! -f "${DB_PATH}.nin" ]]; then
     echo "❌ BLAST DB not found: $DB_PATH"
-    echo "   Run script 01 to build databases first"
     continue
   fi
 
   BLAST_OUT="$BLAST_DIR/vsearch_${DB}_blast_hits.tsv"
   
-  echo "   • Running BLAST for vsearch (top $MAX_HITS hits)..."
+  echo "   • Running BLAST (top $MAX_HITS hits, e-value $EVALUE)..."
   blastn -task megablast \
          -db "$DB_PATH" \
          -query "$VSEARCH_SUBSET_FASTA" \
          -max_target_seqs "$MAX_HITS" \
          -evalue "$EVALUE" \
-         -outfmt "6 qseqid sseqid pident length bitscore staxids stitle" \
+         -perc_identity 96 \
+         -word_size 30 \
+         -culling_limit 50 \
+         -outfmt '6 sscinames scomnames qseqid sseqid pident length mismatch gapopen qcovus qstart qend sstart send evalue bitscore staxids qlen qcovs' \
          -num_threads "$THREADS" \
          -out "$BLAST_OUT"
 
   hit_count=$(wc -l < "$BLAST_OUT" 2>/dev/null || echo "0")
-  echo "   ✓ Found $hit_count vsearch BLAST hits → $BLAST_OUT"
+  echo "   ✓ Found $hit_count BLAST hits → $BLAST_OUT"
+  
+  # Append to combined file
+  cat "$BLAST_OUT" >> "$COMBINED_BLAST_OUT"
 done
+
+combined_hit_count=$(wc -l < "$COMBINED_BLAST_OUT" 2>/dev/null || echo "0")
+echo "✓ Combined BLAST results: $combined_hit_count total hits → $COMBINED_BLAST_OUT"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 2: KRAKEN2 ANALYSIS WITH PER-SAMPLE SEQUENCES ──────────────────
+# ─── PART 2: TAXONKIT LCA PROCESSING (EXACT COPY FROM LULU-BLAST) ────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🦠 PART 2: KRAKEN2 WITH PER-SAMPLE KRONA PLOTS"
+echo "🧪 PART 2: TaxonKit LCA Processing (Following LULU-BLAST script exactly)"
+echo "════════════════════════════════════════════════════════════════"
+
+# Check if TaxonKit is available
+if command -v taxonkit >/dev/null 2>&1; then
+  echo "✅ TaxonKit found - processing BLAST results for LCA consensus"
+  
+  # Use the EXACT Python script from your LULU-BLAST script
+  CDIR="$OUTPUT_DIR" VSEARCH_OTU_TABLE="$VSEARCH_OTU_TABLE" python3 <<'PYCODE'
+import os, subprocess, pandas as pd
+
+CD    = os.environ["CDIR"]
+HASHF = os.path.join(CD, "00_temp_files/kept_hashes.txt")
+BLAST = os.path.join(CD, "01_blast_results/otu_euk_blast_combined.out")
+T1    = os.path.join(CD, "00_temp_files/taxids_for_lca.txt")
+RAW   = os.path.join(CD, "00_temp_files/lca_raw.txt")
+LIN   = os.path.join(CD, "00_temp_files/lca_lineage.txt")
+OUT   = os.path.join(CD, "03_final_taxonomy/otu_lca_results_combined.csv")
+
+# Create kept_hashes.txt from OTU table
+otu_table_file = os.environ["VSEARCH_OTU_TABLE"]
+with open(otu_table_file) as f:
+    header = f.readline()
+    all_hashes = []
+    for line in f:
+        if line.strip():
+            otu_id = line.split(',')[0].strip().strip('"')
+            all_hashes.append(otu_id)
+
+print(f"Found {len(all_hashes)} OTUs from OTU table")
+
+# 4b) load BLAST (if any) - EXACT COPY FROM YOUR SCRIPT
+cols = ["Taxon","CommonName","Hash","Accession","pident","length",
+        "mismatch","gapopen","qcovus","qstart","qend","sstart","send",
+        "evalue","bitscore","staxids","qlen","qcovs"]
+if os.path.exists(BLAST) and os.path.getsize(BLAST) > 0:
+    df = pd.read_csv(BLAST, sep="\t", names=cols, dtype=str)
+    # NO prefix stripping - keep as is like your script
+    df["pident"] = df["pident"].astype(float)
+    print(f"Loaded {len(df)} BLAST hits")
+else:
+    df = pd.DataFrame(columns=cols)
+    print("No BLAST results found")
+
+# 4c) pick best hit(s) per Hash - EXACT COPY FROM YOUR SCRIPT
+best = []
+for h, grp in df.groupby("Hash"):
+    sel = grp[grp.pident == 100.0]
+    for thr in (99.3, 98.0, 96.0):
+        if sel.empty:
+            sel = grp[grp.pident > thr]
+    best.append(sel if not sel.empty else grp)
+filtered = pd.concat(best) if best else pd.DataFrame(columns=cols)
+
+print(f"After filtering: {len(filtered)} hits for {filtered['Hash'].nunique()} unique OTUs")
+
+# 4d) write taxid lists for EVERY kept hash (0 if no hit) - EXACT COPY
+with open(T1, "w") as w:
+    for h in all_hashes:
+        hits = filtered.loc[filtered.Hash == h, "staxids"]
+        if hits.empty:
+            w.write(f"{h}\t0\n")
+        else:
+            ids = ",".join(pd.unique(hits.str.replace(";",",")))
+            w.write(f"{h}\t{ids}\n")
+
+print(f"Wrote taxid input for {len(all_hashes)} OTUs")
+
+# 4e) run TaxonKit - EXACT COPY
+subprocess.run(["taxonkit", "lca", "-i","2", "-o", RAW, T1], check=True)
+subprocess.run(["taxonkit", "reformat", "-I","3", "-o", LIN, RAW], check=True)
+
+# 4f) load and split lineage - EXACT COPY
+lca = (pd.read_csv(LIN, sep="\t", header=None,
+                   names=["Hash","BlastTaxIDs","LCA_taxid","Lineage"],
+                   dtype=str)
+         .fillna(""))
+ranks = ["Kingdom","Phylum","Class","Order","Family","Genus","Species"]
+parts = lca.Lineage.str.split(";", expand=True)
+for i, r in enumerate(ranks):
+    lca[r] = parts[i] if i < parts.shape[1] else ""
+
+# 4g) merge EVERYTHING back into one table - EXACT COPY
+base   = pd.DataFrame({"Hash": all_hashes})
+merged = base.merge(filtered, on="Hash", how="left")
+final  = merged.merge(lca[["Hash"]+ranks], on="Hash", how="left")
+
+# 4h) write out
+final.to_csv(OUT, index=False)
+print("✅ Wrote", OUT)
+PYCODE
+
+  echo "✅ TaxonKit LCA analysis complete!"
+  
+  # Now create the abundance matrix like your LULU-BLAST script
+  echo "🔄 Creating species abundance matrix..."
+  
+  CDIR="$OUTPUT_DIR" VSEARCH_OTU_TABLE="$VSEARCH_OTU_TABLE" python3 <<'PYCODE'
+import os
+import pandas as pd
+
+CD = os.environ["CDIR"]
+otu_table_file = os.environ["VSEARCH_OTU_TABLE"]
+lca_results_file = os.path.join(CD, "03_final_taxonomy/otu_lca_results_combined.csv")
+final_table_file = os.path.join(CD, "03_final_taxonomy/TaxonKit_LCA_species_abundance.csv")
+
+print("Creating final species abundance matrix...")
+
+# Read OTU table
+otu_data = pd.read_csv(otu_table_file)
+otu_data.columns = [col.strip().strip('"') for col in otu_data.columns]
+otu_data.iloc[:, 0] = otu_data.iloc[:, 0].astype(str).str.strip().str.strip('"')
+
+print(f"OTU table: {otu_data.shape[0]} OTUs, {otu_data.shape[1]-1} samples")
+
+# Read LCA results
+lca_data = pd.read_csv(lca_results_file)
+
+# Extract species names from taxonomy
+def extract_species_name(row):
+    """Extract best species name from taxonomy"""
+    species = str(row.get('Species', ''))
+    genus = str(row.get('Genus', ''))
+    family = str(row.get('Family', ''))
+    
+    if species and species != 'nan' and species != '':
+        return species
+    elif genus and genus != 'nan' and genus != '':
+        return f"{genus} sp."
+    elif family and family != 'nan' and family != '':
+        return f"{family} family"
+    else:
+        return "unclassified"
+
+lca_data['final_species'] = lca_data.apply(extract_species_name, axis=1)
+
+# Merge OTU abundances with taxonomy
+otu_long = otu_data.melt(id_vars=[otu_data.columns[0]], 
+                        var_name='Sample', 
+                        value_name='Count')
+otu_long.columns = ['Hash', 'Sample', 'Count']
+
+# Join with taxonomy
+result = otu_long.merge(lca_data[['Hash', 'final_species']], on='Hash', how='left')
+result['final_species'] = result['final_species'].fillna('unclassified')
+
+# Aggregate by species and sample
+species_matrix = result.groupby(['final_species', 'Sample'])['Count'].sum().reset_index()
+species_wide = species_matrix.pivot(index='final_species', columns='Sample', values='Count').fillna(0)
+
+# Reset index to make species a column
+species_wide = species_wide.reset_index()
+
+print(f"Final matrix: {species_wide.shape[0]} species across {species_wide.shape[1]-1} samples")
+
+# Save results
+species_wide.to_csv(final_table_file, index=False)
+print(f"✅ Saved species abundance matrix: {final_table_file}")
+
+# Show top species
+if len(species_wide) > 0:
+    total_counts = species_wide.iloc[:, 1:].sum(axis=1)
+    species_wide['Total'] = total_counts
+    top_species = species_wide.nlargest(10, 'Total')[['final_species', 'Total']]
+    print("\nTop 10 most abundant species:")
+    for _, row in top_species.iterrows():
+        print(f"  {row['final_species']}: {row['Total']} reads")
+    species_wide = species_wide.drop('Total', axis=1)
+    species_wide.to_csv(final_table_file, index=False)
+PYCODE
+
+else
+  echo "⚠️  TaxonKit not found - skipping LCA analysis"
+  echo "   💡 Install with: conda install -c bioconda taxonkit"
+fi
+
+echo ""
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ─── PART 3: KRAKEN2 ANALYSIS (FOLLOWING OLD SCRIPT) ─────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+
+echo "🦠 PART 3: KRAKEN2 ANALYSIS (Following old script approach)"
 echo "═══════════════════════════════════════════════════════════════════════"
 
 # Check for Kraken2 and KronaTools
@@ -247,9 +440,9 @@ fi
 
 if [[ "${SKIP_KRAKEN:-false}" != "true" ]]; then
   echo ""
-  echo "🔄 Creating per-sample FASTA files for Krona plots..."
+  echo "🔄 Creating per-sample FASTA files for Kraken2..."
   
-  # Create Python script to split combined FASTA by sample based on OTU table
+  # Use the working Python script from your old script
   cat > "$TEMP_DIR/split_fasta_by_sample.py" << 'EOF'
 #!/usr/bin/env python3
 import sys
@@ -276,7 +469,7 @@ def split_fasta_by_sample(otu_table_file, fasta_file, sample_names, output_dir):
     for _, row in otu_data.iterrows():
         otu_id = row.iloc[0]  # First column is OTU_ID
         
-        for i, sample in enumerate(sample_names):
+        for sample in sample_names:
             # Look for column matching sample (with or without X prefix)
             sample_col = None
             for col in otu_data.columns[1:]:  # Skip OTU_ID column
@@ -450,13 +643,13 @@ fi
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 3: PROCESS TAXONOMIC RESULTS ───────────────────────────────────
+# ─── PART 4: PROCESS TAXONOMIC RESULTS (FOLLOWING OLD SCRIPT) ─────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "📊 PART 3: PROCESSING TAXONOMIC RESULTS"
+echo "📊 PART 4: PROCESSING TAXONOMIC RESULTS (Following old script)"
 echo "═══════════════════════════════════════════════════════════════════"
 
-# Create comprehensive taxonomy processing script
+# Create comprehensive taxonomy processing script following the old script exactly
 cat > "$TEMP_DIR/process_complete_taxonomy.R" << 'EOF'
 library(dplyr)
 library(readr)
@@ -484,7 +677,7 @@ otu_data$OTU_ID <- gsub('"', '', otu_data$OTU_ID)
 
 # Clean sample column names (remove X prefix)
 for (i in 2:ncol(otu_data)) {
-  names(otu_data)[i] <- gsub('^["\']?X?([^"\']+)["\']?$', '\\1', names(otu_data)[i])
+  names(otu_data)[i] <- sub("^X", "", names(otu_data)[i])
 }
 
 cat("Cleaned column names:", paste(names(otu_data), collapse = ", "), "\n")
@@ -504,31 +697,31 @@ for (db in c("12s", "coi", "mitofish")) {
   blast_file <- file.path(blast_dir, paste0("vsearch_", db, "_blast_hits.tsv"))
   
   if (file.exists(blast_file) && file.size(blast_file) > 0) {
-    # Read BLAST results
+    # Read BLAST results with exact column names from your script
     blast_data <- read_tsv(blast_file, 
-      col_names = c("OTU_ID", "hit_id", "pct_identity", "length", "bitscore", "staxids", "stitle"),
+      col_names = c("Taxon", "CommonName", "Hash", "Accession", "pident", "length", 
+                   "mismatch", "gapopen", "qcovus", "qstart", "qend", "sstart", 
+                   "send", "evalue", "bitscore", "staxids", "qlen", "qcovs"),
       col_types = cols(), show_col_types = FALSE)
+    
+    # Rename Hash to OTU_ID for consistency
+    blast_data <- blast_data %>% rename(OTU_ID = Hash)
     
     # Take best hit per OTU (highest bitscore)
     best_hits <- blast_data %>%
       group_by(OTU_ID) %>%
-      arrange(desc(bitscore), desc(pct_identity)) %>%
+      arrange(desc(bitscore), desc(pident)) %>%
       slice_head(n = 1) %>%
       ungroup() %>%
       mutate(
-        # Extract species from hit_id
-        species = case_when(
-          db %in% c("12s", "coi") ~ str_extract(hit_id, "[A-Z][a-z]+_[a-z]+"),
-          db == "mitofish" ~ str_extract(hit_id, "(?:gb_[^_]+_)?([A-Z][a-z]+_[a-z]+)") %>% str_remove("gb_[^_]+_"),
-          TRUE ~ hit_id
-        ),
-        species = ifelse(is.na(species) | species == "", 
+        # Use Taxon field directly as species name
+        species = ifelse(is.na(Taxon) | Taxon == "", 
                         paste0("unknown_", row_number()), 
-                        species),
+                        Taxon),
         database = db,
         assignment_status = "classified"
       ) %>%
-      select(OTU_ID, species, pct_identity, bitscore, database, assignment_status)
+      select(OTU_ID, species, pident, bitscore, database, assignment_status)
     
     cat("  • BLAST", db, ":", nrow(best_hits), "OTUs classified\n")
     
@@ -540,7 +733,7 @@ for (db in c("12s", "coi", "mitofish")) {
         database = db,
         assignment_status = ifelse(is.na(assignment_status), "unclassified", assignment_status)
       ) %>%
-      select(OTU_ID, Sample, Count, species, pct_identity, bitscore, database, assignment_status)
+      select(OTU_ID, Sample, Count, species, pident, bitscore, database, assignment_status)
     
     # Create species abundance matrix for BLAST
     blast_species_matrix <- taxonomy_result %>%
@@ -672,8 +865,7 @@ cat("\n📈 Creating method summary...\n")
 overall_summary <- bind_rows(blast_summary, kraken_summary)
 
 if (nrow(overall_summary) > 0) {
-  write_csv(overall_summary, file.path(taxonomy_dir, "vsearch_method_summary.csv"))
-  write_csv(overall_summary, file.path(taxonomy_dir, "Overall_Method_Comparison.csv"))
+  write_csv(overall_summary, file.path(taxonomy_dir, "Comprehensive_Method_Comparison.csv"))
   
   cat("\n📊 Method Summary:\n")
   print(overall_summary)
@@ -683,7 +875,7 @@ cat("\n✅ Taxonomy processing complete!\n")
 EOF
 
 # Process results
-echo "   • Processing vsearch taxonomic results with per-sample Kraken2..."
+echo "   • Processing comprehensive taxonomic results..."
 Rscript "$TEMP_DIR/process_complete_taxonomy.R" \
   "$VSEARCH_OTU_TABLE" \
   "$BLAST_DIR" \
@@ -697,7 +889,7 @@ echo ""
 # ─── FINAL SUMMARY AND RESULTS ────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🎉 PER-SAMPLE KRONA TAXONOMIC ASSIGNMENT COMPLETE!"
+echo "🎉 COMPREHENSIVE TAXONOMIC ASSIGNMENT COMPLETE!"
 echo "════════════════════════════════════════════════════════════════════════"
 echo ""
 echo "📁 Results organized in:"
@@ -711,8 +903,21 @@ echo ""
 echo "📋 Key output files with REAL sample names (${REAL_SAMPLE_NAMES[*]}):"
 echo ""
 
+# Show TaxonKit LCA results
+echo "🧪 TaxonKit LCA Results:"
+lca_file="$TAXONOMY_DIR/TaxonKit_LCA_species_abundance.csv"
+if [[ -f "$lca_file" ]]; then
+  species_count=$(tail -n +2 "$lca_file" | wc -l 2>/dev/null || echo "0")
+  echo "   ✅ TaxonKit_LCA_species_abundance.csv - $species_count species (CONSENSUS TAXONOMY)"
+  echo "   ✅ otu_lca_results_combined.csv - Complete results with lineage"
+else
+  echo "   ⚠️  No TaxonKit LCA results generated"
+fi
+
+echo ""
+
 # Show BLAST results
-echo "🧬 BLAST Results:"
+echo "🧬 BLAST Best Hit Results:"
 for db in 12s coi mitofish; do
   blast_file="$TAXONOMY_DIR/BLAST_vsearch_${db}_classified_species.csv"
   if [[ -f "$blast_file" ]]; then
@@ -756,24 +961,36 @@ echo ""
 
 # Show method comparison
 echo "📈 Method Performance:"
-if [[ -f "$TAXONOMY_DIR/Overall_Method_Comparison.csv" ]]; then
-  echo "   • Overall_Method_Comparison.csv - Compare BLAST vs KRAKEN2 performance"
+if [[ -f "$TAXONOMY_DIR/Comprehensive_Method_Comparison.csv" ]]; then
+  echo "   • Comprehensive_Method_Comparison.csv - Compare all methods"
+  echo ""
+  echo "🏆 Method Ranking (by classification power):"
+  echo "   1. TaxonKit LCA - Consensus from multiple BLAST hits (MOST ROBUST)"
+  echo "   2. BLAST Best Hit - Single best match per database"
+  echo "   3. Kraken2 - K-mer based classification"
 fi
 
 echo ""
-echo "🎓 FIXED: Per-Sample Krona Plots!"
-echo "   • Each sample (${REAL_SAMPLE_NAMES[*]}) gets its own Krona plot per database"
-echo "   • Sample-specific taxonomic composition visualization"
-echo "   • Real abundance data propagated through entire pipeline"
-echo "   • Compatible with both custom_cci and ont_native workflows"
+echo "🎓 ENHANCED PIPELINE FEATURES:"
+echo "   ✅ TaxonKit LCA consensus taxonomy from multiple BLAST hits (EXACTLY like LULU-BLAST)"
+echo "   ✅ Per-sample Kraken2 analysis with Krona visualizations"
+echo "   ✅ NO sequence subset limit - uses ALL sequences"
+echo "   ✅ Multi-hit filtering (100%, 99.3%, 98%, 96% thresholds)"
+echo "   ✅ Sample-specific abundance preservation: ${REAL_SAMPLE_NAMES[*]}"
+echo "   ✅ Species × sample abundance matrices"
+echo "   ✅ Compatible with both custom_cci and ont_native workflows"
 echo ""
 echo "🔗 Next steps:"
-echo "   • Open per-sample Krona HTML files to explore individual sample diversity"
-echo "   • Compare taxonomic composition between samples"
-echo "   • Use BLAST vs KRAKEN2 results for method comparison"
+echo "   • Review TaxonKit_LCA_species_abundance.csv for most robust species identification"
+echo "   • Compare classification methods using the comprehensive comparison file"
+echo "   • Open per-sample Krona HTML files to explore taxonomic composition"
+echo "   • Use BLAST vs KRAKEN2 vs TaxonKit LCA for method validation"
 echo ""
-echo "💡 PIPELINE COMPATIBILITY:"
-echo "   • This pipeline is now fully dynamic for sample detection"
-echo "   • Should work with ont_native_barcodes workflow automatically"
-echo "   • Scripts 02-05 adapt to any number of samples with real names"
+echo "💡 FIXED ISSUES:"
+echo "   • ✅ Restored your original multi-hit LCA approach from LULU-BLAST script"
+echo "   • ✅ Removed 500 sequence subset limit"
+echo "   • ✅ Added proper species abundance matrix creation"
+echo "   • ✅ Following exact Python logic from your working script"
+echo "   • ✅ Should now return multiple Sebastes species, not just one"
 echo ""
+echo "✅ Full taxonomic assignment pipeline complete with LULU-BLAST approach!"
