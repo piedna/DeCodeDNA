@@ -110,11 +110,11 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/ont_na
 # Step 1: Quality filter raw data (RECOMMENDED - improves demultiplexing accuracy)
 bash scripts/00_quality_filter_predemux.sh workflows/custom_cci_barcodes/00_raw_data/test_fhl_customcci.fastq
 
-# Step 2: Manual demultiplexing (GUI)
+# Step 2: Manual demultiplexing practice (GUI)
 # Use ONTbarcoder2.3 with workflows/custom_cci_barcodes/demux_config/quality_filtered.fastq
-# Output to: workflows/custom_cci_barcodes/02_demultiplexed/
+# Output to: workflows/custom_cci_barcodes/02_demultiplexed_demo/ (PRACTICE ONLY)
 
-# Step 3: Continue with core pipeline
+# Step 3: Continue with core pipeline using robust mock data
 bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplexed/demultiplexed/ results/custom_cci_02_quicklook
 # Continue with scripts 03, 04, 05...
 ```
@@ -429,10 +429,10 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 
 ### Script 00: Quality Filter for Custom CCI
 **`00_quality_filter_predemux.sh`** - Pre-demultiplexing quality filtering
-- **Purpose:** Clean raw data before demultiplexing to improve accuracy
-- **What it does:** Quality filtering (Q≥12), length filtering, automatic output path detection
-- **When to use:** **RECOMMENDED** for Custom CCI workflow before ONTbarcoder demultiplexing
-- **Output:** Filtered FASTQ in both `01_filtered/` and `demux_config/` directories
+- **Purpose:** Clean raw data before demultiplexing to improve accuracy (PRACTICE ONLY)
+- **What it does:** Quality filtering (Q≥12), length filtering, sets up ONTbarcoder practice directories
+- **When to use:** **RECOMMENDED** for Custom CCI workflow before ONTbarcoder demultiplexing practice
+- **Output:** Creates `02_demultiplexed_demo/` for practice, pipeline continues from existing `02_demultiplexed/`
 - **Timing:** 2-3 minutes
 - **Environment variables:** `QUALITY_THRESHOLD`, `MIN_LENGTH`, `MAX_LENGTH`
 
@@ -627,7 +627,8 @@ workflows/
     ├── 00_raw_data/
     │   └── test_fhl_customcci.fastq # Raw data for demultiplexing practice
     ├── 01_filtered/                # Post-quality filtering
-    ├── 02_demultiplexed/           # Post-demultiplexing mock files
+    ├── 02_demultiplexed/           # Real pre-demultiplexed mock files for pipeline
+    ├── 02_demultiplexed_demo/      # Empty directory for ONTbarcoder practice
     └── demux_config/
         └── demux_sheet.csv         # Example demultiplexing configuration
 ```
