@@ -115,7 +115,7 @@ bash scripts/00_quality_filter_predemux.sh workflows/custom_cci_barcodes/00_raw_
 # Output to: workflows/custom_cci_barcodes/02_demultiplexed_demo/ (PRACTICE ONLY)
 
 # Step 3: Continue with core pipeline using robust mock data
-bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplexed/demultiplexed/ results/custom_cci_02_quicklook
+bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplexed/ results/custom_cci_02_quicklook
 # Continue with scripts 03, 04, 05...
 ```
 
@@ -229,7 +229,7 @@ bash scripts/05_taxonomic_assignment.sh results/ont_native_04_denoise results/on
 bash scripts/00_quality_filter_predemux.sh workflows/custom_cci_barcodes/00_raw_data/test_fhl_customcci.fastq
 
 # Then: Same script progression (02→03→04→05) but with custom CCI data
-bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplexed/demultiplexed/ results/custom_cci_02_quicklook
+bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplexed/ results/custom_cci_02_quicklook
 bash scripts/03_consensus_sort.sh results/custom_cci_02_quicklook results/custom_cci_03_consensus
 bash scripts/04_denoise.sh results/custom_cci_03_consensus results/custom_cci_04_denoise
 bash scripts/05_taxonomic_assignment.sh results/custom_cci_04_denoise results/custom_cci_05_taxonomy
