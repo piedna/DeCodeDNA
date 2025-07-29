@@ -212,10 +212,10 @@ fi
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 1: BLAST ANALYSIS (FOLLOWING YOUR LULU-BLAST SCRIPT) ───────────
+# ─── PART 1: BLAST ANALYSIS ───────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🧬 PART 1: BLAST ANALYSIS (Following LULU-BLAST script approach)"
+echo "🧬 PART 1: BLAST ANALYSIS "
 echo "════════════════════════════════════════════════════════════════"
 
 # Create combined BLAST output following your approach
@@ -261,17 +261,17 @@ echo "✓ Combined BLAST results: $combined_hit_count total hits → $COMBINED_B
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 2: TAXONKIT LCA PROCESSING (EXACT COPY FROM LULU-BLAST) ────────
+# ─── PART 2: TAXONKIT LCA PROCESSING ────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🧪 PART 2: TaxonKit LCA Processing (Following LULU-BLAST script exactly)"
+echo "🧪 PART 2: TaxonKit LCA Processing "
 echo "════════════════════════════════════════════════════════════════"
 
 # Check if TaxonKit is available
 if command -v taxonkit >/dev/null 2>&1; then
   echo "✅ TaxonKit found - processing BLAST results for LCA consensus"
   
-  # Use the EXACT Python script from your LULU-BLAST script
+  # Hash coding python
   CDIR="$OUTPUT_DIR" VSEARCH_OTU_TABLE="$VSEARCH_OTU_TABLE" python3 <<'PYCODE'
 import os, subprocess, pandas as pd
 
@@ -358,7 +358,7 @@ PYCODE
 
   echo "✅ TaxonKit LCA analysis complete!"
   
-  # Now create the abundance matrix like your LULU-BLAST script
+  # Now create the abundance matrix 
   echo "🔄 Creating species abundance matrix..."
   
   CDIR="$OUTPUT_DIR" VSEARCH_OTU_TABLE="$VSEARCH_OTU_TABLE" python3 <<'PYCODE'
@@ -1001,7 +1001,7 @@ fi
 
 echo ""
 echo "🎓 ENHANCED PIPELINE FEATURES:"
-echo "   ✅ TaxonKit LCA consensus taxonomy from multiple BLAST hits (EXACTLY like LULU-BLAST)"
+echo "   ✅ TaxonKit LCA consensus taxonomy from multiple BLAST hits "
 echo "   ✅ Per-sample Kraken2 analysis with Krona visualizations"
 if [[ "$SUBSET_COUNT" -gt 0 ]]; then
   echo "   ✅ LIMITED to $SUBSET_COUNT sequences (SUBSET_COUNT=$SUBSET_COUNT)"
