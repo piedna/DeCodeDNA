@@ -135,10 +135,10 @@ cd DeCodeDNA
 conda env create -f environment.yml
 conda activate decode-dna
 
-# 3. Setup tools and databases
-bash scripts/install_krona_taxonomy.sh
-bash scripts/install_R_dependencies.sh
-bash scripts/install_external_tools.sh
+# 3. Setup essential components (explained below)
+bash scripts/install_krona_taxonomy.sh      # Sets up interactive visualization system
+bash scripts/install_R_dependencies.sh      # Installs LULU denoising packages
+bash scripts/install_external_tools.sh      # Downloads amplicon_sorter & ONTbarcoder
 
 # 4. Setup databases (choose one option)
 # Option A: Use pre-built databases (classroom - recommended)
@@ -147,6 +147,18 @@ source scripts/setup_databases.sh
 # Option B: Build databases from scratch (1-2 hours, ~200GB disk space)
 bash scripts/01_build_dbs_kraken_blastn.sh
 ```
+
+### What Each Setup Component Does
+
+**Essential Tools Installation:**
+- **Krona taxonomy** (`install_krona_taxonomy.sh`): Downloads NCBI taxonomy data for creating interactive taxonomic plots that let you explore your species results
+- **R dependencies** (`install_R_dependencies.sh`): Installs the LULU algorithm for removing sequencing errors and PCR artifacts from your final results
+- **External tools** (`install_external_tools.sh`): Downloads amplicon_sorter (advanced consensus calling) and ONTbarcoder2.3 (custom barcode demultiplexing GUI)
+
+**Why You Need These:**
+- Without Krona → No interactive plots to explore your species identifications
+- Without R packages → No error correction, more false positive species
+- Without external tools → Limited to basic clustering, can't process custom barcodes
 
 ### Database Setup Options
 
