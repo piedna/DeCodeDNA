@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script 04: Denoise consensus sequences using LULU - SIMPLE WORKING VERSION
+# Script 04: Denoise consensus sequences using LULU 
 # Usage: bash scripts/04_denoise.sh <consensus_dir> <output_dir>
 
 # Check arguments
@@ -22,9 +22,9 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 
 echo "Logging to $LOG_FILE"
 echo ""
-echo "🔹 Consensus input:  $CONSENSUS_DIR"
-echo "🔹 Output directory: $OUTPUT_DIR"
-echo "🔹 Processing databases: $DATABASES"
+echo " Consensus input:  $CONSENSUS_DIR"
+echo " Output directory: $OUTPUT_DIR"
+echo " Processing databases: $DATABASES"
 echo ""
 
 # Store absolute paths
@@ -32,13 +32,13 @@ CONSENSUS_DIR_ABS=$(cd "$CONSENSUS_DIR" && pwd)
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR_ABS=$(cd "$OUTPUT_DIR" && pwd)
 
-echo "🔧 Absolute paths resolved:"
+echo " Absolute paths resolved:"
 echo "   • CONSENSUS_DIR_ABS: $CONSENSUS_DIR_ABS"
 echo "   • OUTPUT_DIR_ABS: $OUTPUT_DIR_ABS"
 echo ""
 
 # Check required programs
-echo "🔍 Checking required programs..."
+echo " Checking required programs..."
 command -v seqkit >/dev/null 2>&1 && echo "✅ seqkit found" || { echo "❌ seqkit not found"; exit 1; }
 command -v vsearch >/dev/null 2>&1 && echo "✅ vsearch found" || { echo "❌ vsearch not found"; exit 1; }
 command -v Rscript >/dev/null 2>&1 && echo "✅ Rscript found" || { echo "❌ Rscript not found"; exit 1; }
@@ -50,7 +50,7 @@ echo ""
 
 for DATABASE in $DATABASES; do
     echo "════════════════════════════════════════════════════════════════"
-    echo "🗄️ Processing Database: $DATABASE"
+    echo "️ Processing Database: $DATABASE"
     echo "════════════════════════════════════════════════════════════════"
     
     # Create database-specific output directory
@@ -58,11 +58,11 @@ for DATABASE in $DATABASES; do
     mkdir -p "$DB_OUTPUT_DIR"
     cd "$DB_OUTPUT_DIR"
     
-    echo "📁 Working in: $DB_OUTPUT_DIR"
+    echo " Working in: $DB_OUTPUT_DIR"
     
     # Look for vsearch clustering directory
     VSEARCH_DB_DIR="$CONSENSUS_DIR_ABS/vsearch_clustering/$DATABASE"
-    echo "🔍 Checking vsearch directory: $VSEARCH_DB_DIR"
+    echo " Checking vsearch directory: $VSEARCH_DB_DIR"
     
     if [[ ! -d "$VSEARCH_DB_DIR" ]]; then
         echo "  ❌ No vsearch clustering directory found for $DATABASE - skipping"
@@ -96,7 +96,7 @@ for DATABASE in $DATABASES; do
         SAMPLE_NAMES+=("$sample_name")
     done
     
-    echo "    📋 Detected samples: ${SAMPLE_NAMES[*]}"
+    echo "    Detected samples: ${SAMPLE_NAMES[*]}"
     
     # Create header with real sample names
     HEADER="OTU_ID"
@@ -253,7 +253,7 @@ PYTHON_EOF
     echo "    Sample columns: ${#SAMPLE_NAMES[@]} (${SAMPLE_NAMES[*]})"
     
     # Preview the table
-    echo "    📋 Table preview:"
+    echo "     Table preview:"
     head -5 "otu_table_${DATABASE}_vsearch.csv"
     echo ""
     
@@ -268,7 +268,7 @@ PYTHON_EOF
     
     if [[ "$total_seqs" -gt 0 ]]; then
         if [ "$total_seqs" -gt 1000 ]; then
-            echo "    🎓 Creating subset for teaching purposes..."
+            echo "    Creating subset for teaching purposes..."
             seqkit sample -n 1000 "otu_representatives_${DATABASE}_vsearch.fasta" > "otu_representatives_${DATABASE}_vsearch_subset.fasta"
             INPUT_FILE="otu_representatives_${DATABASE}_vsearch_subset.fasta"
         else
@@ -316,20 +316,20 @@ suppressMessages({
 otu_table_file <- args[1]
 blast_file <- args[2]
 
-cat("📊 Reading OTU table:", otu_table_file, "\n")
+cat(" Reading OTU table:", otu_table_file, "\n")
 otu_table <- read.csv(otu_table_file, row.names = 1, header = TRUE, stringsAsFactors = FALSE)
 
-cat("📊 OTU table dimensions:", nrow(otu_table), "rows x", ncol(otu_table), "columns\n")
-cat("📊 Sample names:", paste(colnames(otu_table), collapse = ", "), "\n")
+cat(" OTU table dimensions:", nrow(otu_table), "rows x", ncol(otu_table), "columns\n")
+cat(" Sample names:", paste(colnames(otu_table), collapse = ", "), "\n")
 
 # Show first few rows
-cat("📊 First few abundance rows:\n")
+cat(" First few abundance rows:\n")
 print(head(otu_table, 3))
 
 # Check abundance stats
 abundance_sums <- rowSums(otu_table)
 abundance_vars <- apply(otu_table, 1, var)
-cat("📊 Abundance stats - Min:", min(abundance_sums), "Max:", max(abundance_sums), "Mean variation:", round(mean(abundance_vars), 2), "\n")
+cat(" Abundance stats - Min:", min(abundance_sums), "Max:", max(abundance_sums), "Mean variation:", round(mean(abundance_vars), 2), "\n")
 
 # Ensure numeric
 for (i in 1:ncol(otu_table)) {
@@ -343,7 +343,7 @@ if (nrow(otu_table) == 0 || any(is.na(otu_table))) {
     quit(status = 1)
 }
 
-cat("🔍 Reading BLAST results:", blast_file, "\n")
+cat(" Reading BLAST results:", blast_file, "\n")
 blast_results <- read.table(blast_file, header = FALSE, sep = "\t", stringsAsFactors = FALSE, comment.char = "")
 
 if (nrow(blast_results) == 0) {
@@ -357,9 +357,9 @@ if (nrow(blast_results) == 0) {
 
 colnames(blast_results) <- c("query", "subject", "identity", "alignment_length", "mismatches", "gap_opens", "q_start", "q_end", "s_start", "s_end", "evalue", "bit_score")
 
-cat("🔍 BLAST results:", nrow(blast_results), "alignments\n")
+cat(" BLAST results:", nrow(blast_results), "alignments\n")
 
-cat("🧹 Running LULU curation...\n")
+cat(" Running LULU curation...\n")
 tryCatch({
     lulu_result <- lulu(otu_table, blast_results, 
                        minimum_ratio_type = "min", 
@@ -370,7 +370,7 @@ tryCatch({
     write.csv(lulu_result$curated_table, "otu_table_lulu_curated.csv")
     write.csv(lulu_result$discarded_table, "otu_table_lulu_discarded.csv")
     
-    cat("\n📈 LULU Results Summary:\n")
+    cat("\n LULU Results Summary:\n")
     cat("    • Original OTUs:", nrow(otu_table), "\n")
     cat("    • Curated OTUs:", nrow(lulu_result$curated_table), "\n")
     cat("    • Discarded OTUs:", nrow(lulu_result$discarded_table), "\n")
@@ -378,7 +378,7 @@ tryCatch({
     cat("    • Reduction:", reduction, "%\n")
     
     # Show final result preview
-    cat("\n📊 Final curated table preview:\n")
+    cat("\n Final curated table preview:\n")
     print(head(lulu_result$curated_table, 3))
     
     cat("    ✅ LULU curation completed!\n")
@@ -406,7 +406,7 @@ LULU_EOF
         
         # Show final results
         echo ""
-        echo "📊 Final $DATABASE vsearch denoising results:"
+        echo " Final $DATABASE vsearch denoising results:"
         if [ -f "otu_table_lulu_curated.csv" ]; then
             curated_count=$(tail -n +2 otu_table_lulu_curated.csv | wc -l)
             
@@ -426,7 +426,7 @@ LULU_EOF
             echo "    ✅ Renamed files with $DATABASE vsearch prefix"
             
             # Show FINAL table
-            echo "    📋 FINAL TABLE with proper sample-specific abundance:"
+            echo "     FINAL TABLE with proper sample-specific abundance:"
             head -5 "otu_table_${DATABASE}_vsearch_lulu_curated.csv"
         fi
     else
@@ -446,16 +446,16 @@ done
 # ═══════════════════════════════════════════════════════════════════════════
 
 echo "════════════════════════════════════════════════════════════════"
-echo "🎉 SIMPLE WORKING DENOISING COMPLETED!"
+echo " DENOISING COMPLETED!"
 echo "════════════════════════════════════════════════════════════════"
 echo ""
-echo "📁 Output with proper sample-specific abundance:"
+echo " Output with proper sample-specific abundance:"
 
 for DATABASE in $DATABASES; do
     DB_OUTPUT_DIR="$OUTPUT_DIR_ABS/$DATABASE"
     if [[ -d "$DB_OUTPUT_DIR" ]]; then
         echo ""
-        echo "🗄️ $DATABASE Database Results → $DB_OUTPUT_DIR/"
+        echo "️ $DATABASE Database Results → $DB_OUTPUT_DIR/"
         
         if [[ -f "$DB_OUTPUT_DIR/otu_representatives_${DATABASE}_vsearch.fasta" ]]; then
             echo "   • otu_representatives_${DATABASE}_vsearch.fasta"
@@ -465,7 +465,7 @@ for DATABASE in $DATABASES; do
             
             # Show header and verify abundance
             if [[ -f "$DB_OUTPUT_DIR/otu_table_${DATABASE}_vsearch_lulu_curated.csv" ]]; then
-                echo "     📋 Final table with proper sample columns:"
+                echo "      Final table with proper sample columns:"
                 head -3 "$DB_OUTPUT_DIR/otu_table_${DATABASE}_vsearch_lulu_curated.csv"
                 echo ""
             fi
@@ -473,20 +473,15 @@ for DATABASE in $DATABASES; do
     fi
 done
 
+
 echo ""
-echo "🎓 Teaching Benefits of Separate Method Files:"
-echo "   • Same proven database-centric processing"
-echo "   • Each method gets separate files per database"
-echo "   • Method-specific prefixes prevent ID conflicts"
-echo "   • Ready for separate taxonomic assignment"
-echo ""
-echo "🔬 Next steps:"
+echo " Next steps:"
 echo "   • Run script 05 with separate method file structure"
 echo "   • Compare species identification between methods"
 echo "   • Analyze method-specific community patterns"
 echo "   ✅ Ready for script 05"
 echo ""
-echo "🔗 Next step:"
+echo " Next step:"
 # Detect workflow from OUTPUT_DIR path
 if [[ "$OUTPUT_DIR_ABS" == *"ont_native"* ]]; then
   echo " bash scripts/05_taxonomic_assignment.sh $OUTPUT_DIR_ABS results/ont_native_05_taxonomy"
