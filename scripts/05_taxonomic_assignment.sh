@@ -25,13 +25,13 @@ KRAKEN_DB_ROOT="${DB_ROOT:-$PROJECT_ROOT/../databases/kraken2_db}"
 # Set BLASTDB environment for taxonomy support
 export BLASTDB="$BLAST_DB_ROOT"
 
-echo "🔬 DeCodeDNA Taxonomic Assignment - BLAST + TaxonKit LCA + KRAKEN2"
+echo " DeCodeDNA Taxonomic Assignment - BLAST + TaxonKit LCA + KRAKEN2"
 echo "════════════════════════════════════════════════════════════════════════"
-echo "🔹 Denoise input:    $DENOISE_DIR"
-echo "🔹 Output directory: $OUTPUT_DIR"
-echo "🔹 BLAST databases:  $BLAST_DB_ROOT"
-echo "🔹 Kraken2 databases: $KRAKEN_DB_ROOT"
-echo "🔹 BLASTDB environment: $BLASTDB"
+echo " Denoise input:    $DENOISE_DIR"
+echo " Output directory: $OUTPUT_DIR"
+echo " BLAST databases:  $BLAST_DB_ROOT"
+echo " Kraken2 databases: $KRAKEN_DB_ROOT"
+echo " BLASTDB environment: $BLASTDB"
 echo ""
 
 # ─── sanity checks ───────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ TEMP_DIR="$OUTPUT_DIR/00_temp_files"
 
 mkdir -p "$BLAST_DIR" "$KRAKEN_DIR" "$TAXONOMY_DIR" "$KRONA_DIR" "$TEMP_DIR"
 
-echo "📁 Organized output structure:"
+echo " Organized output structure:"
 echo "   • BLAST results    → $BLAST_DIR"
 echo "   • Kraken2 results  → $KRAKEN_DIR"
 echo "   • Final taxonomy   → $TAXONOMY_DIR" 
@@ -59,14 +59,14 @@ echo "   • Temp files       → $TEMP_DIR"
 echo ""
 
 # ─── find and combine input files from multi-database structure ─────────
-echo "🔍 Looking for multi-database denoised files..."
+echo " Looking for multi-database denoised files..."
 
 # Check for nested directory structure (common issue)
 ACTUAL_DENOISE_DIR="$DENOISE_DIR"
 if [[ -d "$DENOISE_DIR/results" ]] && [[ -d "$DENOISE_DIR/results/04_denoise" ]]; then
-  echo "  📁 Detected nested directory structure"
+  echo "   Detected nested directory structure"
   ACTUAL_DENOISE_DIR="$DENOISE_DIR/results/04_denoise"
-  echo "  🔄 Using: $ACTUAL_DENOISE_DIR"
+  echo "   Using: $ACTUAL_DENOISE_DIR"
 elif [[ ! -d "$DENOISE_DIR/12s" ]] && [[ ! -d "$DENOISE_DIR/coi" ]] && [[ ! -d "$DENOISE_DIR/mitofish" ]]; then
   echo "❌ Error: No database directories found in $DENOISE_DIR"
   echo "Expected: $DENOISE_DIR/{12s,coi,mitofish}/"
@@ -79,7 +79,7 @@ fi
 # ─── DYNAMIC SAMPLE DETECTION ─────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🔍 Detecting REAL sample names from OTU tables..."
+echo " Detecting REAL sample names from OTU tables..."
 REAL_SAMPLE_NAMES=()
 SAMPLE_HEADER=""
 
@@ -89,7 +89,7 @@ for db in 12s coi mitofish; do
   potential_table="$ACTUAL_DENOISE_DIR/$db/otu_table_${db}_vsearch_lulu_curated.csv"
   if [[ -f "$potential_table" ]]; then
     FIRST_OTU_TABLE="$potential_table"
-    echo "  📋 Detecting sample names from: $(basename "$FIRST_OTU_TABLE")"
+    echo "  Detecting sample names from: $(basename "$FIRST_OTU_TABLE")"
     break
   fi
 done
@@ -119,7 +119,7 @@ fi
 
 # Create sample name variables for later use
 SAMPLE_COUNT=${#REAL_SAMPLE_NAMES[@]}
-echo "  📊 Processing $SAMPLE_COUNT samples with real names"
+echo "   Processing $SAMPLE_COUNT samples with real names"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -139,7 +139,7 @@ databases_found_vsearch=0
 for db in 12s coi mitofish; do
   db_dir="$ACTUAL_DENOISE_DIR/$db"
   if [[ -d "$db_dir" ]]; then
-    echo "  📁 Found database directory: $db"
+    echo "   Found database directory: $db"
     
     # Look for vsearch representative sequences
     rep_fasta=$(find "$db_dir" -name "*representatives*${db}_vsearch.fasta" | head -n1 || true)
@@ -170,7 +170,7 @@ else
   # Show vsearch summary
   vsearch_rep_count=$(grep -c "^>" "$VSEARCH_REP_FASTA")
   vsearch_otu_count=$(tail -n +2 "$VSEARCH_OTU_TABLE" | wc -l)
-  echo "📊 vsearch dataset: $vsearch_rep_count sequences, $vsearch_otu_count OTUs from $databases_found_vsearch databases"
+  echo " vsearch dataset: $vsearch_rep_count sequences, $vsearch_otu_count OTUs from $databases_found_vsearch databases"
 fi
 
 echo ""
@@ -182,7 +182,7 @@ MAX_HITS="${MAX_HITS:-50}"
 SUBSET_COUNT="${SUBSET_COUNT:-0}"  # Default to 0 (no limit)
 
 if [[ "$SUBSET_COUNT" -gt 0 ]]; then
-  echo "🔬 Subsetting to $SUBSET_COUNT sequences (SUBSET_COUNT=$SUBSET_COUNT)"
+  echo " Subsetting to $SUBSET_COUNT sequences (SUBSET_COUNT=$SUBSET_COUNT)"
   
   # Create subset FASTA file
   VSEARCH_SUBSET_FASTA="$TEMP_DIR/vsearch_subset_${SUBSET_COUNT}.fasta"
@@ -206,7 +206,7 @@ else
   # Use ALL sequences (original behavior)
   VSEARCH_SUBSET_FASTA="$VSEARCH_REP_FASTA"
   vsearch_subset_count=$(grep -c "^>" "$VSEARCH_SUBSET_FASTA")
-  echo "🔬 Using ALL $vsearch_subset_count vsearch sequences for analysis (no subset limit)"
+  echo " Using ALL $vsearch_subset_count vsearch sequences for analysis (no subset limit)"
 fi
 
 echo ""
@@ -215,7 +215,7 @@ echo ""
 # ─── PART 1: BLAST ANALYSIS ───────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🧬 PART 1: BLAST ANALYSIS "
+echo " PART 1: BLAST ANALYSIS "
 echo "════════════════════════════════════════════════════════════════"
 
 # Create combined BLAST output following your approach
@@ -264,7 +264,7 @@ echo ""
 # ─── PART 2: TAXONKIT LCA PROCESSING ────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🧪 PART 2: TaxonKit LCA Processing "
+echo " PART 2: TaxonKit LCA Processing "
 echo "════════════════════════════════════════════════════════════════"
 
 # Check if TaxonKit is available
@@ -295,7 +295,7 @@ with open(otu_table_file) as f:
 
 print(f"Found {len(all_hashes)} OTUs from OTU table")
 
-# 4b) load BLAST (if any) - EXACT COPY FROM YOUR SCRIPT
+# 4b) load BLAST (if any)  FROM YOUR SCRIPT
 cols = ["Taxon","CommonName","Hash","Accession","pident","length",
         "mismatch","gapopen","qcovus","qstart","qend","sstart","send",
         "evalue","bitscore","staxids","qlen","qcovs"]
@@ -308,7 +308,7 @@ else:
     df = pd.DataFrame(columns=cols)
     print("No BLAST results found")
 
-# 4c) pick best hit(s) per Hash - EXACT COPY FROM YOUR SCRIPT
+# 4c) pick best hit(s) per Hash  FROM YOUR SCRIPT
 best = []
 for h, grp in df.groupby("Hash"):
     sel = grp[grp.pident == 100.0]
@@ -320,7 +320,7 @@ filtered = pd.concat(best) if best else pd.DataFrame(columns=cols)
 
 print(f"After filtering: {len(filtered)} hits for {filtered['Hash'].nunique()} unique OTUs")
 
-# 4d) write taxid lists for EVERY kept hash (0 if no hit) - EXACT COPY
+# 4d) write taxid lists for EVERY kept hash (0 if no hit) 
 with open(T1, "w") as w:
     for h in all_hashes:
         hits = filtered.loc[filtered.Hash == h, "staxids"]
@@ -332,11 +332,11 @@ with open(T1, "w") as w:
 
 print(f"Wrote taxid input for {len(all_hashes)} OTUs")
 
-# 4e) run TaxonKit - EXACT COPY
+# 4e) run TaxonKit 
 subprocess.run(["taxonkit", "lca", "-i","2", "-o", RAW, T1], check=True)
 subprocess.run(["taxonkit", "reformat", "-I","3", "-o", LIN, RAW], check=True)
 
-# 4f) load and split lineage - EXACT COPY
+# 4f) load and split lineage 
 lca = (pd.read_csv(LIN, sep="\t", header=None,
                    names=["Hash","BlastTaxIDs","LCA_taxid","Lineage"],
                    dtype=str)
@@ -346,7 +346,7 @@ parts = lca.Lineage.str.split(";", expand=True)
 for i, r in enumerate(ranks):
     lca[r] = parts[i] if i < parts.shape[1] else ""
 
-# 4g) merge EVERYTHING back into one table - EXACT COPY
+# 4g) merge EVERYTHING back into one table 
 base   = pd.DataFrame({"Hash": all_hashes})
 merged = base.merge(filtered, on="Hash", how="left")
 final  = merged.merge(lca[["Hash"]+ranks], on="Hash", how="left")
@@ -359,7 +359,7 @@ PYCODE
   echo "✅ TaxonKit LCA analysis complete!"
   
   # Now create the abundance matrix 
-  echo "🔄 Creating species abundance matrix..."
+  echo " Creating species abundance matrix..."
   
   CDIR="$OUTPUT_DIR" VSEARCH_OTU_TABLE="$VSEARCH_OTU_TABLE" python3 <<'PYCODE'
 import os
@@ -437,7 +437,7 @@ PYCODE
 
 else
   echo "⚠️  TaxonKit not found - skipping LCA analysis"
-  echo "   💡 Install with: conda install -c bioconda taxonkit"
+  echo "    Install with: conda install -c bioconda taxonkit"
 fi
 
 echo ""
@@ -446,11 +446,11 @@ echo ""
 # ─── PART 3: KRAKEN2 ANALYSIS (FOLLOWING OLD SCRIPT) ─────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🦠 PART 3: KRAKEN2 ANALYSIS (Following old script approach)"
+echo " PART 3: KRAKEN2 ANALYSIS"
 echo "═══════════════════════════════════════════════════════════════════════"
 
 # Check for Kraken2 and KronaTools
-echo "🔍 Checking required tools..."
+echo " Checking required tools..."
 if command -v kraken2 >/dev/null 2>&1; then
   echo "✅ kraken2 found"
 else
@@ -469,7 +469,7 @@ fi
 
 if [[ "${SKIP_KRAKEN:-false}" != "true" ]]; then
   echo ""
-  echo "🔄 Creating per-sample FASTA files for Kraken2..."
+  echo " Creating per-sample FASTA files for Kraken2..."
   
   # Use the working Python script from your old script
   cat > "$TEMP_DIR/split_fasta_by_sample.py" << 'EOF'
@@ -672,10 +672,10 @@ fi
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 4: PROCESS TAXONOMIC RESULTS (FOLLOWING OLD SCRIPT) ─────────────
+# ─── PART 4: PROCESS TAXONOMIC RESULTS ─────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "📊 PART 4: PROCESSING TAXONOMIC RESULTS (Following old script)"
+echo " PART 4: PROCESSING TAXONOMIC RESULTS (Following old script)"
 echo "═══════════════════════════════════════════════════════════════════"
 
 # Create comprehensive taxonomy processing script following the old script exactly
@@ -694,7 +694,7 @@ taxonomy_dir <- args[4]
 sample_names_str <- args[5]
 
 sample_names <- unlist(strsplit(sample_names_str, ","))
-cat("📊 Processing taxonomic results for samples:", paste(sample_names, collapse = ", "), "\n\n")
+cat(" Processing taxonomic results for samples:", paste(sample_names, collapse = ", "), "\n\n")
 
 # Read OTU table
 cat("Reading OTU table:", otu_file, "\n")
@@ -719,7 +719,7 @@ otu_long <- otu_data %>%
 cat("Processing", nrow(otu_long), "OTU abundance records\n\n")
 
 # ═══ PROCESS BLAST RESULTS ═══
-cat("🧬 Processing BLAST results...\n")
+cat(" Processing BLAST results...\n")
 blast_summary <- data.frame()
 
 for (db in c("12s", "coi", "mitofish")) {
@@ -799,7 +799,7 @@ for (db in c("12s", "coi", "mitofish")) {
 }
 
 # ═══ PROCESS KRAKEN2 RESULTS (PER-SAMPLE) ═══
-cat("\n🦠 Processing per-sample Kraken2 results...\n")
+cat("\n Processing per-sample Kraken2 results...\n")
 kraken_summary <- data.frame()
 
 for (db in c("12s", "coi", "mitofish")) {
@@ -890,13 +890,13 @@ for (db in c("12s", "coi", "mitofish")) {
 }
 
 # ═══ CREATE FINAL COMPARISON SUMMARY ═══
-cat("\n📈 Creating method summary...\n")
+cat("\n Creating method summary...\n")
 overall_summary <- bind_rows(blast_summary, kraken_summary)
 
 if (nrow(overall_summary) > 0) {
   write_csv(overall_summary, file.path(taxonomy_dir, "Comprehensive_Method_Comparison.csv"))
   
-  cat("\n📊 Method Summary:\n")
+  cat("\n Method Summary:\n")
   print(overall_summary)
 }
 
@@ -918,22 +918,22 @@ echo ""
 # ─── FINAL SUMMARY AND RESULTS ────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo "🎉 COMPREHENSIVE TAXONOMIC ASSIGNMENT COMPLETE!"
+echo " COMPREHENSIVE TAXONOMIC ASSIGNMENT COMPLETE!"
 echo "════════════════════════════════════════════════════════════════════════"
 echo ""
-echo "📁 Results organized in:"
-echo "   🧬 BLAST results      → $BLAST_DIR"
-echo "   🦠 Kraken2 results    → $KRAKEN_DIR"
-echo "   📊 Final taxonomy     → $TAXONOMY_DIR" 
-echo "   🍩 Krona plots        → $KRONA_DIR"
-echo "   🗂️  Temp files        → $TEMP_DIR"
+echo " Results organized in:"
+echo "    BLAST results      → $BLAST_DIR"
+echo "    Kraken2 results    → $KRAKEN_DIR"
+echo "    Final taxonomy     → $TAXONOMY_DIR" 
+echo "    Krona plots        → $KRONA_DIR"
+echo "   Temp files        → $TEMP_DIR"
 echo ""
 
-echo "📋 Key output files with REAL sample names (${REAL_SAMPLE_NAMES[*]}):"
+echo " Key output files with REAL sample names (${REAL_SAMPLE_NAMES[*]}):"
 echo ""
 
 # Show TaxonKit LCA results
-echo "🧪 TaxonKit LCA Results:"
+echo " TaxonKit LCA Results:"
 lca_file="$TAXONOMY_DIR/TaxonKit_LCA_species_abundance.csv"
 if [[ -f "$lca_file" ]]; then
   species_count=$(tail -n +2 "$lca_file" | wc -l 2>/dev/null || echo "0")
@@ -946,7 +946,7 @@ fi
 echo ""
 
 # Show BLAST results
-echo "🧬 BLAST Best Hit Results:"
+echo " BLAST Best Hit Results:"
 for db in 12s coi mitofish; do
   blast_file="$TAXONOMY_DIR/BLAST_vsearch_${db}_classified_species.csv"
   if [[ -f "$blast_file" ]]; then
@@ -958,7 +958,7 @@ done
 echo ""
 
 # Show KRAKEN2 results
-echo "🦠 KRAKEN2 Results:"
+echo " KRAKEN2 Results:"
 for db in 12s coi mitofish; do
   kraken_file="$TAXONOMY_DIR/Kraken2_vsearch_${db}_classified_species.csv"
   if [[ -f "$kraken_file" ]]; then
@@ -970,7 +970,7 @@ done
 echo ""
 
 # Show per-sample Krona plots
-echo "🍩 Per-Sample Krona Plots:"
+echo " Per-Sample Krona Plots:"
 krona_found=false
 for sample in "${REAL_SAMPLE_NAMES[@]}"; do
   for db in 12s coi mitofish; do
@@ -989,18 +989,18 @@ fi
 echo ""
 
 # Show method comparison
-echo "📈 Method Performance:"
+echo " Method Performance:"
 if [[ -f "$TAXONOMY_DIR/Comprehensive_Method_Comparison.csv" ]]; then
   echo "   • Comprehensive_Method_Comparison.csv - Compare all methods"
   echo ""
-  echo "🏆 Method Ranking (by classification power):"
+  echo " Method Ranking (by classification power):"
   echo "   1. TaxonKit LCA - Consensus from multiple BLAST hits (MOST ROBUST)"
   echo "   2. BLAST Best Hit - Single best match per database"
   echo "   3. Kraken2 - K-mer based classification"
 fi
 
 echo ""
-echo "🎓 ENHANCED PIPELINE FEATURES:"
+echo "  PIPELINE FEATURES:"
 echo "   ✅ TaxonKit LCA consensus taxonomy from multiple BLAST hits "
 echo "   ✅ Per-sample Kraken2 analysis with Krona visualizations"
 if [[ "$SUBSET_COUNT" -gt 0 ]]; then
@@ -1013,11 +1013,11 @@ echo "   ✅ Sample-specific abundance preservation: ${REAL_SAMPLE_NAMES[*]}"
 echo "   ✅ Species × sample abundance matrices"
 echo "   ✅ Compatible with both custom_cci and ont_native workflows"
 echo ""
-echo "🔗 Analysis complete! Key results:"
+echo " Analysis complete! Key results:"
 echo "   • TaxonKit_LCA_species_abundance.csv - Most robust species identification"
 echo "   • BLAST_vsearch_*_classified_species.csv - Database-specific species tables"
 echo "   • *_krona.html - Interactive taxonomic visualizations"
 echo "   • Comprehensive_Method_Comparison.csv - Compare all methods"
 echo ""
-echo "🎉 Pipeline complete! Ready for biological interpretation."
+echo " Pipeline complete! Ready for biological interpretation."
 echo ""
