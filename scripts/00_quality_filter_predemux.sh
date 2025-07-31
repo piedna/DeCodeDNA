@@ -38,8 +38,8 @@ elif [[ "$INPUT_FASTQ" == *"custom_cci_barcodes"* ]]; then
     # Auto-detect custom_cci workflow and use proper structure
     WORKFLOW_DIR=$(echo "$INPUT_FASTQ" | sed 's|/00_raw_data/.*||')
     OUTPUT_FASTQ="$WORKFLOW_DIR/01_filtered/quality_filtered.fastq"
-    echo "🔧 Auto-detected Custom CCI workflow"
-    echo "   📁 Workflow directory: $WORKFLOW_DIR"
+    echo " Auto-detected Custom CCI workflow"
+    echo "    Workflow directory: $WORKFLOW_DIR"
 else
     # Default behavior for other workflows
     OUTPUT_FASTQ="${INPUT_FASTQ%.*}_filtered_for_demux.fastq"
@@ -54,14 +54,14 @@ QUALITY_THRESHOLD="${QUALITY_THRESHOLD:-12}"   # Q12 quality threshold
 MIN_LENGTH="${MIN_LENGTH:-100}"                # minimum read length
 MAX_LENGTH="${MAX_LENGTH:-500}"                # maximum read length
 
-echo "🔬 Pre-Demultiplexing Quality Filter"
+echo " Pre-Demultiplexing Quality Filter"
 echo "═══════════════════════════════════════"
-echo "🔹 Input FASTQ:      $INPUT_FASTQ"
-echo "🔹 Output FASTQ:     $OUTPUT_FASTQ"
-echo "🔹 Quality filter:   Q≥$QUALITY_THRESHOLD"
-echo "🔹 Length filter:    ${MIN_LENGTH}-${MAX_LENGTH} bp"
+echo " Input FASTQ:      $INPUT_FASTQ"
+echo " Output FASTQ:     $OUTPUT_FASTQ"
+echo " Quality filter:   Q≥$QUALITY_THRESHOLD"
+echo " Length filter:    ${MIN_LENGTH}-${MAX_LENGTH} bp"
 echo ""
-echo "💡 Customize filters with:"
+echo " Customize filters with:"
 echo "   export QUALITY_THRESHOLD=15 MIN_LENGTH=150 MAX_LENGTH=300"
 echo ""
 
@@ -108,7 +108,7 @@ output_reads=$(seqkit stats "$OUTPUT_FASTQ" | tail -n +2 | awk '{print $4}' | tr
 if [[ "$input_reads" -gt 0 ]]; then
     retention_rate=$(echo "scale=1; $output_reads * 100 / $input_reads" | bc -l 2>/dev/null || echo "N/A")
     echo ""
-    echo "📊 Filtering Results:"
+    echo " Filtering Results:"
     echo "   • Input reads:     $input_reads"
     echo "   • Output reads:    $output_reads"
     echo "   • Retention rate:  ${retention_rate}%"
@@ -116,14 +116,14 @@ fi
 
 # ─── AUTO-SETUP ONTBARCODER DIRECTORIES & COPY FILES ─────────────────────
 echo ""
-echo "🔧 Setting up ONTbarcoder directories and files..."
+echo " Setting up ONTbarcoder directories and files..."
 
 # Detect if we're working with custom_cci_barcodes workflow
 if [[ "$OUTPUT_FASTQ" == *"custom_cci_barcodes"* ]]; then
     # Extract the workflow directory path
     WORKFLOW_DIR=$(echo "$OUTPUT_FASTQ" | sed 's|/01_filtered/.*||')
     
-    echo "   📁 Detected Custom CCI workflow: $WORKFLOW_DIR"
+    echo "   Detected Custom CCI workflow: $WORKFLOW_DIR"
     
     # Create ONTbarcoder demo output directory (for student practice)
     ONTBARCODER_DEMO_OUTPUT="$WORKFLOW_DIR/02_demultiplexed_demo"
@@ -157,13 +157,13 @@ if [[ "$OUTPUT_FASTQ" == *"custom_cci_barcodes"* ]]; then
         echo "       Create this file for ONTbarcoder configuration"
     fi
 else
-    echo "   📁 Not a custom_cci_barcodes workflow - skipping auto-setup"
+    echo "    Not a custom_cci_barcodes workflow - skipping auto-setup"
 fi
 
 echo ""
 echo "✅ Pre-demultiplexing quality filter complete!"
 echo ""
-echo "📁 Files ready for ONTbarcoder practice:"
+echo " Files ready for ONTbarcoder practice:"
 echo "   • Primary output:   $OUTPUT_FASTQ"
 if [[ "$OUTPUT_FASTQ" == *"custom_cci_barcodes"* ]]; then
     echo "   • ONTbarcoder copy: $DEMUX_CONFIG_FASTQ"
@@ -172,7 +172,7 @@ echo ""
 
 # ─── ONTBARCODER INSTRUCTIONS ─────────────────────────────────────────────
 if [[ "$OUTPUT_FASTQ" == *"custom_cci_barcodes"* ]]; then
-    echo "🖥️  ONTbarcoder2.3 GUI Practice Instructions:"
+    echo "️  ONTbarcoder2.3 GUI Practice Instructions:"
     echo "─────────────────────────────────────────────────"
     echo "⚠️  NOTE: This is for PRACTICE ONLY - the filtered data may not demultiplex well"
     echo ""
@@ -187,7 +187,7 @@ if [[ "$OUTPUT_FASTQ" == *"custom_cci_barcodes"* ]]; then
     fi
     echo "3. Run demultiplexing (practice run)"
     echo ""
-    echo "📂 Demo output structure (practice):"
+    echo " Demo output structure (practice):"
     echo "   $ONTBARCODER_DEMO_OUTPUT/"
     echo "   ├── demultiplexed/"
     echo "   │   ├── sample1_all.fa"
@@ -195,7 +195,7 @@ if [[ "$OUTPUT_FASTQ" == *"custom_cci_barcodes"* ]]; then
     echo "   │   └── sample3_all.fa"
     echo "   └── [other ONTbarcoder files]"
     echo ""
-    echo "📂 Real pipeline uses pre-demultiplexed data:"
+    echo " Real pipeline uses pre-demultiplexed data:"
     echo "   $ONTBARCODER_REAL_OUTPUT/"
     echo "   ├── demultiplexed/           ← Script 02 continues from here"
     echo "   │   ├── 18_all.fa"
@@ -203,19 +203,19 @@ if [[ "$OUTPUT_FASTQ" == *"custom_cci_barcodes"* ]]; then
     echo "   │   └── 4_all.fa"
     echo "   └── [existing mock data]"
     echo ""
-    echo "🔗 Continue with main pipeline using real data:"
+    echo " Continue with main pipeline using real data:"
     echo "   bash scripts/02_quick_look_clean.sh $WORKFLOW_DIR/02_demultiplexed/demultiplexed/ results/custom_cci_02_quicklook"
     echo ""
-    echo "💡 Why two directories?"
+    echo " Why two directories?"
     echo "   • $ONTBARCODER_DEMO_OUTPUT → Practice ONTbarcoder workflow"
     echo "   • $ONTBARCODER_REAL_OUTPUT → Continue with robust mock data"
 else
-    echo "🔗 Next steps:"
+    echo " Next steps:"
     echo "   1. Demultiplex with ONTbarcoder2.3 GUI using: $OUTPUT_FASTQ"
     echo "   2. After demux: bash scripts/02_quick_look_clean.sh <demux_output_dir> results/02_quicklook"
 fi
 
 echo ""
-echo "💡 Alternative - Skip demux practice and use ONT Native mock data:"
+echo " Alternative - Skip demux practice and use ONT Native mock data:"
 echo "   bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes/ results/ont_native_02_quicklook"
 echo ""
