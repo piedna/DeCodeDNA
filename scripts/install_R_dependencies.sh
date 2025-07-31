@@ -1,15 +1,15 @@
 # Install system dependencies first (macOS)
-echo "📦 Installing system dependencies..."
+echo " Installing system dependencies..."
 
 if brew list libgit2 &>/dev/null; then
   echo "✅ libgit2 already installed"
 else
-  echo "📦 Installing libgit2..."
+  echo " Installing libgit2..."
   brew install libgit2
 fi
 
 # Install LULU package for denoising
-echo "📦 Installing LULU R package..."
+echo " Installing LULU R package..."
 Rscript -e '
   if (!requireNamespace("devtools", quietly = TRUE)) {
     install.packages("devtools", repos = "https://cloud.r-project.org")

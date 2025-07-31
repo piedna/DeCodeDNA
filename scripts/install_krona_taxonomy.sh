@@ -5,10 +5,10 @@ set -euo pipefail
 # Downloads and sets up NCBI taxonomy database for Krona visualizations
 # Usage: bash scripts/install_krona_taxonomy.sh
 
-echo "📊 Setting up Krona taxonomy..."
+echo " Setting up Krona taxonomy..."
 
 # Check if Krona is properly installed
-echo "🔍 Checking Krona installation..."
+echo " Checking Krona installation..."
 if ! command -v ktImportText &>/dev/null; then
     echo "❌ Krona not found - installing..."
     conda install -c bioconda krona -y
@@ -18,14 +18,14 @@ fi
 mkdir -p $CONDA_PREFIX/opt/krona/taxonomy
 cd $CONDA_PREFIX/opt/krona/taxonomy
 
-echo "   🔄 Method 1: Try automatic update first..."
+echo "    Method 1: Try automatic update first..."
 # Try the automatic method first
 if command -v ktUpdateTaxonomy.sh &>/dev/null && ktUpdateTaxonomy.sh; then
     echo "   ✅ Automatic taxonomy update successful!"
 else
     echo "   ⚠️  Automatic update failed, using manual method..."
     
-    echo "   📥 Method 2: Manual download and setup..."
+    echo "    Method 2: Manual download and setup..."
     
     # Download taxonomy dump manually using HTTPS (more reliable than FTP)
     echo "      • Downloading taxdump.tar.gz from NCBI..."
@@ -75,14 +75,14 @@ EOF
         fi
     else
         echo "      ❌ Download failed"
-        echo "      💡 Manual fallback: Download from https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
+        echo "       Manual fallback: Download from https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
         echo "         and extract to: $CONDA_PREFIX/opt/krona/taxonomy/"
     fi
 fi
 
 # Verify the final setup
 echo ""
-echo "🔍 Verifying Krona taxonomy setup..."
+echo " Verifying Krona taxonomy setup..."
 ls -la
 
 # Check for processed Krona files (this is what matters!)
@@ -98,7 +98,7 @@ fi
 if [[ -f "names.dmp" && -f "nodes.dmp" ]]; then
     echo "   ✅ Raw taxonomy files: Available"
 else
-    echo "   ℹ️  Raw taxonomy files: Cleaned up (normal after processing)"
+    echo "     Raw taxonomy files: Cleaned up (normal after processing)"
 fi
 
 echo ""
@@ -111,18 +111,18 @@ if ktImportText -o /tmp/test_krona.html /tmp/test_krona_input.txt 2>/dev/null; t
     KRONA_FUNCTIONAL=1
 else
     echo "   ❌ Krona functionality test failed"
-    echo "   💡 Krona plots will be skipped in the pipeline"
+    echo "    Krona plots will be skipped in the pipeline"
     KRONA_FUNCTIONAL=0
 fi
 
 echo ""
 if [[ $KRONA_READY -eq 1 && $KRONA_FUNCTIONAL -eq 1 ]]; then
     echo "✅ Krona taxonomy installation SUCCESSFUL!"
-    echo "   📁 Taxonomy data ready in: $CONDA_PREFIX/opt/krona/taxonomy/"
-    echo "   🎯 Krona plots will work in the pipeline"
+    echo "    Taxonomy data ready in: $CONDA_PREFIX/opt/krona/taxonomy/"
+    echo "    Krona plots will work in the pipeline"
 else
     echo "❌ Krona taxonomy installation incomplete"
-    echo "   💡 Pipeline will skip Krona visualizations"
+    echo "    Pipeline will skip Krona visualizations"
 fi
 
 echo ""
