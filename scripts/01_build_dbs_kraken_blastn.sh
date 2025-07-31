@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ─── DeCodeDNA Database Builder (Enhanced with TaxIDs) ─────────────────────
+# ─── DeCodeDNA Database Builder (with TaxIDs) ─────────────────────
 # Builds Kraken2 and BLAST databases with NCBI taxonomy integration
-# Enhanced version that creates BLAST databases with proper taxid support
 # Usage: ./scripts/01_build_dbs_with_taxids.sh
 # ────────────────────────────────────────────────────────────────────────
 
@@ -22,23 +21,22 @@ BLAST_DB="$WORK/blast_db"
 # Default number of threads
 THREADS="${THREADS:-8}"
 
-echo "🗄️ DeCodeDNA Database Builder (Enhanced with TaxIDs)"
+echo "DeCodeDNA Database Builder"
 echo "═══════════════════════════════════════════════════════"
-echo "🔹 Project root:    $PROJECT_ROOT"
-echo "🔹 Database root:   $WORK"
-echo "🔹 Threads:         $THREADS"
-echo "🔹 Platform:        $(uname -m) ($(uname -s))"
-echo "🔹 Enhancement:     BLAST DBs with NCBI taxonomy IDs for TaxonKit LCA"
+echo " Project root:    $PROJECT_ROOT"
+echo " Database root:   $WORK"
+echo " Threads:         $THREADS"
+echo " Platform:        $(uname -m) ($(uname -s))"
 echo ""
 
 # ─── PREPARE DIRECTORY STRUCTURE ───────────────────────────────────────────
-echo "📁 Creating directory structure..."
+echo " Creating directory structure..."
 mkdir -p "$FASTA_ROOT" "$FASTA_CLEAN" "$TAXID_DIR" "$KRAKEN_DB" "$BLAST_DB"
 echo "   ✅ Directories created"
 echo ""
 
 # ─── CHECK REQUIRED TOOLS ──────────────────────────────────────────────────
-echo "🔍 Checking required tools..."
+echo " Checking required tools..."
 REQUIRED_TOOLS=(curl wget unzip kraken2-build makeblastdb python3 taxonkit)
 MISSING_TOOLS=()
 
@@ -56,10 +54,10 @@ if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
   echo "❌ Missing required tools: ${MISSING_TOOLS[*]}"
   echo ""
   echo "Install missing tools:"
-  echo "   • Basic tools: curl wget unzip python3"
-  echo "   • Kraken2: conda install -c bioconda kraken2"
-  echo "   • BLAST: conda install -c bioconda blast"
-  echo "   • TaxonKit: conda install -c bioconda taxonkit"
+  echo "   - Basic tools: curl wget unzip python3"
+  echo "   - Kraken2: conda install -c bioconda kraken2"
+  echo "   - BLAST: conda install -c bioconda blast"
+  echo "   - TaxonKit: conda install -c bioconda taxonkit"
   echo ""
   echo "After installation, download NCBI taxonomy:"
   echo "   taxonkit --data-dir ~/.taxonkit create-taxdump"
@@ -67,7 +65,7 @@ if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
 fi
 
 # Special check for TaxonKit taxonomy database
-echo "   • Checking TaxonKit taxonomy database..."
+echo "   - Checking TaxonKit taxonomy database..."
 if taxonkit list --ids 9606 &>/dev/null; then
   echo "   ✅ TaxonKit taxonomy database found"
 else
@@ -82,11 +80,11 @@ else
 fi
 
 # Check and download BLAST taxonomy database for scientific names
-echo "   • Checking BLAST taxonomy database (for scientific names)..."
+echo "   - Checking BLAST taxonomy database (for scientific names)..."
 if [[ -f "$BLAST_DB/taxdb.btd" && -f "$BLAST_DB/taxdb.bti" ]]; then
   echo "   ✅ BLAST taxonomy database found"
 else
-  echo "   📥 Downloading BLAST taxonomy database..."
+  echo "    Downloading BLAST taxonomy database..."
   echo "     This enables scientific names in BLAST output (fixes N/A names)"
   
   cd "$BLAST_DB"
@@ -105,18 +103,18 @@ fi
 
 # Set BLASTDB environment variable for this session
 export BLASTDB="$BLAST_DB"
-echo "   • Set BLASTDB environment variable: $BLASTDB"
+echo "   - Set BLASTDB environment variable: $BLASTDB"
 echo ""
 
 # ─── DOWNLOAD FASTA DATABASES ──────────────────────────────────────────────
-echo "📥 STEP 1: Downloading Reference FASTA Files"
+echo " STEP 1: Downloading Reference FASTA Files"
 echo "─────────────────────────────────────────────────"
 
 cd "$FASTA_ROOT"
 
 # Download MIDORI 12S
 if [[ ! -f "midori_12s.fasta" ]]; then
-  echo "   • Downloading MIDORI 12S rRNA sequences..."
+  echo "   - Downloading MIDORI 12S rRNA sequences..."
   curl -sL -o midori_12s.zip \
     "https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta.zip"
   
@@ -134,7 +132,7 @@ fi
 
 # Download MIDORI COI
 if [[ ! -f "midori_coi.fasta" ]]; then
-  echo "   • Downloading MIDORI COI sequences..."
+  echo "   - Downloading MIDORI COI sequences..."
   curl -sL -o midori_coi.zip \
     "https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta.zip"
   
@@ -152,7 +150,7 @@ fi
 
 # Download MitoFish
 if [[ ! -f "mifish.fasta" ]]; then
-  echo "   • Downloading MitoFish mitogenomes..."
+  echo "   - Downloading MitoFish mitogenomes..."
   curl -sL -o mifish.zip \
     "https://mitofish.aori.u-tokyo.ac.jp/species/detail/download/?filename=download%2F/complete_partial_mitogenomes.zip"
   
@@ -172,27 +170,27 @@ fi
 
 # Show download summary
 echo ""
-echo "📊 Downloaded FASTA files:"
+echo " Downloaded FASTA files:"
 for fasta in midori_12s.fasta midori_coi.fasta mifish.fasta; do
   if [[ -f "$fasta" ]]; then
     size=$(du -h "$fasta" | cut -f1)
     seqs=$(grep -c "^>" "$fasta" 2>/dev/null || echo "0")
-    echo "   • $fasta: $size ($seqs sequences)"
+    echo "   - $fasta: $size ($seqs sequences)"
   else
     echo "   ❌ $fasta: Missing"
   fi
 done
 echo ""
 
-# ─── FUNCTIONS FOR TAXID INTEGRATION (EXACT LOGIC FROM WORKING SCRIPTS) ───
+# ─── FUNCTIONS FOR TAXID INTEGRATION ───
 extract_species_and_create_taxid_map() {
   local MARK="$1"
   local CLEAN_FASTA="$2"
   local TAXID_MAP="$3"
   
-  echo "📋 Processing $MARK: Extracting species and creating taxid map..."
+  echo " Processing $MARK: Extracting species and creating taxid map..."
   
-  # Create Python script to extract species names (EXACT LOGIC FROM rebuild_mitofish_only.sh)
+  # Create Python script to extract species names
   cat > "$TAXID_DIR/extract_species_${MARK}.py" << 'EOF'
 import sys
 import re
@@ -263,21 +261,21 @@ EOF
   # Run species extraction
   python3 "$TAXID_DIR/extract_species_${MARK}.py" "$CLEAN_FASTA" "$TAXID_DIR/${MARK}_species.txt" "$MARK"
   
-  # Look up taxids using TaxonKit (EXACT LOGIC FROM WORKING SCRIPTS)
-  echo "   • Looking up NCBI taxonomy IDs..."
+  # Look up taxids using TaxonKit
+  echo "   - Looking up NCBI taxonomy IDs..."
   taxonkit name2taxid "$TAXID_DIR/${MARK}_species.txt" > "$TAXID_DIR/${MARK}_taxids.txt"
   
   # Show some results
-  echo "   • Sample taxid lookups:"
+  echo "   - Sample taxid lookups:"
   head -3 "$TAXID_DIR/${MARK}_taxids.txt" | sed 's/^/     /'
   
   # Count successful lookups
   found_count=$(awk -F'\t' '$2 != "" && $2 != "0" {count++} END {print count+0}' "$TAXID_DIR/${MARK}_taxids.txt")
   total_count=$(wc -l < "$TAXID_DIR/${MARK}_species.txt")
-  echo "   • Found taxids for $found_count/$total_count species"
+  echo "   - Found taxids for $found_count/$total_count species"
   
-  # Create taxid mapping file for makeblastdb (EXACT LOGIC FROM rebuild_mitofish_only.sh)
-  echo "   • Creating sequence ID to taxid mapping..."
+  # Create taxid mapping file for makeblastdb
+  echo "   - Creating sequence ID to taxid mapping..."
   
   cat > "$TAXID_DIR/create_mapping_${MARK}.py" << 'EOF'
 import sys
@@ -342,11 +340,11 @@ rebuild_blast_db() {
   local TAXID_MAP="$3"
   local OUT_DIR="$4"
   
-  echo "🔨 Building BLAST database for $MARK..."
+  echo " Building BLAST database for $MARK..."
   
   # Backup old database if it exists
   if [[ -f "$OUT_DIR/${MARK}.nsq" ]]; then
-    echo "   • Backing up existing database..."
+    echo "   - Backing up existing database..."
     backup_dir="${OUT_DIR}_backup_$(date +%Y%m%d_%H%M%S)"
     mv "$OUT_DIR" "$backup_dir"
   fi
@@ -361,7 +359,7 @@ rebuild_blast_db() {
     *)        TITLE="$MARK database (with TaxIDs)" ;;
   esac
   
-  echo "   • Building database with taxonomy mapping..."
+  echo "   - Building database with taxonomy mapping..."
   if makeblastdb \
     -in "$CLEAN_FASTA" \
     -dbtype nucl \
@@ -381,11 +379,11 @@ quick_test() {
   local MARK="$1"
   local DB_PATH="$2"
   
-  echo "🧪 Testing taxonomy integration for $MARK..."
+  echo " Testing taxonomy integration for $MARK..."
   
-  # Test database (EXACT LOGIC FROM rebuild_mitofish_only.sh)
+  # Test database
   sample_output=$(blastdbcmd -db "$DB_PATH" -entry all -outfmt "%a %T %S" | head -3)
-  echo "   • Sample entries:"
+  echo "   - Sample entries:"
   echo "$sample_output" | sed 's/^/     /'
   
   # Count non-zero taxids and named entries
@@ -393,8 +391,8 @@ quick_test() {
   total_entries=$(echo "$sample_output" | wc -l)
   named_entries=$(echo "$sample_output" | awk '$3 != "N/A" && $3 != "" {count++} END {print count+0}')
   
-  echo "   • $nonzero_taxids/$total_entries entries have non-zero taxids"
-  echo "   • $named_entries/$total_entries entries have scientific names"
+  echo "   - $nonzero_taxids/$total_entries entries have non-zero taxids"
+  echo "   - $named_entries/$total_entries entries have scientific names"
   
   if [[ "$nonzero_taxids" -gt 0 ]]; then
     echo "   ✅ Taxonomy integration successful!"
@@ -404,7 +402,7 @@ quick_test() {
 }
 
 # ─── BUILD BLAST DATABASES WITH TAXONOMY ───────────────────────────────────
-echo "🧬 STEP 2: Building BLAST Databases (with NCBI Taxonomy)"
+echo " STEP 2: Building BLAST Databases (with NCBI Taxonomy)"
 echo "─────────────────────────────────────────────────────────"
 
 for MARK in 12s coi mitofish; do
@@ -431,10 +429,10 @@ for MARK in 12s coi mitofish; do
 
   echo ""
   echo "=== Processing BLAST DB for $MARK ==="
-  echo "  • Input FASTA:  $IN_FASTA"
-  echo "  • Clean FASTA:  $CLEAN_FASTA"
-  echo "  • TaxID map:    $TAXID_MAP"
-  echo "  • Output DB:    $OUT_DIR/$MARK"
+  echo "  - Input FASTA:  $IN_FASTA"
+  echo "  - Clean FASTA:  $CLEAN_FASTA"
+  echo "  - TaxID map:    $TAXID_MAP"
+  echo "  - Output DB:    $OUT_DIR/$MARK"
 
   if [[ ! -f "$IN_FASTA" ]]; then
     echo "  ❌ Input FASTA not found, skipping $MARK"
@@ -448,9 +446,9 @@ for MARK in 12s coi mitofish; do
     continue
   fi
 
-  echo "  • Processing sequences and creating clean headers..."
+  echo "  - Processing sequences and creating clean headers..."
 
-  # Create Python script to clean FASTA files (EXACT LOGIC FROM ORIGINAL WORKING SCRIPT)
+  # Create Python script to clean FASTA files
   cat > "$FASTA_CLEAN/process_fasta_${MARK}.py" << 'EOF'
 import sys
 import re
@@ -577,11 +575,11 @@ EOF
   python3 "$FASTA_CLEAN/process_fasta_${MARK}.py" "$IN_FASTA" "$CLEAN_FASTA" "$MARK"
 
   # Show sample headers
-  echo "  • Sample cleaned headers:"
+  echo "  - Sample cleaned headers:"
   head -5 "$CLEAN_FASTA" | grep "^>" | sed 's/^/    /' || echo "    No headers to show"
 
   # Check for duplicates
-  echo "  • Checking for duplicate headers..."
+  echo "  - Checking for duplicate headers..."
   duplicate_count=$(grep "^>" "$CLEAN_FASTA" | sort | uniq -d | wc -l)
   if [[ "$duplicate_count" -gt 0 ]]; then
     echo "    ⚠️  Found $duplicate_count duplicate headers - this shouldn't happen!"
@@ -605,7 +603,7 @@ done
 echo ""
 
 # ─── BUILD KRAKEN2 DATABASES ───────────────────────────────────────────────
-echo "🦠 STEP 3: Building Kraken2 Databases"
+echo " STEP 3: Building Kraken2 Databases"
 echo "─────────────────────────────────────────────"
 
 if command -v kraken2-build >/dev/null 2>&1; then
@@ -614,7 +612,7 @@ if command -v kraken2-build >/dev/null 2>&1; then
   for DB in 12s coi mitofish; do
     TARGET="$KRAKEN_DB/$DB"
     echo ""
-    echo "🔨 Building Kraken2 DB for $DB..."
+    echo " Building Kraken2 DB for $DB..."
     
     if [[ -f "$TARGET/taxo.k2d" ]]; then
       echo "   ⚠️  Kraken2 DB already exists for $DB - skipping"
@@ -625,7 +623,7 @@ if command -v kraken2-build >/dev/null 2>&1; then
     mkdir -p "$TARGET"
     
     # Download NCBI taxonomy for this database
-    echo "   • Downloading NCBI taxonomy..."
+    echo "   - Downloading NCBI taxonomy..."
     kraken2-build --download-taxonomy --db "$TARGET"
     
     # Map database name to FASTA file
@@ -636,10 +634,10 @@ if command -v kraken2-build >/dev/null 2>&1; then
     esac
     
     if [[ -f "$FASTA_FILE" ]]; then
-      echo "   • Adding sequences to library..."
+      echo "   - Adding sequences to library..."
       kraken2-build --add-to-library "$FASTA_FILE" --db "$TARGET" --no-masking
       
-      echo "   • Building database (this may take 5-15 minutes)..."
+      echo "   - Building database (this may take 5-15 minutes)..."
       kraken2-build --build --db "$TARGET" --threads "$THREADS" --no-masking
       
       echo "   ✅ Kraken2 DB built for $DB"
@@ -660,18 +658,18 @@ fi
 echo ""
 
 # ─── FINAL SUMMARY WITH PROPER TAXONOMY STATUS ─────────────────────────────
-echo "🎉 DATABASE BUILDING COMPLETE!"
+echo " DATABASE BUILDING COMPLETE!"
 echo "═══════════════════════════════════════════════════════════"
 echo ""
-echo "📁 Database locations:"
-echo "   🧬 BLAST DBs   → $BLAST_DB/{12s,coi,mitofish}"
-echo "   🦠 Kraken2 DBs → $KRAKEN_DB/{12s,coi,mitofish}"
-echo "   📋 TaxID maps  → $TAXID_DIR/*_taxid_map.txt"
+echo " Database locations:"
+echo "    BLAST DBs   → $BLAST_DB/{12s,coi,mitofish}"
+echo "    Kraken2 DBs → $KRAKEN_DB/{12s,coi,mitofish}"
+echo "    TaxID maps  → $TAXID_DIR/*_taxid_map.txt"
 echo ""
 
-echo "📊 Database summary:"
+echo " Database summary:"
 echo ""
-echo "🧬 BLAST databases:"
+echo " BLAST databases:"
 for db in 12s coi mitofish; do
   if [[ -f "$BLAST_DB/$db/$db.nsq" ]]; then
     echo "   ✅ $db: Ready for similarity search with taxonomy support"
@@ -681,7 +679,7 @@ for db in 12s coi mitofish; do
 done
 
 echo ""
-echo "🦠 Kraken2 databases:"
+echo " Kraken2 databases:"
 for db in 12s coi mitofish; do
   if [[ -f "$KRAKEN_DB/$db/taxo.k2d" ]]; then
     echo "   ✅ $db: Ready for classification"
@@ -691,7 +689,7 @@ for db in 12s coi mitofish; do
 done
 
 echo ""
-echo "📋 TaxID mapping files:"
+echo " TaxID mapping files:"
 for db in 12s coi mitofish; do
   if [[ -f "$TAXID_DIR/${db}_taxid_map.txt" ]]; then
     lines=$(wc -l < "$TAXID_DIR/${db}_taxid_map.txt")
@@ -702,39 +700,37 @@ for db in 12s coi mitofish; do
 done
 
 echo ""
-echo "🧬 BLAST Taxonomy Database:"
+echo " BLAST Taxonomy Database:"
 if [[ -f "$BLAST_DB/taxdb.btd" && -f "$BLAST_DB/taxdb.bti" ]]; then
   echo "   ✅ NCBI taxonomy database installed"
-  echo "   ✅ Scientific names will display properly"
-  echo "   • Location: $BLAST_DB/taxdb.*"
+  echo "   ✅ Scientific names are displayed properly"
+  echo "   - Location: $BLAST_DB/taxdb.*"
 else
   echo "   ⚠️  NCBI taxonomy database not found"
-  echo "   • TaxIDs work but scientific names show 'N/A'"
-  echo "   • Download: curl -o taxdb.tar.gz ftp://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz"
-  echo "   • Extract to: $BLAST_DB/"
+  echo "   - TaxIDs work but scientific names show 'N/A'"
+  echo "   - Download: curl -o taxdb.tar.gz ftp://ftp.ncbi.nlm.nih.gov/blast/db/taxdb.tar.gz"
+  echo "   - Extract to: $BLAST_DB/"
 fi
 
 echo ""
-echo "🔬 Enhanced Features:"
-echo "   ✅ BLAST databases now return NCBI taxonomy IDs"
+echo " Features:"
+echo "   ✅ BLAST databases have returned with NCBI taxonomy IDs"
 echo "   ✅ Compatible with TaxonKit LCA consensus analysis"
 echo "   ✅ Proper taxonomic lineage support"
 echo ""
-echo "🔗 Next steps:"
-echo "   • Databases are ready for advanced taxonomic classification"
-echo "   • Scripts 02-05 will automatically detect taxonomy support"
-echo "   • BLAST results will include 'staxids' column with real taxonomy IDs"
-echo "   • TaxonKit LCA will work properly for consensus taxonomy"
+echo " Next steps:"
+echo "   - Databases are ready for taxonomic classification"
+echo "   - Scripts 02-05 will automatically detect taxonomy support"
+echo "   - BLAST results will include 'staxids' column with real taxonomy IDs"
+echo "   - TaxonKit LCA works for consensus taxonomy"
 echo ""
-echo "🧪 Test your enhanced databases:"
+echo " Test your databases:"
 echo "   export BLASTDB=\"$BLAST_DB\""
 echo "   blastdbcmd -db $BLAST_DB/12s/12s -entry all -outfmt '%a %T %S' | head -5"
 echo "   blastn -query test.fasta -db $BLAST_DB/12s/12s -outfmt '6 qseqid sseqid pident staxids sscinames' -max_target_seqs 5"
 echo ""
-echo "📋 For TaxonKit LCA (the main goal):"
-echo "   • Use staxids column (not sscinames)"  
-echo "   • TaxonKit processes numeric taxids, not names"
-echo "   • Your taxonomy integration is working!"
+echo " For TaxonKit LCA "
+echo "   -  Taxonomy integration is working!"
 echo ""
 echo "✅ All databases built successfully with taxonomy support!"
 echo ""
