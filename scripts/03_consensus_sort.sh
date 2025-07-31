@@ -34,7 +34,7 @@ AMPLICON_DIR="$OUTPUT_DIR/amplicon_sorter_demo"
 mkdir -p "$VSEARCH_DIR" "$AMPLICON_DIR"
 
 ### ── SANITY CHECKS ────────────────────────────────────────────────
-echo "🔍 Checking required programs..."
+echo " Checking required programs..."
 
 # Check for vsearch
 if ! command -v vsearch &>/dev/null; then
@@ -84,16 +84,16 @@ else
 fi
 
 echo
-echo "🔹 Kraken2 results:    $KRAKEN_RESULTS_DIR"
-echo "🔹 Processing databases: $DATABASES"
-echo "🔹 vsearch similarity: $VSEARCH_SIMILARITY"
-echo "🔹 Output directory:   $OUTPUT_DIR"
+echo " Kraken2 results:    $KRAKEN_RESULTS_DIR"
+echo " Processing databases: $DATABASES"
+echo " vsearch similarity: $VSEARCH_SIMILARITY"
+echo " Output directory:   $OUTPUT_DIR"
 echo
 
 ### ── PROCESS EACH DATABASE ────────────────────────────────────────
 for DATABASE in $DATABASES; do
   echo "════════════════════════════════════════════════════════════════"
-  echo "🗄️ Processing Database: $DATABASE"
+  echo " Processing Database: $DATABASE"
   echo "════════════════════════════════════════════════════════════════"
   
   # Check if Kraken2 results exist for this database
@@ -138,7 +138,7 @@ for DATABASE in $DATABASES; do
   echo
 
   ### ── APPROACH 1: VSEARCH CLUSTERING (RUNS LOCALLY) ───────────────
-  echo "🚀 APPROACH 1: vsearch Clustering for $DATABASE (Local Execution)"
+  echo " APPROACH 1: vsearch Clustering for $DATABASE (Local Execution)"
   echo "   Purpose: Fast, lightweight clustering for immediate results"
   echo "   Best for: Mock communities, teaching demonstrations"
   echo
@@ -181,7 +181,7 @@ for DATABASE in $DATABASES; do
   done
 
   ### ── APPROACH 2: AMPLICON_SORTER DEMO (COMMAND PROVIDED) ──────────
-  echo "🎯 APPROACH 2: amplicon_sorter Demo for $DATABASE (Advanced Clustering)"
+  echo " APPROACH 2: amplicon_sorter Demo for $DATABASE (Advanced Clustering)"
   echo "   Purpose: Sophisticated clustering designed for ONT/eDNA data"
   echo "   Best for: Real eDNA samples, final publication results"
   if [[ "$AMPLICON_AVAILABLE" -eq 1 ]]; then
@@ -204,7 +204,7 @@ for DATABASE in $DATABASES; do
     if [[ "$AMPLICON_AVAILABLE" -eq 1 ]]; then
       cat << EOF
     
-    📋 amplicon_sorter Command for $DATABASE (Available):
+     amplicon_sorter Command for $DATABASE (Available):
     ────────────────────────────────────────────────────────────────
     $AMPLICON_SORTER_CMD \\
       -i '$classified_file' \\
@@ -221,7 +221,7 @@ EOF
     else
       cat << EOF
     
-    📋 amplicon_sorter Command for $DATABASE (Copy & Paste to Try):
+     amplicon_sorter Command for $DATABASE (Copy & Paste to Try):
     ────────────────────────────────────────────────────────────────
     python3 \$(which amplicon_sorter) \\
       -i '$classified_file' \\
@@ -242,7 +242,7 @@ EOF
 
     # Only run if specifically requested and available
     if [[ "${RUN_AMPLICON_SORTER:-0}" -eq 1 && "$AMPLICON_AVAILABLE" -eq 1 ]]; then
-      echo "  🔄 Running amplicon_sorter (this may take a while or hang)..."
+      echo "  Running amplicon_sorter (this may take a while or hang)..."
       $AMPLICON_SORTER_CMD \
         -i "$classified_file" \
         -min "$AMPLICON_MINLEN" \
@@ -256,9 +256,9 @@ EOF
         }
     else
       if [[ "$AMPLICON_AVAILABLE" -eq 1 ]]; then
-        echo "  💡 To enable amplicon_sorter execution: RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh ..."
+        echo "  To enable amplicon_sorter execution: RUN_AMPLICON_SORTER=1 bash scripts/03_consensus_sort.sh ..."
       else
-        echo "  💡 Install amplicon_sorter to enable execution (currently showing demo commands only)"
+        echo "  Install amplicon_sorter to enable execution (currently showing demo commands only)"
       fi
     fi
     echo
@@ -270,7 +270,7 @@ done
 
 ### ── PRE-COMPUTED AMPLICON_SORTER RESULTS ───────────────────────
 echo "════════════════════════════════════════════════════════════════"
-echo "📁 APPROACH 2B: Pre-computed amplicon_sorter Results"
+echo " APPROACH 2B: Pre-computed amplicon_sorter Results"
 echo "════════════════════════════════════════════════════════════════"
 echo "   For this class, we provide pre-computed amplicon_sorter results:"
 echo "   Generated on high-performance server with optimized parameters"
@@ -284,7 +284,7 @@ if [[ ${#precomputed_files[@]} -gt 0 && -f "${precomputed_files[0]}" ]]; then
   echo "  ✅ Found ${#precomputed_files[@]} pre-computed result file(s):"
   
   # Combine all pre-computed results into one file for downstream analysis
-  echo "  📋 Combining into: $OUTPUT_DIR/amplicon_sorter_consensus.fasta"
+  echo "   Combining into: $OUTPUT_DIR/amplicon_sorter_consensus.fasta"
   > "$OUTPUT_DIR/amplicon_sorter_consensus.fasta"
   
   for precomputed_file in "${precomputed_files[@]}"; do
@@ -314,7 +314,7 @@ if [[ ${#precomputed_files[@]} -gt 0 && -f "${precomputed_files[0]}" ]]; then
   # Show the exact server command used to generate these results
   cat << 'EOF'
   
-  🖥️  Server Command Used to Generate Pre-computed Results:
+  ️  Server Command Used to Generate Pre-computed Results:
   ────────────────────────────────────────────────────────────────
   # For each sample:
   python3 ~/amp_sorter/amplicon_sorter.py \
@@ -331,7 +331,7 @@ if [[ ${#precomputed_files[@]} -gt 0 && -f "${precomputed_files[0]}" ]]; then
     -o fish_consensus_MAX_reads_[1-3]
   ────────────────────────────────────────────────────────────────
   
-  📚 Parameter Explanations (Optimized for 12S/mitofish):
+   Parameter Explanations (Optimized for 12S/mitofish):
   
   Basic Parameters:
   • -min 150, -max 350    : Length filter (150-350bp)
@@ -365,7 +365,7 @@ if [[ ${#precomputed_files[@]} -gt 0 && -f "${precomputed_files[0]}" ]]; then
                            Reason: Maximize parallel processing on server
                            Local systems use -np 1 to avoid crashes
   
-  🎯 Results: Multiple high-quality consensus sequences representing distinct fish species/variants
+   Results: Multiple high-quality consensus sequences representing distinct fish species/variants
      Compare with vsearch's many clusters - same biology, different granularity!
   
 EOF
@@ -378,13 +378,13 @@ fi
 echo
 
 ### ── COMPARISON & NEXT STEPS ──────────────────────────────────────
-echo "📊 CLUSTERING COMPARISON SUMMARY"
+echo " CLUSTERING COMPARISON SUMMARY"
 echo "────────────────────────────────────────────────────────────────"
 echo "Processed databases: $DATABASES"
 echo
 echo "Two approaches demonstrated for each database:"
 echo
-echo "1. 🏃 vsearch (Fast & Local):"
+echo "1.  vsearch (Fast & Local):"
 for DATABASE in $DATABASES; do
   if [[ -d "$VSEARCH_DIR/$DATABASE" ]]; then
     echo "   • $DATABASE results: $VSEARCH_DIR/$DATABASE/*_vsearch_consensus.fasta"
@@ -394,7 +394,7 @@ echo "   • Pros: Fast, reliable, runs locally"
 echo "   • Cons: Conservative clustering, may preserve errors"
 echo "   • Use case: Mock communities, quick analysis"
 echo
-echo "2. 🎯 amplicon_sorter (Advanced & Thorough):"
+echo "2.  amplicon_sorter (Advanced & Thorough):"
 if [[ "$AMPLICON_AVAILABLE" -eq 1 ]]; then
   echo "   • Status: Available for execution"
   echo "   • Command: $AMPLICON_SORTER_CMD"
@@ -406,16 +406,16 @@ echo "   • Pros: Sophisticated error correction, designed for ONT data"
 echo "   • Cons: Slow locally, requires server resources"
 echo "   • Use case: Real eDNA samples, publication-quality results"
 echo
-echo "📈 For downstream analysis, you can use BOTH:"
+echo " For downstream analysis, you can use BOTH:"
 echo "   • vsearch results: Compare clustering approaches across databases"
 echo "   • amplicon_sorter results: Final biological interpretation"
 echo
-echo "🔬 Next steps:"
+echo " Next steps:"
 echo "   • Taxonomic assignment of consensus sequences"
 echo "   • Compare clustering methods with Krona plots"
 echo "   • Species identification and abundance estimation"
 echo
-echo "🔗 Next step:"
+echo " Next step:"
 # Detect workflow from OUTPUT_DIR path
 if [[ "$OUTPUT_DIR" == *"ont_native"* ]]; then
   echo " bash scripts/04_denoise.sh $OUTPUT_DIR results/ont_native_04_denoise"
