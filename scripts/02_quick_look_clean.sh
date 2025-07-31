@@ -30,7 +30,7 @@ QUALITY_THRESHOLD="${QUALITY_THRESHOLD:-12}"   # Q12 quality threshold
 MIN_LENGTH="${MIN_LENGTH:-100}"                # minimum read length
 MAX_LENGTH="${MAX_LENGTH:-500}"                # maximum read length (initial broad filter)
 
-echo "🔬 DeCodeDNA Quality Control & Classification"
+echo " DeCodeDNA Quality Control & Classification"
 echo "═══════════════════════════════════════════════════════════════════"
 
 # Detect multiplexing workflow from input directory name
@@ -43,16 +43,16 @@ else
   WORKFLOW_TYPE="Auto-detected from files"
 fi
 
-echo "🔹 Workflow:         $WORKFLOW_TYPE"
-echo "🔹 Input dir:        $INPUT_DIR"
-echo "🔹 Output dir:       $OUTPUT_DIR"
-echo "🔹 Database root:    $DB_ROOT"
-echo "🔹 Quality filter:   Q≥$QUALITY_THRESHOLD (FASTQ only)"
-echo "🔹 Length filter:    ${MIN_LENGTH}-${MAX_LENGTH} bp"
+echo " Workflow:         $WORKFLOW_TYPE"
+echo " Input dir:        $INPUT_DIR"
+echo " Output dir:       $OUTPUT_DIR"
+echo " Database root:    $DB_ROOT"
+echo " Quality filter:   Q≥$QUALITY_THRESHOLD (FASTQ only)"
+echo " Length filter:    ${MIN_LENGTH}-${MAX_LENGTH} bp"
 echo ""
 
 # ─── SANITY: required tools must exist ────────────────────────────────────
-echo "🔍 Checking required tools..."
+echo " Checking required tools..."
 for cmd in kraken2 seqkit; do
   if ! command -v "$cmd" &>/dev/null; then
     echo "❌ Error: $cmd not found."
@@ -110,13 +110,13 @@ if [[ ! -d "$INPUT_DIR" ]]; then
     OLD_DEMUX_PATH="$PROJECT_ROOT/demux/demultiplexed"
     
     echo ""
-    echo "🔍 Looking for demux files to set up custom CCI workflow..."
+    echo " Looking for demux files to set up custom CCI workflow..."
     echo "   Checking: $OLD_DEMUX_PATH"
     
     if [[ -d "$OLD_DEMUX_PATH" ]] && [[ -n "$(ls -A "$OLD_DEMUX_PATH"/*.fa 2>/dev/null)" ]]; then
       echo "   ✅ Found existing demux files!"
       echo ""
-      echo "🔄 Setting up custom_cci_barcodes automatically..."
+      echo " Setting up custom_cci_barcodes automatically..."
       echo "   Source: $OLD_DEMUX_PATH"
       echo "   Target: $INPUT_DIR"
       
@@ -125,7 +125,7 @@ if [[ ! -d "$INPUT_DIR" ]]; then
       
       # Count and copy files
       file_count=$(ls "$OLD_DEMUX_PATH"/*.fa 2>/dev/null | wc -l)
-      echo "   📊 Copying $file_count .fa files..."
+      echo "    Copying $file_count .fa files..."
       
       if [[ "$file_count" -gt 0 ]]; then
         cp "$OLD_DEMUX_PATH"/*.fa "$INPUT_DIR/"
@@ -133,10 +133,10 @@ if [[ ! -d "$INPUT_DIR" ]]; then
         
         # Verify copy worked
         copied_count=$(ls "$INPUT_DIR"/*.fa 2>/dev/null | wc -l)
-        echo "   📊 Verification: $copied_count files in target directory"
+        echo "    Verification: $copied_count files in target directory"
         
         # Show sample files
-        echo "   📋 Sample files copied:"
+        echo "    Sample files copied:"
         ls "$INPUT_DIR"/*.fa | head -3 | sed 's/^/     /'
         if [[ "$file_count" -gt 3 ]]; then
           echo "     ... and $((file_count - 3)) more files"
@@ -149,14 +149,14 @@ if [[ ! -d "$INPUT_DIR" ]]; then
     else
       echo "   ❌ No demux files found at $OLD_DEMUX_PATH"
       echo ""
-      echo "💡 Manual setup required:"
+      echo " Manual setup required:"
       echo "   1. Place your .fa files in: $INPUT_DIR"
       echo "   2. Or copy from demux: cp demux/demultiplexed/*.fa $INPUT_DIR/"
       exit 1
     fi
   else
     echo ""
-    echo "💡 Setup suggestions:"
+    echo " Setup suggestions:"
     echo "   • For ONT native: Place FASTQ files in ont_native_barcodes/"
     echo "   • For custom CCI: Place .fa files in custom_cci_barcodes/demultiplexed/"
     echo "   • Or manually copy your demux files to: $INPUT_DIR"
@@ -178,7 +178,7 @@ echo ""
 shopt -s nullglob
 fa_files=("$INPUT_DIR"/*.fa)
 if [[ ${#fa_files[@]} -gt 0 ]]; then
-  echo "🔄 Detected .fa files - running EFPQ conversion automatically..."
+  echo " Detected .fa files - running EFPQ conversion automatically..."
   echo "   Found ${#fa_files[@]} .fa files that need EFPQ conversion"
   
   # Save current directory
@@ -206,11 +206,11 @@ if [[ ${#fa_files[@]} -gt 0 ]]; then
     
     # Verify conversion worked
     fasta_count=$(ls *.fasta 2>/dev/null | wc -l || echo "0")
-    echo "   📊 Created $fasta_count .fasta files"
+    echo "    Created $fasta_count .fasta files"
     
     if [[ "$fasta_count" -eq 0 ]]; then
       echo "   ❌ No .fasta files created after conversion"
-      echo "   🔧 Files in directory:"
+      echo "   Files in directory:"
       ls -la | head -10
     fi
   else
@@ -251,11 +251,11 @@ done
 if [[ ${#fastq_files[@]} -gt 0 ]]; then
   INPUT_TYPE="FASTQ"
   input_files=("${fastq_files[@]}")
-  echo "📊 Input type: FASTQ (quality filtering will be applied)"
+  echo " Input type: FASTQ (quality filtering will be applied)"
 else
   INPUT_TYPE="FASTA" 
   input_files=("${fasta_files[@]}")
-  echo "📊 Input type: FASTA (quality filtering skipped - assumes pre-filtered)"
+  echo " Input type: FASTA (quality filtering skipped - assumes pre-filtered)"
 fi
 
 echo ""
@@ -442,10 +442,10 @@ rm -f "$OUT_DIR/${sample}_${db}_classified_ids.txt" "$OUT_DIR/${sample}_${db}_un
           echo "      Checking file content:"
           head -6 "$OUT_DIR/${sample}_${db}_classified.fasta" | sed 's/^/        /'
           
-          # Emergency fix: strip problematic characters
-          echo "      🔧 Applying emergency fix..."
+          # Format fix: strip problematic characters
+          echo "      Applying format fix..."
           sed -i.bak 's/[-]//g' "$OUT_DIR/${sample}_${db}_classified.fasta"
-          echo "      ✓ Emergency fix applied (removed dashes)"
+          echo "      ✓ Format fix applied"
         fi
       fi
     fi
@@ -479,7 +479,7 @@ done
 echo
 echo "✅ Quality control and classification complete!"
 echo
-echo "📊 Results summary:"
+echo " Results summary:"
 echo " • Processed input:           $INPUT_TYPE files"
 echo " • Filtered sequences         → $FILTERED_DIR/"
 if [[ "$USE_AMPLICON_SORTER" -eq 1 ]]; then
@@ -491,7 +491,7 @@ if [[ "$USE_KRONA" -eq 1 ]]; then
   echo " • Interactive Krona plots    → $OUTPUT_DIR/*/*.krona.html"
 fi
 echo
-echo "🔗 Next step:"
+echo " Next step:"
 if [[ "$WORKFLOW_TYPE" == "ONT Native Barcoding" ]]; then
   echo " bash scripts/03_consensus_sort.sh $OUTPUT_DIR results/ont_native_03_consensus"
 elif [[ "$WORKFLOW_TYPE" == "Custom CCI Barcoding" ]]; then
