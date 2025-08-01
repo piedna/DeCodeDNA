@@ -127,20 +127,24 @@ bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplex
 
 ### Quick Setup (5-10 minutes)
 ```bash
-# 1. Clone repository
+# 1. Create project workspace
+mkdir eDNA_workshop
+cd eDNA_workshop
+
+# 2. Clone repository
 git clone https://github.com/piedna/DeCodeDNA.git
 cd DeCodeDNA
 
-# 2. Create conda environment
+# 3. Create conda environment
 conda env create -f environment.yml
 conda activate decode-dna
 
-# 3. Setup essential components (explained below)
+# 4. Setup essential components (explained below)
 bash scripts/install_krona_taxonomy.sh      # Sets up interactive visualization system
 bash scripts/install_R_dependencies.sh      # Installs LULU denoising packages
 bash scripts/install_external_tools.sh      # Downloads amplicon_sorter & ONTbarcoder
 
-# 4. Setup databases (choose one option)
+# 5. Setup databases (choose one option)
 # Option A: Use pre-built databases (classroom - recommended)
 source scripts/setup_databases.sh
 
