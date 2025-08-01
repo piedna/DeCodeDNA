@@ -60,7 +60,7 @@ if [[ ${#MISSING_TOOLS[@]} -gt 0 ]]; then
   echo "   - TaxonKit: conda install -c bioconda taxonkit"
   echo ""
   echo "After installation, download NCBI taxonomy:"
-  echo "   taxonkit --data-dir ~/.taxonkit create-taxdump"
+  echo "   taxonkit create-taxdump --data-dir ~/.taxonkit"
   exit 1
 fi
 
@@ -72,7 +72,7 @@ else
   echo "   ❌ TaxonKit taxonomy database not found"
   echo ""
   echo "Please download NCBI taxonomy database:"
-  echo "   taxonkit --data-dir ~/.taxonkit create-taxdump"
+  echo "   taxonkit create-taxdump --data-dir ~/.taxonkit"
   echo "   Or set TAXONKIT_DB environment variable"
   echo ""
   echo "This is required for BLAST databases with taxonomy support"
