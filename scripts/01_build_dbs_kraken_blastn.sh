@@ -70,13 +70,36 @@ if taxonkit list --ids 9606 &>/dev/null; then
   echo "   ✅ TaxonKit taxonomy database found"
 else
   echo "   ❌ TaxonKit taxonomy database not found"
-  echo ""
-  echo "Please download NCBI taxonomy database:"
-  echo "   taxonkit create-taxdump --data-dir ~/.taxonkit"
-  echo "   Or set TAXONKIT_DB environment variable"
-  echo ""
-  echo "This is required for BLAST databases with taxonomy support"
-  exit 1
+  echo "    Downloading NCBI taxonomy database automatically..."
+  
+  # Create directory and download taxonomy
+  mkdir -p ~/.taxonkit
+  cd ~/.taxonkit
+  
+  if wget -q ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz; then
+    tar -xzf taxdump.tar.gz
+    rm taxdump.tar.gz
+    echo "   ✅ TaxonKit taxonomy database downloaded and installed"
+    
+    # Verify it works now
+    if taxonkit list --ids 9606 &>/dev/null; then
+      echo "   ✅ TaxonKit taxonomy database verification successful"
+    else
+      echo "   ❌ TaxonKit taxonomy database verification failed"
+      exit 1
+    fi
+  else
+    echo "   ❌ Failed to download NCBI taxonomy database"
+    echo ""
+    echo "Please download manually:"
+    echo "   mkdir -p ~/.taxonkit && cd ~/.taxonkit"
+    echo "   wget ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
+    echo "   tar -xzf taxdump.tar.gz && rm taxdump.tar.gz"
+    exit 1
+  fi
+  
+  # Return to script directory
+  cd "$SCRIPT_DIR/.."
 fi
 
 # Check and download BLAST taxonomy database for scientific names
