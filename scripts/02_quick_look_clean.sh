@@ -125,18 +125,18 @@ if [[ ! -d "$INPUT_DIR" ]]; then
       
       # Count and copy files
       file_count=$(ls "$OLD_DEMUX_PATH"/*.fa 2>/dev/null | wc -l)
-      echo "    Copying $file_count .fa files..."
+      echo "   Copying $file_count .fa files..."
       
       if [[ "$file_count" -gt 0 ]]; then
         cp "$OLD_DEMUX_PATH"/*.fa "$INPUT_DIR/"
-        echo "   ✅ Files copied successfully"
+        echo "  ✅ Files copied successfully"
         
         # Verify copy worked
         copied_count=$(ls "$INPUT_DIR"/*.fa 2>/dev/null | wc -l)
-        echo "    Verification: $copied_count files in target directory"
+        echo "   Verification: $copied_count files in target directory"
         
         # Show sample files
-        echo "    Sample files copied:"
+        echo "   Sample files copied:"
         ls "$INPUT_DIR"/*.fa | head -3 | sed 's/^/     /'
         if [[ "$file_count" -gt 3 ]]; then
           echo "     ... and $((file_count - 3)) more files"
@@ -163,6 +163,24 @@ if [[ ! -d "$INPUT_DIR" ]]; then
     exit 1
   fi
 fi
+
+# ─── HANDLE NESTED DEMULTIPLEXED DIRECTORIES ──────────────────────────────
+# Check if files are actually in a nested 'demultiplexed' subdirectory
+shopt -s nullglob
+current_files=("$INPUT_DIR"/*.fastq "$INPUT_DIR"/*.fastq.gz "$INPUT_DIR"/*.fq "$INPUT_DIR"/*.fq.gz "$INPUT_DIR"/*.fasta "$INPUT_DIR"/*.fas "$INPUT_DIR"/*.fa)
+nested_demux_dir="$INPUT_DIR/demultiplexed"
+
+if [[ ${#current_files[@]} -eq 0 && -d "$nested_demux_dir" ]]; then
+  echo " No files found in $INPUT_DIR, checking nested demultiplexed directory..."
+  nested_files=("$nested_demux_dir"/*.fastq "$nested_demux_dir"/*.fastq.gz "$nested_demux_dir"/*.fq "$nested_demux_dir"/*.fq.gz "$nested_demux_dir"/*.fasta "$nested_demux_dir"/*.fas "$nested_demux_dir"/*.fa)
+  
+  if [[ ${#nested_files[@]} -gt 0 ]]; then
+    echo "✅ Found ${#nested_files[@]} files in nested directory: $nested_demux_dir"
+    echo " Updating input directory to: $nested_demux_dir"
+    INPUT_DIR="$nested_demux_dir"
+  fi
+fi
+
 
 # ─── MAKE OUTPUT DIRS ─────────────────────────────────────────────────────
 FILTERED_DIR="$OUTPUT_DIR/filtered"
