@@ -443,7 +443,7 @@ fi
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 3: KRAKEN2 ANALYSIS (FOLLOWING OLD SCRIPT) ─────────────────────
+# ─── PART 3: KRAKEN2 ANALYSIS ─────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
 echo " PART 3: KRAKEN2 ANALYSIS"
@@ -471,7 +471,7 @@ if [[ "${SKIP_KRAKEN:-false}" != "true" ]]; then
   echo ""
   echo " Creating per-sample FASTA files for Kraken2..."
   
-  # Use the working Python script from your old script
+  # Working Python script 
   cat > "$TEMP_DIR/split_fasta_by_sample.py" << 'EOF'
 #!/usr/bin/env python3
 import sys
@@ -675,10 +675,10 @@ echo ""
 # ─── PART 4: PROCESS TAXONOMIC RESULTS ─────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo " PART 4: PROCESSING TAXONOMIC RESULTS (Following old script)"
+echo " PART 4: PROCESSING TAXONOMIC RESULTS "
 echo "═══════════════════════════════════════════════════════════════════"
 
-# Create comprehensive taxonomy processing script following the old script exactly
+# Create comprehensive taxonomy processing script 
 cat > "$TEMP_DIR/process_complete_taxonomy.R" << 'EOF'
 library(dplyr)
 library(readr)
