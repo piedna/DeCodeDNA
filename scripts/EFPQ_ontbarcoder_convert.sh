@@ -10,9 +10,9 @@ for i in *.fa
 
 	do
 	
-	sed -i '' 's/E/A/g' $i
-	sed -i '' 's/F/G/g' $i
-	sed -i '' 's/Q/C/g' $i
-	sed -i '' 's/P/T/g' $i
+	sed -i 's/E/A/g' $i
+	sed -i 's/F/G/g' $i
+	sed -i 's/Q/C/g' $i
+	sed -i 's/P/T/g' $i
 	
 	done
