@@ -379,7 +379,19 @@ echo "    • Extracting classified sequences from Kraken2 output..."
 # Extract classified sequences (those marked with 'C') - only if they exist
 if grep -q "^C" "$OUT_DIR/${sample}_${db}.output.txt"; then
   grep "^C" "$OUT_DIR/${sample}_${db}.output.txt" | cut -f2 > "$OUT_DIR/${sample}_${db}_classified_ids.txt"
-  seqkit grep -f "$OUT_DIR/${sample}_${db}_classified_ids.txt" "$filtered_file" -o "$OUT_DIR/${sample}_${db}_classified.fasta"
+  
+  # Check header format and use appropriate extraction method
+  if head -1 "$filtered_file" | grep -q $'\t'; then
+    # Tab-delimited headers (MFU style) - use pattern matching
+    echo "    ⚠️  Detected tab-delimited headers, using pattern matching..."
+    > "$OUT_DIR/${sample}_${db}_classified.fasta"  # Initialize empty file
+    while read -r seq_id; do
+      seqkit grep -r -p "^>${seq_id}" "$filtered_file" >> "$OUT_DIR/${sample}_${db}_classified.fasta"
+    done < "$OUT_DIR/${sample}_${db}_classified_ids.txt"
+  else
+    # Space-delimited headers (COI/MV1 style) - use standard file matching
+    seqkit grep -f "$OUT_DIR/${sample}_${db}_classified_ids.txt" "$filtered_file" -o "$OUT_DIR/${sample}_${db}_classified.fasta"
+  fi
 else
   # Create empty file if no classified sequences
   touch "$OUT_DIR/${sample}_${db}_classified.fasta"
@@ -388,11 +400,23 @@ fi
 # Extract unclassified sequences (those marked with 'U') - only if they exist
 if grep -q "^U" "$OUT_DIR/${sample}_${db}.output.txt"; then
   grep "^U" "$OUT_DIR/${sample}_${db}.output.txt" | cut -f2 > "$OUT_DIR/${sample}_${db}_unclassified_ids.txt"
-  seqkit grep -f "$OUT_DIR/${sample}_${db}_unclassified_ids.txt" "$filtered_file" -o "$OUT_DIR/${sample}_${db}_unclassified.fasta"
+  
+  # Check header format and use appropriate extraction method
+  if head -1 "$filtered_file" | grep -q $'\t'; then
+    # Tab-delimited headers (MFU style) - use pattern matching
+    > "$OUT_DIR/${sample}_${db}_unclassified.fasta"  # Initialize empty file
+    while read -r seq_id; do
+      seqkit grep -r -p "^>${seq_id}" "$filtered_file" >> "$OUT_DIR/${sample}_${db}_unclassified.fasta"
+    done < "$OUT_DIR/${sample}_${db}_unclassified_ids.txt"
+  else
+    # Space-delimited headers (COI/MV1 style) - use standard file matching
+    seqkit grep -f "$OUT_DIR/${sample}_${db}_unclassified_ids.txt" "$filtered_file" -o "$OUT_DIR/${sample}_${db}_unclassified.fasta"
+  fi
 else
   # Create empty file if no unclassified sequences
   touch "$OUT_DIR/${sample}_${db}_unclassified.fasta"
 fi
+
 
 # Clean up temp ID files
 rm -f "$OUT_DIR/${sample}_${db}_classified_ids.txt" "$OUT_DIR/${sample}_${db}_unclassified_ids.txt"
