@@ -382,12 +382,53 @@ if grep -q "^C" "$OUT_DIR/${sample}_${db}.output.txt"; then
   
   # Check header format and use appropriate extraction method
   if head -1 "$filtered_file" | grep -q $'\t'; then
-    # Tab-delimited headers (MFU style) - use pattern matching
-    echo "    ⚠️  Detected tab-delimited headers, using pattern matching..."
-    > "$OUT_DIR/${sample}_${db}_classified.fasta"  # Initialize empty file
-    while read -r seq_id; do
-      seqkit grep -r -p "^>${seq_id}" "$filtered_file" >> "$OUT_DIR/${sample}_${db}_classified.fasta"
-    done < "$OUT_DIR/${sample}_${db}_classified_ids.txt"
+    # Tab-delimited headers (MFU style) - use AWK for efficient processing
+    echo "    ⚠️  Detected tab-delimited headers, using AWK extraction..."
+    
+    # Create a temporary AWK script for better debugging
+    cat > "$OUT_DIR/extract_classified.awk" << 'EOF'
+BEGIN {
+    # Read the IDs we want to extract into an array
+    while ((getline id < id_file) > 0) {
+        wanted[id] = 1
+    }
+    close(id_file)
+    print_sequence = 0
+}
+/^>/ {
+    # Extract sequence ID (first field after >)
+    header_line = $0
+    sub(/^>/, "", header_line)
+    
+    # Split on tab first, then space as fallback
+    split(header_line, parts, /\t/)
+    if (length(parts) == 1) {
+        split(header_line, parts, / /)
+    }
+    
+    seq_id = parts[1]
+    
+    # Check if this sequence ID is in our wanted list
+    if (seq_id in wanted) {
+        print_sequence = 1
+        print $0
+    } else {
+        print_sequence = 0
+    }
+    next
+}
+# Print sequence lines only if header matched
+print_sequence == 1 {
+    print $0
+}
+EOF
+    
+    # Run AWK with the ID file as a variable
+    awk -v id_file="$OUT_DIR/${sample}_${db}_classified_ids.txt" -f "$OUT_DIR/extract_classified.awk" "$filtered_file" > "$OUT_DIR/${sample}_${db}_classified.fasta"
+    
+    # Clean up temp AWK script
+    rm "$OUT_DIR/extract_classified.awk"
+    
   else
     # Space-delimited headers (COI/MV1 style) - use standard file matching
     seqkit grep -f "$OUT_DIR/${sample}_${db}_classified_ids.txt" "$filtered_file" -o "$OUT_DIR/${sample}_${db}_classified.fasta"
@@ -403,11 +444,52 @@ if grep -q "^U" "$OUT_DIR/${sample}_${db}.output.txt"; then
   
   # Check header format and use appropriate extraction method
   if head -1 "$filtered_file" | grep -q $'\t'; then
-    # Tab-delimited headers (MFU style) - use pattern matching
-    > "$OUT_DIR/${sample}_${db}_unclassified.fasta"  # Initialize empty file
-    while read -r seq_id; do
-      seqkit grep -r -p "^>${seq_id}" "$filtered_file" >> "$OUT_DIR/${sample}_${db}_unclassified.fasta"
-    done < "$OUT_DIR/${sample}_${db}_unclassified_ids.txt"
+    # Tab-delimited headers (MFU style) - use AWK for efficient processing
+    
+    # Create a temporary AWK script for unclassified sequences
+    cat > "$OUT_DIR/extract_unclassified.awk" << 'EOF'
+BEGIN {
+    # Read the IDs we want to extract into an array
+    while ((getline id < id_file) > 0) {
+        wanted[id] = 1
+    }
+    close(id_file)
+    print_sequence = 0
+}
+/^>/ {
+    # Extract sequence ID (first field after >)
+    header_line = $0
+    sub(/^>/, "", header_line)
+    
+    # Split on tab first, then space as fallback
+    split(header_line, parts, /\t/)
+    if (length(parts) == 1) {
+        split(header_line, parts, / /)
+    }
+    
+    seq_id = parts[1]
+    
+    # Check if this sequence ID is in our wanted list
+    if (seq_id in wanted) {
+        print_sequence = 1
+        print $0
+    } else {
+        print_sequence = 0
+    }
+    next
+}
+# Print sequence lines only if header matched
+print_sequence == 1 {
+    print $0
+}
+EOF
+    
+    # Run AWK with the ID file as a variable
+    awk -v id_file="$OUT_DIR/${sample}_${db}_unclassified_ids.txt" -f "$OUT_DIR/extract_unclassified.awk" "$filtered_file" > "$OUT_DIR/${sample}_${db}_unclassified.fasta"
+    
+    # Clean up temp AWK script
+    rm "$OUT_DIR/extract_unclassified.awk"
+    
   else
     # Space-delimited headers (COI/MV1 style) - use standard file matching
     seqkit grep -f "$OUT_DIR/${sample}_${db}_unclassified_ids.txt" "$filtered_file" -o "$OUT_DIR/${sample}_${db}_unclassified.fasta"
@@ -417,10 +499,8 @@ else
   touch "$OUT_DIR/${sample}_${db}_unclassified.fasta"
 fi
 
-
 # Clean up temp ID files
 rm -f "$OUT_DIR/${sample}_${db}_classified_ids.txt" "$OUT_DIR/${sample}_${db}_unclassified_ids.txt"
-    echo "    ✓ ${db} classification done"
 
     # ─── STEP 2.5: Convert Kraken2 output to proper FASTA format ─────
     echo "    • Converting Kraken2 output to proper FASTA format..."
