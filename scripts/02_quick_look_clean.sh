@@ -15,6 +15,11 @@ OUTPUT_DIR="$2"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Source database config if it exists
+if [[ -f ".database_config" ]]; then
+  source .database_config
+fi
+
 # Database locations (created by script 01)
 DB_ROOT="${DB_ROOT:-$PROJECT_ROOT/../databases/kraken2_db}"
 
