@@ -8,14 +8,16 @@ echo " Detecting available databases..."
 # Check local databases first (students should build their own)
 if [[ -d "../databases/kraken2_db" ]]; then
   echo " Using local databases at: ../databases/"
-  echo "✅ Local databases found!"
+  echo "Creating .database_config for local databases..."
+  echo "export DB_ROOT=\"$PWD/../databases/kraken2_db\"" > .database_config
+  echo "✅ Local databases configured!"
   echo ""
   echo " Ready to run pipeline with local databases!"
   return 0
 fi
 
 # Check USB second (fallback for students)
-for usb_mount in "/Volumes/DeCodeDNA_DB" "/Volumes/DeCodeDNA" "/media/$USER/DeCodeDNA_DB" "/media/$USER/DeCodeDNA" "/mnt/DeCodeDNA_DB" "/mnt/DeCodeDNA"; do
+for usb_mount in "/mnt/d" "/mnt/e" "/mnt/f" "/Volumes/DeCodeDNA_DB" "/Volumes/DeCodeDNA" "/media/$USER/DeCodeDNA_DB" "/media/$USER/DeCodeDNA" "/mnt/DeCodeDNA_DB" "/mnt/DeCodeDNA"; do
   if [[ -d "$usb_mount/databases/kraken2_db" ]]; then
     export DB_ROOT="$usb_mount/databases/kraken2_db"
     export BLAST_DB_ROOT="$usb_mount/databases/blast_db"
