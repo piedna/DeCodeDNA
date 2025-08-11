@@ -1,18 +1,17 @@
 #!/bin/bash
-##script written to convert the EFPQ bases that were converted by ONTBarcoder
-##NOTE that this is an expected behaviour of ONTBarcoder:
-	#https://github.com/asrivathsan/ONTbarcoder/issues/2
-	
-	#rename the files
-#rename 's/.fa/.fasta/' *.fa
+# Script to convert EFPQ bases that were converted by ONTBarcoder
 
-for i in *.fa
-
-	do
-	
-	sed -i 's/E/A/g' $i
-	sed -i 's/F/G/g' $i
-	sed -i 's/Q/C/g' $i
-	sed -i 's/P/T/g' $i
-	
-	done
+# Process all .fa files
+for i in *.fa; do
+    # Check if file exists (handles case where no .fa files exist)
+    if [[ -f "$i" ]]; then
+        echo "Processing: $i"
+        sed -i.bak \
+            -e 's/E/A/g' \
+            -e 's/F/G/g' \
+            -e 's/Q/C/g' \
+            -e 's/P/T/g' \
+            "$i"
+        echo "Completed: $i"
+    fi
+done
