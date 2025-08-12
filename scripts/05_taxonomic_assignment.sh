@@ -271,169 +271,222 @@ echo "════════════════════════�
 if command -v taxonkit >/dev/null 2>&1; then
   echo "✅ TaxonKit found - processing BLAST results for LCA consensus"
   
-  # Hash coding python
+  # Comprehensive LCA processing following co-author's approach
   CDIR="$OUTPUT_DIR" VSEARCH_OTU_TABLE="$VSEARCH_OTU_TABLE" python3 <<'PYCODE'
 import os, subprocess, pandas as pd
-
-CD    = os.environ["CDIR"]
-HASHF = os.path.join(CD, "00_temp_files/kept_hashes.txt")
-BLAST = os.path.join(CD, "01_blast_results/otu_euk_blast_combined.out")
-T1    = os.path.join(CD, "00_temp_files/taxids_for_lca.txt")
-RAW   = os.path.join(CD, "00_temp_files/lca_raw.txt")
-LIN   = os.path.join(CD, "00_temp_files/lca_lineage.txt")
-OUT   = os.path.join(CD, "03_final_taxonomy/otu_lca_results_combined.csv")
-
-# Create kept_hashes.txt from OTU table
-otu_table_file = os.environ["VSEARCH_OTU_TABLE"]
-with open(otu_table_file) as f:
-    header = f.readline()
-    all_hashes = []
-    for line in f:
-        if line.strip():
-            otu_id = line.split(',')[0].strip().strip('"')
-            all_hashes.append(otu_id)
-
-print(f"Found {len(all_hashes)} OTUs from OTU table")
-
-# 4b) load BLAST (if any)  FROM YOUR SCRIPT
-cols = ["Taxon","CommonName","Hash","Accession","pident","length",
-        "mismatch","gapopen","qcovus","qstart","qend","sstart","send",
-        "evalue","bitscore","staxids","qlen","qcovs"]
-if os.path.exists(BLAST) and os.path.getsize(BLAST) > 0:
-    df = pd.read_csv(BLAST, sep="\t", names=cols, dtype=str)
-    # NO prefix stripping - keep as is like your script
-    df["pident"] = df["pident"].astype(float)
-    print(f"Loaded {len(df)} BLAST hits")
-else:
-    df = pd.DataFrame(columns=cols)
-    print("No BLAST results found")
-
-# 4c) pick best hit(s) per Hash  FROM YOUR SCRIPT
-best = []
-for h, grp in df.groupby("Hash"):
-    sel = grp[grp.pident == 100.0]
-    for thr in (99.3, 98.0, 96.0):
-        if sel.empty:
-            sel = grp[grp.pident > thr]
-    best.append(sel if not sel.empty else grp)
-filtered = pd.concat(best) if best else pd.DataFrame(columns=cols)
-
-print(f"After filtering: {len(filtered)} hits for {filtered['Hash'].nunique()} unique OTUs")
-
-# 4d) write taxid lists for EVERY kept hash (0 if no hit) 
-with open(T1, "w") as w:
-    for h in all_hashes:
-        hits = filtered.loc[filtered.Hash == h, "staxids"]
-        if hits.empty:
-            w.write(f"{h}\t0\n")
-        else:
-            ids = ",".join(pd.unique(hits.str.replace(";",",")))
-            w.write(f"{h}\t{ids}\n")
-
-print(f"Wrote taxid input for {len(all_hashes)} OTUs")
-
-# 4e) run TaxonKit 
-subprocess.run(["taxonkit", "lca", "-i","2", "-o", RAW, T1], check=True)
-subprocess.run(["taxonkit", "reformat", "-I","3", "-o", LIN, RAW], check=True)
-
-# 4f) load and split lineage 
-lca = (pd.read_csv(LIN, sep="\t", header=None,
-                   names=["Hash","BlastTaxIDs","LCA_taxid","Lineage"],
-                   dtype=str)
-         .fillna(""))
-ranks = ["Kingdom","Phylum","Class","Order","Family","Genus","Species"]
-parts = lca.Lineage.str.split(";", expand=True)
-for i, r in enumerate(ranks):
-    lca[r] = parts[i] if i < parts.shape[1] else ""
-
-# 4g) merge EVERYTHING back into one table 
-base   = pd.DataFrame({"Hash": all_hashes})
-merged = base.merge(filtered, on="Hash", how="left")
-final  = merged.merge(lca[["Hash"]+ranks], on="Hash", how="left")
-
-# 4h) write out
-final.to_csv(OUT, index=False)
-print("✅ Wrote", OUT)
-PYCODE
-
-  echo "✅ TaxonKit LCA analysis complete!"
-  
-  # Now create the abundance matrix 
-  echo " Creating species abundance matrix..."
-  
-  CDIR="$OUTPUT_DIR" VSEARCH_OTU_TABLE="$VSEARCH_OTU_TABLE" python3 <<'PYCODE'
-import os
-import pandas as pd
+from datetime import datetime
 
 CD = os.environ["CDIR"]
+BLAST = os.path.join(CD, "01_blast_results/otu_euk_blast_combined.out")
+T1 = os.path.join(CD, "00_temp_files/taxids_for_lca.txt")
+RAW = os.path.join(CD, "00_temp_files/lca_raw.txt")
+LIN = os.path.join(CD, "00_temp_files/lca_lineage.txt")
+DB_OUT = os.path.join(CD, "03_final_taxonomy/Comprehensive_OTU_Database.csv")
+ABUNDANCE_OUT = os.path.join(CD, "03_final_taxonomy/TaxonKit_LCA_species_abundance.csv")
+
+# Read OTU table for sample names
 otu_table_file = os.environ["VSEARCH_OTU_TABLE"]
-lca_results_file = os.path.join(CD, "03_final_taxonomy/otu_lca_results_combined.csv")
-final_table_file = os.path.join(CD, "03_final_taxonomy/TaxonKit_LCA_species_abundance.csv")
-
-print("Creating final species abundance matrix...")
-
-# Read OTU table
 otu_data = pd.read_csv(otu_table_file)
 otu_data.columns = [col.strip().strip('"') for col in otu_data.columns]
 otu_data.iloc[:, 0] = otu_data.iloc[:, 0].astype(str).str.strip().str.strip('"')
 
-print(f"OTU table: {otu_data.shape[0]} OTUs, {otu_data.shape[1]-1} samples")
+print(f"Processing OTU table: {otu_data.shape[0]} OTUs, {otu_data.shape[1]-1} samples")
 
-# Read LCA results
-lca_data = pd.read_csv(lca_results_file)
+# Read BLAST results
+cols = ["Taxon","CommonName","Hash","Accession","pident","length",
+        "mismatch","gapopen","qcovus","qstart","qend","sstart","send",
+        "evalue","bitscore","staxids","qlen","qcovs"]
 
-# Extract species names from taxonomy
-def extract_species_name(row):
-    """Extract best species name from taxonomy"""
-    species = str(row.get('Species', ''))
-    genus = str(row.get('Genus', ''))
-    family = str(row.get('Family', ''))
+if os.path.exists(BLAST) and os.path.getsize(BLAST) > 0:
+    df = pd.read_csv(BLAST, sep="\t", names=cols, dtype=str)
+    df["pident"] = df["pident"].astype(float)
+    print(f"Loaded {len(df)} BLAST hits")
+else:
+    print("No BLAST results found")
+    exit(1)
+
+# Remove unconfirmed sequences (like co-author's script)
+df = df[~df['Accession'].str.match('^(XM_|XP_|XR_)', na=False)]
+print(f"After removing unconfirmed sequences: {len(df)} hits")
+
+# Apply hierarchical filtering (exactly like co-author's script)
+SP_THOLD = 97  # Species threshold
+result_list = {}
+
+for hash_id in df['Hash'].unique():
+    hash_hits = df[df['Hash'] == hash_id]
     
-    if species and species != 'nan' and species != '':
-        return species
-    elif genus and genus != 'nan' and genus != '':
-        return f"{genus} sp."
-    elif family and family != 'nan' and family != '':
-        return f"{family} family"
+    # Step 1: 100% identity
+    selected_hits = hash_hits[hash_hits['pident'] == 100]
+    
+    # Step 2: >99.3% identity
+    if len(selected_hits) == 0:
+        selected_hits = hash_hits[hash_hits['pident'] > 99.3]
+    
+    # Step 3: >98% identity
+    if len(selected_hits) == 0:
+        selected_hits = hash_hits[hash_hits['pident'] > 98]
+    
+    # Step 4: >96% identity
+    if len(selected_hits) == 0:
+        selected_hits = hash_hits[hash_hits['pident'] > 96]
+    
+    # Step 5: >94% identity
+    if len(selected_hits) == 0:
+        selected_hits = hash_hits[hash_hits['pident'] > 94]
+    
+    # Step 6: Use all hits
+    if len(selected_hits) == 0:
+        selected_hits = hash_hits
+    
+    result_list[hash_id] = selected_hits
+
+# Combine selected data
+selected_data = pd.concat(result_list.values(), ignore_index=True)
+print(f"After hierarchical filtering: {len(selected_data)} selected hits")
+
+# Compute max pident per Hash
+max_pident_df = selected_data.groupby('Hash')['pident'].max().reset_index()
+max_pident_df.columns = ['Hash', 'Max_pident']
+
+# Build taxid list for LCA
+a = (selected_data[['Hash', 'staxids']]
+     .dropna()
+     .drop_duplicates()
+     .groupby('Hash')['staxids']
+     .apply(lambda x: ' '.join(x).replace(';', ' '))
+     .reset_index()
+     .rename(columns={'staxids': 'tax_list'}))
+
+# Summarize other fields like co-author's script
+tax_list_df = (selected_data[['Hash', 'Taxon']]
+               .dropna()
+               .drop_duplicates()
+               .groupby('Hash')['Taxon']
+               .apply(lambda x: ', '.join(x))
+               .reset_index()
+               .rename(columns={'Taxon': 'Tax_list'}))
+
+mismatch_df = (selected_data[['Hash', 'mismatch']]
+               .dropna()
+               .drop_duplicates()
+               .groupby('Hash')['mismatch']
+               .apply(lambda x: ', '.join(x))
+               .reset_index()
+               .rename(columns={'mismatch': 'Mismatches'}))
+
+acc_df = (selected_data[['Hash', 'Accession']]
+          .dropna()
+          .drop_duplicates()
+          .groupby('Hash')['Accession']
+          .apply(lambda x: ', '.join(x))
+          .reset_index()
+          .rename(columns={'Accession': 'AccessionNumbers'}))
+
+# Write taxids for TaxonKit LCA
+with open(T1, "w") as w:
+    for _, row in a.iterrows():
+        w.write(f"{row['Hash']}\t{row['tax_list']}\n")
+
+print(f"Wrote taxid input for {len(a)} OTUs")
+
+# Run TaxonKit
+subprocess.run(["taxonkit", "lca", "-i", "2", "-o", RAW, T1], check=True)
+subprocess.run(["taxonkit", "reformat", "-I", "3", "-o", LIN, RAW], check=True)
+
+# Load LCA results
+lca = pd.read_csv(LIN, sep="\t", header=None,
+                  names=["Hash", "BlastTaxIDs", "LCA_taxid", "Lineage"],
+                  dtype=str).fillna("")
+
+ranks = ["Kingdom", "Phylum", "Class", "Order", "Family", "Genus", "Species"]
+lineage_parts = lca['Lineage'].str.split(';', expand=True)
+for i, rank in enumerate(ranks):
+    lca[rank] = lineage_parts[i] if i < lineage_parts.shape[1] else ""
+
+# Merge everything together (like co-author's script)
+f = (tax_list_df
+     .merge(mismatch_df, on='Hash', how='left')
+     .merge(lca, on='Hash', how='left')
+     .merge(acc_df, on='Hash', how='left')
+     .merge(max_pident_df, on='Hash', how='left')
+     .fillna(''))
+
+# Filter out empty orders (like co-author's script)
+f = f[f['Order'] != '']
+
+# Apply species threshold logic
+f['Species'] = f.apply(lambda row: '' if row['Max_pident'] < SP_THOLD else row['Species'], axis=1)
+
+# Create BestTaxon with hierarchical fallback
+def get_best_taxon(row):
+    if row['Species'] and row['Species'] != '':
+        return row['Species']
+    elif row['Genus'] and row['Genus'] != '':
+        return row['Genus']
+    elif row['Family'] and row['Family'] != '':
+        return row['Family']
+    elif row['Order'] and row['Order'] != '':
+        return row['Order']
+    else:
+        return 'unclassified'
+
+f['BestTaxon'] = f.apply(get_best_taxon, axis=1)
+
+# Add haplotype numbers (like co-author's script)
+f['HaplotypeNumber'] = f.groupby('BestTaxon').cumcount() + 1
+
+# Add sequences and date
+f['Sequence'] = ''  # Add sequences later if needed
+f['DateAdded'] = datetime.now().strftime('%Y-%m-%d')
+
+# Reorder columns like co-author's output
+column_order = ['Hash', 'BestTaxon', 'HaplotypeNumber', 'Tax_list', 'Mismatches', 
+                'BlastTaxIDs', 'LCA_taxid', 'Kingdom', 'Phylum', 'Class', 'Order', 
+                'Family', 'Genus', 'Species', 'AccessionNumbers', 'Max_pident', 
+                'Sequence', 'DateAdded']
+
+f = f.reindex(columns=column_order).fillna('')
+
+# Save comprehensive database
+f.to_csv(DB_OUT, index=False)
+print(f"✅ Saved comprehensive database: {DB_OUT} ({len(f)} records)")
+
+# Create species abundance matrix for backwards compatibility
+def extract_final_species(row):
+    if row['Species'] and row['Species'] != '':
+        return row['Species']
+    elif row['Genus'] and row['Genus'] != '':
+        return f"{row['Genus']} sp."
+    elif row['Family'] and row['Family'] != '':
+        return f"{row['Family']} family"
     else:
         return "unclassified"
 
-lca_data['final_species'] = lca_data.apply(extract_species_name, axis=1)
+f['final_species'] = f.apply(extract_final_species, axis=1)
 
-# Merge OTU abundances with taxonomy
+# Merge with OTU abundances
 otu_long = otu_data.melt(id_vars=[otu_data.columns[0]], 
                         var_name='Sample', 
                         value_name='Count')
 otu_long.columns = ['Hash', 'Sample', 'Count']
 
-# Join with taxonomy
-result = otu_long.merge(lca_data[['Hash', 'final_species']], on='Hash', how='left')
+result = otu_long.merge(f[['Hash', 'final_species']], on='Hash', how='left')
 result['final_species'] = result['final_species'].fillna('unclassified')
 
-# Aggregate by species and sample
+# Create species abundance matrix
 species_matrix = result.groupby(['final_species', 'Sample'])['Count'].sum().reset_index()
 species_wide = species_matrix.pivot(index='final_species', columns='Sample', values='Count').fillna(0)
-
-# Reset index to make species a column
 species_wide = species_wide.reset_index()
 
-print(f"Final matrix: {species_wide.shape[0]} species across {species_wide.shape[1]-1} samples")
+# Save species abundance matrix
+species_wide.to_csv(ABUNDANCE_OUT, index=False)
+print(f"✅ Saved species abundance matrix: {ABUNDANCE_OUT} ({len(species_wide)} species)")
 
-# Save results
-species_wide.to_csv(final_table_file, index=False)
-print(f"✅ Saved species abundance matrix: {final_table_file}")
-
-# Show top species
-if len(species_wide) > 0:
-    total_counts = species_wide.iloc[:, 1:].sum(axis=1)
-    species_wide['Total'] = total_counts
-    top_species = species_wide.nlargest(10, 'Total')[['final_species', 'Total']]
-    print("\nTop 10 most abundant species:")
-    for _, row in top_species.iterrows():
-        print(f"  {row['final_species']}: {row['Total']} reads")
-    species_wide = species_wide.drop('Total', axis=1)
-    species_wide.to_csv(final_table_file, index=False)
+print("\n🎉 TaxonKit LCA analysis complete with comprehensive database!")
 PYCODE
+
+  echo "✅ TaxonKit LCA analysis complete!"
 
 else
   echo "⚠️  TaxonKit not found - skipping LCA analysis"
@@ -443,7 +496,7 @@ fi
 echo ""
 
 # ═══════════════════════════════════════════════════════════════════════════
-# ─── PART 3: KRAKEN2 ANALYSIS ─────────────────────
+# ─── PART 3: KRAKEN2 ANALYSIS (FOLLOWING OLD SCRIPT) ─────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
 echo " PART 3: KRAKEN2 ANALYSIS"
@@ -471,7 +524,7 @@ if [[ "${SKIP_KRAKEN:-false}" != "true" ]]; then
   echo ""
   echo " Creating per-sample FASTA files for Kraken2..."
   
-  # Working Python script 
+  # Use the working Python script from your old script
   cat > "$TEMP_DIR/split_fasta_by_sample.py" << 'EOF'
 #!/usr/bin/env python3
 import sys
@@ -675,10 +728,10 @@ echo ""
 # ─── PART 4: PROCESS TAXONOMIC RESULTS ─────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
-echo " PART 4: PROCESSING TAXONOMIC RESULTS "
+echo " PART 4: PROCESSING TAXONOMIC RESULTS"
 echo "═══════════════════════════════════════════════════════════════════"
 
-# Create comprehensive taxonomy processing script 
+# Create comprehensive taxonomy processing script following the old script exactly
 cat > "$TEMP_DIR/process_complete_taxonomy.R" << 'EOF'
 library(dplyr)
 library(readr)
@@ -827,15 +880,15 @@ for (db in c("12s", "coi", "mitofish")) {
         
         # Join classifications with taxonomic names
         sample_kraken_classified <- kraken_data %>%
-  filter(classified == "C") %>%
-  left_join(kraken_taxa, by = "taxid") %>%
-  mutate(
-    species = as.character(ifelse(is.na(name), paste0("taxid_", taxid), name)),
-    database = db,
-    sample = sample,
-    assignment_status = "classified"
-  ) %>%
-  select(OTU_ID, species, taxid, database, sample, assignment_status)
+          filter(classified == "C") %>%
+          left_join(kraken_taxa, by = "taxid") %>%
+          mutate(
+            species = as.character(ifelse(is.na(name), paste0("taxid_", taxid), name)),
+            database = db,
+            sample = sample,
+            assignment_status = "classified"
+          ) %>%
+          select(OTU_ID, species, taxid, database, sample, assignment_status)
         
         all_kraken_results <- bind_rows(all_kraken_results, sample_kraken_classified)
       }
@@ -926,7 +979,7 @@ echo "    BLAST results      → $BLAST_DIR"
 echo "    Kraken2 results    → $KRAKEN_DIR"
 echo "    Final taxonomy     → $TAXONOMY_DIR" 
 echo "    Krona plots        → $KRONA_DIR"
-echo "   Temp files        → $TEMP_DIR"
+echo "    Temp files         → $TEMP_DIR"
 echo ""
 
 echo " Key output files with REAL sample names (${REAL_SAMPLE_NAMES[*]}):"
@@ -935,10 +988,16 @@ echo ""
 # Show TaxonKit LCA results
 echo " TaxonKit LCA Results:"
 lca_file="$TAXONOMY_DIR/TaxonKit_LCA_species_abundance.csv"
+comprehensive_db="$TAXONOMY_DIR/Comprehensive_OTU_Database.csv"
+
 if [[ -f "$lca_file" ]]; then
   species_count=$(tail -n +2 "$lca_file" | wc -l 2>/dev/null || echo "0")
   echo "   ✅ TaxonKit_LCA_species_abundance.csv - $species_count species (CONSENSUS TAXONOMY)"
-  echo "   ✅ otu_lca_results_combined.csv - Complete results with lineage"
+fi
+
+if [[ -f "$comprehensive_db" ]]; then
+  otu_count=$(tail -n +2 "$comprehensive_db" | wc -l 2>/dev/null || echo "0")
+  echo "   ✅ Comprehensive_OTU_Database.csv - $otu_count OTUs with full traceability"
 else
   echo "   ⚠️  No TaxonKit LCA results generated"
 fi
@@ -994,30 +1053,33 @@ if [[ -f "$TAXONOMY_DIR/Comprehensive_Method_Comparison.csv" ]]; then
   echo "   • Comprehensive_Method_Comparison.csv - Compare all methods"
   echo ""
   echo " Method Ranking (by classification power):"
-  echo "   1. TaxonKit LCA - Consensus from multiple BLAST hits (MOST ROBUST)"
+  echo "   1. TaxonKit LCA + Hierarchical Fallback - Robust consensus taxonomy (RECOMMENDED)"
   echo "   2. BLAST Best Hit - Single best match per database"
   echo "   3. Kraken2 - K-mer based classification"
 fi
 
 echo ""
 echo "  PIPELINE FEATURES:"
-echo "   ✅ TaxonKit LCA consensus taxonomy from multiple BLAST hits "
+echo "   ✅ TaxonKit LCA with hierarchical fallback (Species → Genus → Family → Order)"
+echo "   ✅ Comprehensive OTU database with full traceability"
 echo "   ✅ Per-sample Kraken2 analysis with Krona visualizations"
 if [[ "$SUBSET_COUNT" -gt 0 ]]; then
   echo "   ✅ LIMITED to $SUBSET_COUNT sequences (SUBSET_COUNT=$SUBSET_COUNT)"
 else
   echo "   ✅ NO sequence subset limit - uses ALL sequences"
 fi
-echo "   ✅ Multi-hit filtering (100%, 99.3%, 98%, 96% thresholds)"
+echo "   ✅ Multi-hit filtering (100%, 99.3%, 98%, 96%, 94% thresholds)"
+echo "   ✅ Species threshold filtering (97% identity for species assignments)"
 echo "   ✅ Sample-specific abundance preservation: ${REAL_SAMPLE_NAMES[*]}"
 echo "   ✅ Species × sample abundance matrices"
 echo "   ✅ Compatible with both custom_cci and ont_native workflows"
 echo ""
 echo " Analysis complete! Key results:"
-echo "   • TaxonKit_LCA_species_abundance.csv - Most robust species identification"
+echo "   • Comprehensive_OTU_Database.csv - Complete OTU annotation database"
+echo "   • TaxonKit_LCA_species_abundance.csv - Robust species abundance matrix"
 echo "   • BLAST_vsearch_*_classified_species.csv - Database-specific species tables"
 echo "   • *_krona.html - Interactive taxonomic visualizations"
 echo "   • Comprehensive_Method_Comparison.csv - Compare all methods"
 echo ""
-echo " Pipeline complete! Ready for biological interpretation."
+echo " 🎉 Pipeline complete! Ready for biological interpretation."
 echo ""
