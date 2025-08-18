@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# scripts/03_consensus_sort_PIPELINE_COMPATIBLE_FIXED.sh
+# scripts/03_consensus_sort.sh
 #
 # Step III: Consensus Building - ABUNDANCE TRACKING + PIPELINE COMPATIBLE
-# FIXED VERSION: Creates exact file structure that script 04 expects
+# Creates exact file structure that script 04 expects
 #
 set -euo pipefail
 
