@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below. A peer-reviewed publication is in preparation; please check back for updated citation details."
+title: "DeCodeDNA: Oxford Nanopore eDNA Metabarcoding Pipeline"
+abstract: "An educational, end-to-end bioinformatics pipeline for analyzing environmental DNA (eDNA) using Oxford Nanopore long-read sequencing. Covers POD5 basecalling, quality control, consensus calling, LULU denoising, and taxonomic assignment with BLAST and Kraken2 against MIDORI and MitoFish databases. Developed for the Friday Harbor Labs eDNA summer course by The eDNA Collaborative."
+type: software
+authors:
+  - given-names: "Aden"
+    family-names: "REPLACE_WITH_LAST_NAME"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"   # uncomment and fill if you have an ORCID
+repository-code: "https://github.com/piedna/DeCodeDNA"
+url: "https://github.com/piedna/DeCodeDNA"
+license: MIT
+version: "0.1.0"
+date-released: "2025-08-01"
+keywords:
+  - environmental DNA
+  - eDNA
+  - metabarcoding
+  - Oxford Nanopore
+  - ONT
+  - bioinformatics
+  - taxonomic assignment
+  - LULU
+  - BLAST
+  - Kraken2
+  - MIDORI
+  - MitoFish
+  - amplicon sequencing

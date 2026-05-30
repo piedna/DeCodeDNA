@@ -4,6 +4,35 @@
 
 A complete, educational bioinformatics pipeline for analyzing environmental DNA (eDNA) using Oxford Nanopore long-read sequencing technology. Designed for Friday Harbor Labs' (FHL) eDNA summer course by [The eDNA Collaborative](https://www.ednacollab.org)
 
+> **⚠️ Citation required.** This software is released under the MIT license and is freely available, but **any use in publications, presentations, posters, theses, or derived work must cite this repository** (see [How to Cite](#-how-to-cite) below). A peer-reviewed manuscript is in preparation.
+
+---
+
+## 📑 How to Cite
+
+If you use DeCodeDNA in your research, teaching, or any derived work, please cite it. A peer-reviewed publication is in preparation; until then, please cite the software repository.
+
+**Plain text (APA-ish):**
+
+> Aden, [Last Name]. (2025). *DeCodeDNA: Oxford Nanopore eDNA Metabarcoding Pipeline* (Version 0.1.0) [Computer software]. GitHub. https://github.com/piedna/DeCodeDNA
+
+**BibTeX:**
+
+```bibtex
+@software{decodedna2025,
+  author       = {Aden [Last Name]},
+  title        = {{DeCodeDNA: Oxford Nanopore eDNA Metabarcoding Pipeline}},
+  year         = {2025},
+  version      = {0.1.0},
+  url          = {https://github.com/piedna/DeCodeDNA},
+  note         = {Manuscript in preparation}
+}
+```
+
+GitHub also displays a **"Cite this repository"** button on the right sidebar of the repo page (powered by the `CITATION.cff` file), which exports APA and BibTeX automatically.
+
+If you use the comparison framework against [Decona](https://github.com/Saskia-Oosterbroek/decona) or other tools, please also cite the original Decona work alongside DeCodeDNA.
+
 ---
 
 ## 🧬 What is DeCodeDNA?
