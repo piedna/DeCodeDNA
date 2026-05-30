@@ -6,16 +6,16 @@ A DOI (Digital Object Identifier) makes your repo *formally citable* in journal 
 
 - Journals require DOIs in reference lists; a bare GitHub URL is not always accepted.
 - Each GitHub *release* gets its own DOI plus a "concept DOI" that always points to the latest version.
-- Once minted, your work is archived permanently — even if GitHub disappears.
+- Once minted, your work is archived permanently, even if GitHub disappears.
 
 ## Step-by-step (one-time setup, ~5 min)
 
 1. **Go to https://zenodo.org** and click **Sign up with GitHub** (top right). Authorize the OAuth prompt.
 2. On Zenodo, click your profile (top right) → **GitHub**. You'll see a list of all your GitHub repos.
-3. Find **`piedna/DeCodeDNA`** in the list and flip the toggle to **ON**. That's it — Zenodo is now watching the repo.
+3. Find **`piedna/DeCodeDNA`** in the list and flip the toggle to **ON**. That's it. Zenodo is now watching the repo.
 4. Go back to GitHub → your repo → **Releases** (right sidebar) → **Create a new release**.
    - Tag: `v0.1.0`
-   - Title: `DeCodeDNA v0.1.0 — initial public release`
+   - Title: `DeCodeDNA v0.1.0`
    - Description: short summary of what's in this version.
    - Click **Publish release**.
 5. Wait ~1 minute. Zenodo automatically archives the release and mints a DOI.
@@ -36,10 +36,10 @@ Every time you publish a new GitHub release, Zenodo auto-archives it and mints a
 
 Once you have a DOI, your citation becomes:
 
-> Aden, [Last Name]. (2025). *DeCodeDNA: Oxford Nanopore eDNA Metabarcoding Pipeline* (v0.1.0). Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
+> Ip, Y. C. A. (2025). *DeCodeDNA: an end-to-end eDNA metabarcoding analysis pipeline that can be run on everyday laptops* (v0.1.0). Zenodo. https://doi.org/10.5281/zenodo.20453273
 
 That's the version journals will accept without complaint.
 
 ## Difficulty
 
-Easy. The only thing that ever trips people up is forgetting to flip the toggle in step 3 *before* creating the release — Zenodo only catches releases made after the toggle is on. If you already created a release, just edit it (or cut a new tag `v0.1.1`) and Zenodo will pick it up.
+Easy. The only thing that ever trips people up is forgetting to flip the toggle in step 3 *before* creating the release. Zenodo only catches releases made after the toggle is on. If you already created a release, just edit it (or cut a new tag `v0.1.1`) and Zenodo will pick it up.

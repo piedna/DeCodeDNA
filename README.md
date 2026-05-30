@@ -1,5 +1,8 @@
 # DeCodeDNA
 
+[![DOI](https://zenodo.org/badge/998175357.svg)](https://doi.org/10.5281/zenodo.20453273)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 **Oxford Nanopore eDNA Metabarcoding Pipeline for Friday Harbor Lab Class 2025**
 
 A complete, educational bioinformatics pipeline for analyzing environmental DNA (eDNA) using Oxford Nanopore long-read sequencing technology. Designed for Friday Harbor Labs' (FHL) eDNA summer course by [The eDNA Collaborative](https://www.ednacollab.org)
@@ -12,19 +15,23 @@ A complete, educational bioinformatics pipeline for analyzing environmental DNA 
 
 If you use DeCodeDNA in your research, teaching, or any derived work, please cite it. A peer-reviewed publication is in preparation; until then, please cite the software repository.
 
+**DOI:** [10.5281/zenodo.20453273](https://doi.org/10.5281/zenodo.20453273) (always resolves to the latest version)
+
 **Plain text (APA-ish):**
 
-> Aden, [Last Name]. (2025). *DeCodeDNA: Oxford Nanopore eDNA Metabarcoding Pipeline* (Version 0.1.0) [Computer software]. GitHub. https://github.com/piedna/DeCodeDNA
+> Ip, Y. C. A. (2025). *DeCodeDNA: an end-to-end eDNA metabarcoding analysis pipeline that can be run on everyday laptops* (Version 0.1.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20453273
 
 **BibTeX:**
 
 ```bibtex
 @software{decodedna2025,
-  author       = {Aden [Last Name]},
-  title        = {{DeCodeDNA: Oxford Nanopore eDNA Metabarcoding Pipeline}},
+  author       = {Ip, Yin Cheong Aden},
+  title        = {{DeCodeDNA: an end-to-end eDNA metabarcoding analysis pipeline that can be run on everyday laptops}},
   year         = {2025},
   version      = {0.1.0},
-  url          = {https://github.com/piedna/DeCodeDNA},
+  doi          = {10.5281/zenodo.20453273},
+  url          = {https://doi.org/10.5281/zenodo.20453273},
+  publisher    = {Zenodo},
   note         = {Manuscript in preparation}
 }
 ```
