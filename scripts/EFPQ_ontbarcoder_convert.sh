@@ -7,10 +7,7 @@ for i in *.fa; do
     if [[ -f "$i" ]]; then
         echo "Processing: $i"
         sed -i.bak \
-            -e 's/E/A/g' \
-            -e 's/F/G/g' \
-            -e 's/Q/C/g' \
-            -e 's/P/T/g' \
+            -e '/^>/!{s/E/A/g; s/F/G/g; s/Q/C/g; s/P/T/g;}' \
             "$i"
         echo "Completed: $i"
     fi

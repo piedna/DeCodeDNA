@@ -1,0 +1,37 @@
+# Pinned tool set for the DeCodeDNA container image.
+# Every version below exists for both linux-64 and linux-aarch64, so the
+# Intel and Apple Silicon / ARM images run identical software.
+# (environment.yml stays the place for native conda installs.)
+name: base
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  # pipeline tools (scripts 01-05)
+  - kraken2=2.17.2
+  - vsearch=2.32.0
+  - blast=2.16.0          # 2.17 is not yet built for linux-aarch64
+  - taxonkit=0.20.0
+  - seqkit=2.14.0
+  - seqtk                 # random subsetting in script 05
+  - krona=2.8.1
+  - bc
+  # Python (inline scripts + amplicon_sorter)
+  - python=3.12
+  - pandas
+  - numpy
+  - biopython
+  - python-edlib
+  - matplotlib-base
+  # R (LULU + taxonomy tables in script 05)
+  - r-base=4.4
+  - r-dplyr
+  - r-readr
+  - r-tidyr
+  - r-stringr
+  # downloads in script 01 and image build
+  - curl
+  - wget
+  - unzip
+  - git
+  - tini

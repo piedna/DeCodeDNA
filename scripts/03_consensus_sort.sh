@@ -15,7 +15,7 @@ DATABASES="${DATABASES:-12s coi mitofish}"
 
 # Clustering parameters
 VSEARCH_SIMILARITY="${VSEARCH_SIMILARITY:-0.97}"
-VSEARCH_THREADS="${VSEARCH_THREADS:-15}"
+VSEARCH_THREADS="${VSEARCH_THREADS:-${THREADS:-8}}"
 
 # Directories - MATCH ORIGINAL 03 STRUCTURE
 VSEARCH_DIR="$OUTPUT_DIR/vsearch_clustering"
@@ -58,6 +58,7 @@ echo "Abundance tracking:  $ABUNDANCE_DIR"
 echo
 
 ### ── PROCESS EACH DATABASE ──────────────────────────────────────────────
+consensus_built=0
 for DATABASE in $DATABASES; do
     echo "╔══════════════════════════════════════════════════════════════════════"
     echo "║ Processing Database: $DATABASE"
@@ -171,6 +172,7 @@ dereplicated_file: $derep_file
 consensus_file: $vsearch_consensus
 EOF
         
+        consensus_built=$((consensus_built + 1))
         echo "  vsearch consensus: $vsearch_consensus"
         echo "  abundance summary: $summary_file"
         
@@ -189,6 +191,11 @@ EOF
     echo "Database $DATABASE processing complete!"
     echo
 done
+
+if [[ $consensus_built -eq 0 ]]; then
+    echo "❌ Error: no consensus sequences were built (no classified reads found in $KRAKEN_RESULTS_DIR for: $DATABASES)"
+    exit 1
+fi
 
 ### ── FINAL SUMMARY & NEXT STEPS ────────────────────────────────────────
 echo "CLUSTERING WITH ABUNDANCE TRACKING COMPLETE"

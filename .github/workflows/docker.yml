@@ -1,0 +1,73 @@
+name: Docker image
+
+on:
+  pull_request:
+    paths: ["docker/**", "scripts/**", ".dockerignore", ".github/workflows/docker.yml"]
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/decodedna
+
+jobs:
+  # Fast check on every PR / main push: build amd64, check the tools, run QC on mock data.
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          load: true
+          tags: decodedna:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Tools check (databases are expected to be missing)
+        run: |
+          set +e
+          docker run --rm decodedna:test check
+          code=$?
+          # 0 = ready, 3 = tools OK but no databases mounted; anything else is a failure
+          [ "$code" -eq 0 ] || [ "$code" -eq 3 ]
+      - name: Script 02 refuses to run without databases
+        run: |
+          ! docker run --rm decodedna:test qc /opt/decodedna/workflows/ont_native_barcodes /tmp/out
+
+  # Multi-arch release image on version tags (v0.2.0 → :0.2.0 and :latest)
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: smoke-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha

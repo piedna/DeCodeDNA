@@ -1,0 +1,160 @@
+#!/usr/bin/env bash
+# decodedna: single entry point for the DeCodeDNA pipeline.
+# Used as the container entrypoint, and later as the backend the GUI calls.
+set -euo pipefail
+
+ROOT="${DECODEDNA_ROOT:-$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)}"
+SCRIPTS="$ROOT/scripts"
+
+# ─── defaults shared by every step ──────────────────────────────────────────
+export DATABASE_DIR="${DATABASE_DIR:-/databases}"
+export DB_ROOT="${DB_ROOT:-$DATABASE_DIR/kraken2_db}"
+export BLAST_DB_ROOT="${BLAST_DB_ROOT:-$DATABASE_DIR/blast_db}"
+export DATABASES="${DATABASES:-12s coi mitofish}"
+if [[ -z "${THREADS:-}" ]]; then
+  THREADS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+fi
+export THREADS
+
+usage() {
+  cat <<EOF
+DeCodeDNA - Oxford Nanopore eDNA metabarcoding pipeline
+
+Usage: decodedna <command> [args]
+
+Commands:
+  check                          Check tools and reference databases
+  build-db                       Build Kraken2 + BLAST databases into \$DATABASE_DIR (script 01, 1-2 h, ~200 GB)
+  qc         <input> <out>       Quality filter + Kraken2 quick look   (script 02)
+  consensus  <02_dir> <out>      vsearch consensus clustering          (script 03)
+  denoise    <03_dir> <out>      LULU denoising                        (script 04)
+  taxonomy   <04_dir> <out>      BLAST/TaxonKit/Kraken2 + Krona plots  (script 05)
+  run-all    <input> <run_dir>   Steps 02 -> 05 into <run_dir>/{02_quicklook,03_consensus,04_denoise,05_taxonomy}
+  example    <run_dir>           run-all on the bundled 12S mock data (ONT native barcodes)
+  help                           Show this message
+
+Any other command is executed as-is (e.g. 'decodedna bash').
+
+Settings (environment variables, defaults in brackets):
+  DATABASE_DIR [$DATABASE_DIR]  DATABASES [$DATABASES]  THREADS [$THREADS]
+  QUALITY_THRESHOLD [12]  MIN_LENGTH [100]  MAX_LENGTH [500]  CONFIDENCE [0.05]
+  VSEARCH_SIMILARITY [0.97]  LULU_MAX_OTUS [1000, 0 = all]
+  EVALUE [1e-40]  MAX_HITS [50]  SUBSET_COUNT [0 = all]  SKIP_KRAKEN [false]  SKIP_KRONA [false]
+  KRAKEN_MEMORY_MAPPING [false]  read Kraken2 DBs from disk instead of RAM
+EOF
+}
+
+need_args() {
+  local n="$1"; shift
+  if [[ $# -lt $n ]]; then
+    echo "❌ Missing arguments. Run 'decodedna help' for usage." >&2
+    exit 2
+  fi
+}
+
+# Run one pipeline script, logging to <out>/<step>.log
+run_step() {
+  local script="$1" input="$2" out="$3"
+  mkdir -p "$out"
+  local log="$out/decodedna_$(basename "$script" .sh).log"
+  echo "▶ $(basename "$script")  $input → $out   (log: $log)"
+  bash "$SCRIPTS/$script" "$input" "$out" 2>&1 | tee "$log"
+}
+
+write_run_info() {
+  local input="$1" run_dir="$2"
+  mkdir -p "$run_dir"
+  {
+    echo "# DeCodeDNA run"
+    echo "started:            $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "input:              $input"
+    echo "databases:          $DATABASES"
+    echo "database_dir:       $DATABASE_DIR"
+    echo "threads:            $THREADS"
+    for v in QUALITY_THRESHOLD MIN_LENGTH MAX_LENGTH CONFIDENCE VSEARCH_SIMILARITY LULU_MAX_OTUS EVALUE MAX_HITS SUBSET_COUNT SKIP_KRAKEN SKIP_KRONA KRAKEN_MEMORY_MAPPING; do
+      printf '%-19s %s\n' "$(echo "$v" | tr 'A-Z' 'a-z'):" "${!v:-default}"
+    done
+    if [[ -f "${TAXONKIT_DB:-/nonexistent}/SNAPSHOT_DATE" ]]; then
+      echo "ncbi_taxonomy:      $(cat "$TAXONKIT_DB/SNAPSHOT_DATE")"
+    fi
+    echo
+    echo "# tool versions"
+    tool_versions
+  } > "$run_dir/run_info.txt"
+}
+
+tool_versions() {
+  local line
+  line=$(kraken2 --version 2>/dev/null | head -1) && echo "kraken2:  $line"
+  line=$(vsearch --version 2>&1 | head -1) && echo "vsearch:  $line"
+  line=$(blastn -version 2>/dev/null | head -1) && echo "blastn:   $line"
+  line=$(taxonkit version 2>/dev/null | head -1) && echo "taxonkit: $line"
+  line=$(seqkit version 2>/dev/null | head -1) && echo "seqkit:   $line"
+  line=$(R --version 2>/dev/null | head -1) && echo "R:        $line"
+  line=$(Rscript -e 'cat(as.character(packageVersion("lulu")))' 2>/dev/null) && echo "lulu:     $line"
+  true
+}
+
+cmd_check() {
+  local ok=1
+  echo "Tools"
+  for t in kraken2 vsearch blastn taxonkit seqkit Rscript ktImportText amplicon_sorter bc; do
+    if command -v "$t" >/dev/null 2>&1; then echo "  ✅ $t"; else echo "  ❌ $t missing"; ok=0; fi
+  done
+  if Rscript -e 'library(lulu)' >/dev/null 2>&1; then echo "  ✅ R package lulu"; else echo "  ❌ R package lulu missing"; ok=0; fi
+  if taxonkit list --ids 9606 >/dev/null 2>&1; then echo "  ✅ TaxonKit taxonomy"; else echo "  ❌ TaxonKit taxonomy missing (TAXONKIT_DB=${TAXONKIT_DB:-~/.taxonkit})"; ok=0; fi
+
+  echo
+  echo "Databases ($DATABASE_DIR)"
+  local dbs_ok=1
+  for db in $DATABASES; do
+    if [[ -f "$DB_ROOT/$db/taxo.k2d" ]]; then echo "  ✅ Kraken2 $db"; else echo "  ❌ Kraken2 $db  ($DB_ROOT/$db/taxo.k2d)"; dbs_ok=0; fi
+    if [[ -f "$BLAST_DB_ROOT/$db/$db.nsq" || -f "$BLAST_DB_ROOT/$db/$db.nin" || -f "$BLAST_DB_ROOT/$db/$db.nal" ]]; then
+      echo "  ✅ BLAST   $db"
+    else
+      echo "  ❌ BLAST   $db  ($BLAST_DB_ROOT/$db/$db.*)"; dbs_ok=0
+    fi
+  done
+  # Without taxdb BLAST reports no scientific names and script 05's LCA table comes out empty
+  if [[ -f "$BLAST_DB_ROOT/taxdb.btd" ]]; then echo "  ✅ BLAST taxdb"; else echo "  ❌ BLAST taxdb  ($BLAST_DB_ROOT/taxdb.btd; species tables would be empty)"; dbs_ok=0; fi
+
+  echo
+  if [[ $ok -eq 0 ]]; then
+    echo "❌ Some tools are missing."
+    exit 1
+  elif [[ $dbs_ok -eq 0 ]]; then
+    echo "⚠️  Tools OK, but some databases are missing. Mount a database folder at $DATABASE_DIR or run 'decodedna build-db'."
+    exit 3
+  fi
+  echo "✅ Ready."
+}
+
+cmd_run_all() {
+  local input="$1" run_dir="$2"
+  write_run_info "$input" "$run_dir"
+  run_step 02_quick_look_clean.sh   "$input"                 "$run_dir/02_quicklook"
+  run_step 03_consensus_sort.sh     "$run_dir/02_quicklook"  "$run_dir/03_consensus"
+  run_step 04_denoise.sh            "$run_dir/03_consensus"  "$run_dir/04_denoise"
+  run_step 05_taxonomic_assignment.sh "$run_dir/04_denoise" "$run_dir/05_taxonomy"
+  echo "finished:           $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$run_dir/run_info.txt"
+  echo
+  echo "✅ Run complete: $run_dir"
+  echo "   Species table: $run_dir/05_taxonomy/03_final_taxonomy/TaxonKit_LCA_species_abundance.csv"
+  echo "   Krona plots:   $run_dir/05_taxonomy/04_krona_plots/"
+}
+
+cmd="${1:-help}"
+if [[ $# -gt 0 ]]; then shift; fi
+case "$cmd" in
+  help|-h|--help) usage ;;
+  check)          cmd_check ;;
+  build-db)       bash "$SCRIPTS/01_build_dbs_kraken_blastn.sh" ;;
+  qc)             need_args 2 "$@"; run_step 02_quick_look_clean.sh "$1" "$2" ;;
+  consensus)      need_args 2 "$@"; run_step 03_consensus_sort.sh "$1" "$2" ;;
+  denoise)        need_args 2 "$@"; run_step 04_denoise.sh "$1" "$2" ;;
+  taxonomy)       need_args 2 "$@"; run_step 05_taxonomic_assignment.sh "$1" "$2" ;;
+  run-all)        need_args 2 "$@"; cmd_run_all "$1" "$2" ;;
+  example)        need_args 1 "$@"; cmd_run_all "$ROOT/workflows/ont_native_barcodes" "$1" ;;
+  versions)       tool_versions ;;
+  *)              exec "$cmd" "$@" ;;
+esac
