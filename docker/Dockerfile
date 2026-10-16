@@ -52,7 +52,7 @@ RUN curl -fsSL -o /tmp/taxdump.tar.gz https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/
     test -s "$KRONA_TAX/taxonomy.tab" && \
     rm -f "${KRONA_TAX:?}/taxdump.tar.gz" "${KRONA_TAX:?}"/*.dmp && \
     date -u +%Y-%m-%d > /opt/taxonkit/SNAPSHOT_DATE && \
-    taxonkit list --ids 9606 >/dev/null
+    taxonkit list --ids 9606 </dev/null >/dev/null
 
 # ── DeCodeDNA scripts + example data ────────────────────────────────────────
 COPY scripts/ /opt/decodedna/scripts/

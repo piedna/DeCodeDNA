@@ -102,7 +102,8 @@ cmd_check() {
     if command -v "$t" >/dev/null 2>&1; then echo "  ✅ $t"; else echo "  ❌ $t missing"; ok=0; fi
   done
   if Rscript -e 'library(lulu)' >/dev/null 2>&1; then echo "  ✅ R package lulu"; else echo "  ❌ R package lulu missing"; ok=0; fi
-  if taxonkit list --ids 9606 >/dev/null 2>&1; then echo "  ✅ TaxonKit taxonomy"; else echo "  ❌ TaxonKit taxonomy missing (TAXONKIT_DB=${TAXONKIT_DB:-~/.taxonkit})"; ok=0; fi
+  # </dev/null: taxonkit reads stdin when it is a pipe and fails on an empty one
+  if taxonkit list --ids 9606 </dev/null >/dev/null 2>&1; then echo "  ✅ TaxonKit taxonomy"; else echo "  ❌ TaxonKit taxonomy missing (TAXONKIT_DB=${TAXONKIT_DB:-~/.taxonkit})"; ok=0; fi
 
   echo
   echo "Databases ($DATABASE_DIR)"

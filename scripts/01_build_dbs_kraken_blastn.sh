@@ -68,7 +68,7 @@ fi
 
 # Special check for TaxonKit taxonomy database
 echo "   - Checking TaxonKit taxonomy database..."
-if taxonkit list --ids 9606 &>/dev/null; then
+if taxonkit list --ids 9606 </dev/null &>/dev/null; then
   echo "   ✅ TaxonKit taxonomy database found"
 else
   echo "   ❌ TaxonKit taxonomy database not found"
@@ -84,7 +84,7 @@ else
     echo "   ✅ TaxonKit taxonomy database downloaded and installed"
     
     # Verify it works now
-    if taxonkit list --ids 9606 &>/dev/null; then
+    if taxonkit list --ids 9606 </dev/null &>/dev/null; then
       echo "   ✅ TaxonKit taxonomy database verification successful"
     else
       echo "   ❌ TaxonKit taxonomy database verification failed"
