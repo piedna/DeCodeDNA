@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeCodeDNA</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f766e'/%3E%3Cpath d='M10 6c0 8 12 12 12 20M22 6c0 8-12 12-12 20M12 11h8M12 21h8' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo" aria-hidden="true"></span>DeCodeDNA</div>
+  <div class="workspace" id="workspace" title="Workspace folder on your computer"></div>
+  <div class="job-pill" id="job-pill" hidden></div>
+  <button class="ghost" id="quit-btn" title="Stop the DeCodeDNA app">Quit</button>
+</header>
+
+<div class="layout">
+  <nav class="steps" aria-label="Steps">
+    <button data-screen="databases"><span class="num">1</span><span><b>Databases</b><small>Reference data &amp; settings</small></span><i class="tick" id="tick-databases"></i></button>
+    <button data-screen="qc"><span class="num">2</span><span><b>Quality &amp; quick look</b><small>Filter reads, Kraken2</small></span><i class="tick" id="tick-qc"></i></button>
+    <button data-screen="consensus"><span class="num">3</span><span><b>Consensus</b><small>vsearch clustering</small></span><i class="tick" id="tick-consensus"></i></button>
+    <button data-screen="denoise"><span class="num">4</span><span><b>Denoise</b><small>LULU curation</small></span><i class="tick" id="tick-denoise"></i></button>
+    <button data-screen="taxonomy"><span class="num">5</span><span><b>Taxonomy &amp; results</b><small>BLAST, TaxonKit, Krona</small></span><i class="tick" id="tick-taxonomy"></i></button>
+  </nav>
+
+  <main id="main">
+    <!-- 1. Databases -->
+    <section class="screen" id="screen-databases">
+      <h1>Reference databases</h1>
+      <p class="lead">DeCodeDNA compares your reads against Kraken2 and BLAST databases (12S, COI, MitoFish). Pick which ones to use for every step.</p>
+
+      <div class="card">
+        <div class="card-head">
+          <div><h2>Database folder</h2><code id="db-folder"></code></div>
+          <button class="ghost" id="recheck-btn">Re-check</button>
+        </div>
+        <table class="db-table">
+          <thead><tr><th>Use</th><th>Database</th><th>Kraken2</th><th>BLAST</th></tr></thead>
+          <tbody id="db-rows"><tr><td colspan="4" class="muted">Checking…</td></tr></tbody>
+        </table>
+        <p id="taxdb-line" class="status-line"></p>
+        <p id="tools-line" class="status-line"></p>
+      </div>
+
+      <div class="card">
+        <h2>Performance</h2>
+        <div class="grid2">
+          <label class="field">CPU threads
+            <input type="number" id="threads" min="1" max="256">
+            <small id="threads-hint"></small>
+          </label>
+          <label class="field">Low-memory mode
+            <select id="memory-mapping">
+              <option value="auto">Automatic (recommended)</option>
+              <option value="on">On: read databases from disk</option>
+              <option value="off">Off: load databases into memory</option>
+            </select>
+            <small id="memory-hint"></small>
+          </label>
+        </div>
+      </div>
+
+      <div class="card subtle">
+        <h2>No databases yet?</h2>
+        <p>Building them downloads MIDORI 12S/COI and MitoFish and needs <b>~200&nbsp;GB of disk</b>, an internet connection and <b>1–2 hours</b>. They are written to the database folder above.</p>
+        <button id="build-db-btn">Build databases…</button>
+      </div>
+    </section>
+
+    <!-- 2. QC -->
+    <section class="screen" id="screen-qc" hidden>
+      <h1>Quality filter &amp; quick look</h1>
+      <p class="lead">Filters reads by quality and length, then classifies them with Kraken2 to give a first look at what is in each sample. One FASTQ/FASTA file per sample.</p>
+
+      <div class="card">
+        <h2>Input</h2>
+        <div class="picker">
+          <div class="picker-path" id="qc-input-label">No folder chosen</div>
+          <button id="qc-input-btn">Choose folder…</button>
+        </div>
+        <div class="examples" id="examples"></div>
+        <label class="field">Run name
+          <input type="text" id="run-name" spellcheck="false" autocomplete="off">
+          <small id="run-name-hint">Results are saved in <code>results/&lt;run name&gt;</code> inside your workspace.</small>
+        </label>
+      </div>
+
+      <div class="card">
+        <h2>Filtering</h2>
+        <label class="field">Preset
+          <select id="preset">
+            <option value="default">Default: Q12, 100–500 bp</option>
+            <option value="12s">12S eDNA: Q15, 150–350 bp</option>
+            <option value="mito">Complete mitogenomes: Q18, 15,000–18,000 bp</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <div class="grid4">
+          <label class="field">Min. quality (Q)<input type="number" id="quality" min="0" max="60" data-param="quality"></label>
+          <label class="field">Min. length (bp)<input type="number" id="min_length" min="1" data-param="min_length"></label>
+          <label class="field">Max. length (bp)<input type="number" id="max_length" min="1" data-param="max_length"></label>
+          <label class="field">Kraken2 confidence<input type="number" id="confidence" min="0" max="1" step="0.01" data-param="confidence"></label>
+        </div>
+        <p class="muted small">FASTA input (e.g. Custom CCI demultiplexed files) is not quality/length filtered; it was filtered before demultiplexing.</p>
+      </div>
+
+      <div class="actions">
+        <label class="check"><input type="checkbox" id="run-all" checked> Continue automatically through steps 3–5</label>
+        <button class="primary" id="qc-run-btn">Start</button>
+      </div>
+    </section>
+
+    <!-- 3. Consensus -->
+    <section class="screen" id="screen-consensus" hidden>
+      <h1>Consensus sequences</h1>
+      <p class="lead">Dereplicates the classified reads and clusters them with vsearch into consensus sequences (OTUs), keeping read counts per sample.</p>
+      <div class="card">
+        <h2>Run</h2>
+        <div class="run-select" data-step="consensus"></div>
+      </div>
+      <div class="card">
+        <h2>Clustering</h2>
+        <label class="field">Similarity threshold: <b id="similarity-val">0.97</b>
+          <input type="range" id="similarity" min="0.90" max="0.99" step="0.01" value="0.97" data-param="similarity">
+          <small>Reads at least this similar are merged into one OTU. 0.97 is the usual default.</small>
+        </label>
+      </div>
+      <div class="actions"><button class="primary" data-run-step="consensus">Build consensus</button></div>
+    </section>
+
+    <!-- 4. Denoise -->
+    <section class="screen" id="screen-denoise" hidden>
+      <h1>Denoise with LULU</h1>
+      <p class="lead">Removes OTUs that are most likely sequencing or PCR errors of a more abundant, co-occurring "parent" OTU.</p>
+      <div class="card">
+        <h2>Run</h2>
+        <div class="run-select" data-step="denoise"></div>
+      </div>
+      <div class="card">
+        <h2>LULU</h2>
+        <label class="field">Max. OTUs compared
+          <input type="number" id="lulu_max_otus" min="0" value="1000" data-param="lulu_max_otus">
+          <small>Speeds up teaching runs by comparing a random subset. Set to <b>0</b> to use all OTUs (recommended for research results).</small>
+        </label>
+      </div>
+      <div class="actions"><button class="primary" data-run-step="denoise">Denoise</button></div>
+    </section>
+
+    <!-- 5. Taxonomy -->
+    <section class="screen" id="screen-taxonomy" hidden>
+      <h1>Taxonomy &amp; results</h1>
+      <p class="lead">Assigns species with BLAST + TaxonKit LCA and Kraken2, then builds species × sample tables and interactive Krona plots.</p>
+      <div class="card">
+        <h2>Run</h2>
+        <div class="run-select" data-step="taxonomy"></div>
+      </div>
+      <details class="card">
+        <summary><h2>Settings</h2></summary>
+        <div class="grid3">
+          <label class="field">BLAST e-value<input type="text" id="evalue" value="1e-40" data-param="evalue" spellcheck="false"></label>
+          <label class="field">Max. BLAST hits per OTU<input type="number" id="max_hits" min="1" value="50" data-param="max_hits"></label>
+          <label class="field">Limit OTUs (0 = all)<input type="number" id="subset_count" min="0" value="0" data-param="subset_count"></label>
+        </div>
+        <label class="check"><input type="checkbox" id="skip_kraken" data-param="skip_kraken"> Skip Kraken2 (BLAST + TaxonKit only)</label>
+        <label class="check"><input type="checkbox" id="skip_krona" data-param="skip_krona"> Skip Krona plots</label>
+      </details>
+      <div class="actions"><button class="primary" data-run-step="taxonomy">Assign taxonomy</button></div>
+
+      <div id="results"></div>
+    </section>
+  </main>
+</div>
+
+<!-- live job console -->
+<section class="console" id="console" hidden>
+  <div class="console-head">
+    <span class="dot" id="console-dot"></span>
+    <b id="console-title"></b>
+    <span class="muted" id="console-meta"></span>
+    <span class="spacer"></span>
+    <button class="ghost small" id="console-cancel">Cancel</button>
+    <button class="ghost small" id="console-toggle" aria-expanded="true">Hide log</button>
+  </div>
+  <pre id="console-log" tabindex="0"></pre>
+</section>
+
+<!-- folder picker -->
+<dialog id="picker">
+  <form method="dialog" class="picker-dialog">
+    <h2>Choose a folder</h2>
+    <div class="roots" id="picker-roots"></div>
+    <div class="crumb" id="picker-path"></div>
+    <ul class="dir-list" id="picker-list"></ul>
+    <div class="picker-foot">
+      <span class="muted" id="picker-count"></span>
+      <span class="spacer"></span>
+      <button value="cancel" class="ghost">Cancel</button>
+      <button value="ok" class="primary" id="picker-ok">Use this folder</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

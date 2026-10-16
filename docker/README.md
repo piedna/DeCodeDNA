@@ -1,5 +1,8 @@
 # DeCodeDNA in Docker (macOS, Windows, Linux)
 
+> Prefer buttons? The double-click launchers in [`../launchers`](../launchers/README.md) start the same
+> image with a browser interface (`decodedna gui`).
+
 One image contains every tool the pipeline needs (Kraken2, BLAST+, vsearch,
 TaxonKit, SeqKit, Krona, R + LULU, amplicon_sorter), the NCBI taxonomy used by
 Krona/TaxonKit, and the example data. It runs the same on Intel and
@@ -62,6 +65,7 @@ On Linux, add `--user "$(id -u):$(id -g)"` so result files are owned by you.
 ### Commands
 
 ```text
+decodedna gui                           Browser interface on port 8080 (add -p 127.0.0.1:8080:8080)
 decodedna check                         Check tools and reference databases
 decodedna build-db                      Build databases into /databases (1-2 h, ~200 GB)
 decodedna qc         <input> <out>      Script 02: quality filter + Kraken2 quick look

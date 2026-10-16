@@ -64,6 +64,7 @@ COPY workflows/ont_native_barcodes/README_ont_native.md \
 COPY workflows/ont_native_barcodes/precomputed/ /opt/decodedna/workflows/ont_native_barcodes/precomputed/
 COPY workflows/custom_cci_barcodes/README_custom_cci.md /opt/decodedna/workflows/custom_cci_barcodes/
 COPY workflows/custom_cci_barcodes/02_demultiplexed/ /opt/decodedna/workflows/custom_cci_barcodes/02_demultiplexed/
+COPY gui/ /opt/decodedna/gui/
 COPY docker/decodedna /opt/conda/bin/decodedna
 RUN chmod -R a+rX /opt/decodedna /opt/taxonkit && chmod +x /opt/conda/bin/decodedna
 
@@ -72,6 +73,7 @@ RUN mkdir -p /home/decodedna && chmod 1777 /home/decodedna
 ENV HOME=/home/decodedna \
     DECODEDNA_ROOT=/opt/decodedna \
     DATABASE_DIR=/databases \
+    DECODEDNA_WORK=/work \
     MPLBACKEND=Agg
 
 LABEL org.opencontainers.image.title="DeCodeDNA" \
@@ -82,6 +84,8 @@ LABEL org.opencontainers.image.title="DeCodeDNA" \
 USER $MAMBA_USER
 WORKDIR /work
 VOLUME ["/work", "/databases"]
+# Browser interface (`decodedna gui`); the launchers publish it on 127.0.0.1 only
+EXPOSE 8080
 
 ENTRYPOINT ["/usr/local/bin/_entrypoint.sh", "tini", "-g", "--", "decodedna"]
 CMD ["help"]

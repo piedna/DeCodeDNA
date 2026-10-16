@@ -23,7 +23,8 @@ DeCodeDNA - Oxford Nanopore eDNA metabarcoding pipeline
 Usage: decodedna <command> [args]
 
 Commands:
-  check                          Check tools and reference databases
+  gui                            Start the browser interface (port 8080)
+  check [--json]                 Check tools and reference databases
   build-db                       Build Kraken2 + BLAST databases into \$DATABASE_DIR (script 01, 1-2 h, ~200 GB)
   qc         <input> <out>       Quality filter + Kraken2 quick look   (script 02)
   consensus  <02_dir> <out>      vsearch consensus clustering          (script 03)
@@ -85,49 +86,96 @@ write_run_info() {
 
 tool_versions() {
   local line
-  line=$(kraken2 --version 2>/dev/null | head -1) && echo "kraken2:  $line"
-  line=$(vsearch --version 2>&1 | head -1) && echo "vsearch:  $line"
-  line=$(blastn -version 2>/dev/null | head -1) && echo "blastn:   $line"
-  line=$(taxonkit version 2>/dev/null | head -1) && echo "taxonkit: $line"
-  line=$(seqkit version 2>/dev/null | head -1) && echo "seqkit:   $line"
-  line=$(R --version 2>/dev/null | head -1) && echo "R:        $line"
+  line=$(kraken2 --version 2>/dev/null | sed -n 1p) && echo "kraken2:  $line"
+  line=$(vsearch --version 2>&1 | sed -n 1p) && echo "vsearch:  $line"
+  line=$(blastn -version 2>/dev/null | sed -n 1p) && echo "blastn:   $line"
+  line=$(taxonkit version 2>/dev/null | sed -n 1p) && echo "taxonkit: $line"
+  line=$(seqkit version 2>/dev/null | sed -n 1p) && echo "seqkit:   $line"
+  line=$(R --version 2>/dev/null | sed -n 1p) && echo "R:        $line"
   line=$(Rscript -e 'cat(as.character(packageVersion("lulu")))' 2>/dev/null) && echo "lulu:     $line"
   true
 }
 
-cmd_check() {
-  local ok=1
-  echo "Tools"
-  for t in kraken2 vsearch blastn taxonkit seqkit Rscript ktImportText amplicon_sorter bc; do
-    if command -v "$t" >/dev/null 2>&1; then echo "  ✅ $t"; else echo "  ❌ $t missing"; ok=0; fi
-  done
-  if Rscript -e 'library(lulu)' >/dev/null 2>&1; then echo "  ✅ R package lulu"; else echo "  ❌ R package lulu missing"; ok=0; fi
-  # </dev/null: taxonkit reads stdin when it is a pipe and fails on an empty one
-  if taxonkit list --ids 9606 </dev/null >/dev/null 2>&1; then echo "  ✅ TaxonKit taxonomy"; else echo "  ❌ TaxonKit taxonomy missing (TAXONKIT_DB=${TAXONKIT_DB:-~/.taxonkit})"; ok=0; fi
+# Each check appends "group|name|ok(1/0)|detail" to CHECKS
+CHECKS=()
+add_check() { CHECKS+=("$1|$2|$3|$4"); }
 
-  echo
-  echo "Databases ($DATABASE_DIR)"
-  local dbs_ok=1
+run_checks() {
+  local t
+  for t in kraken2 vsearch blastn taxonkit seqkit Rscript ktImportText amplicon_sorter bc; do
+    if command -v "$t" >/dev/null 2>&1; then add_check tool "$t" 1 ""; else add_check tool "$t" 0 "missing"; fi
+  done
+  if Rscript -e 'library(lulu)' >/dev/null 2>&1; then add_check tool "R package lulu" 1 ""; else add_check tool "R package lulu" 0 "missing"; fi
+  # </dev/null: taxonkit reads stdin when it is a pipe and fails on an empty one
+  if taxonkit list --ids 9606 </dev/null >/dev/null 2>&1; then add_check tool "TaxonKit taxonomy" 1 ""; else add_check tool "TaxonKit taxonomy" 0 "missing (TAXONKIT_DB=${TAXONKIT_DB:-~/.taxonkit})"; fi
+
+  local db
   for db in $DATABASES; do
-    if [[ -f "$DB_ROOT/$db/taxo.k2d" ]]; then echo "  ✅ Kraken2 $db"; else echo "  ❌ Kraken2 $db  ($DB_ROOT/$db/taxo.k2d)"; dbs_ok=0; fi
+    if [[ -f "$DB_ROOT/$db/taxo.k2d" ]]; then add_check kraken2 "$db" 1 ""; else add_check kraken2 "$db" 0 "$DB_ROOT/$db/taxo.k2d"; fi
     if [[ -f "$BLAST_DB_ROOT/$db/$db.nsq" || -f "$BLAST_DB_ROOT/$db/$db.nin" || -f "$BLAST_DB_ROOT/$db/$db.nal" ]]; then
-      echo "  ✅ BLAST   $db"
+      add_check blast "$db" 1 ""
     else
-      echo "  ❌ BLAST   $db  ($BLAST_DB_ROOT/$db/$db.*)"; dbs_ok=0
+      add_check blast "$db" 0 "$BLAST_DB_ROOT/$db/$db.*"
     fi
   done
   # Without taxdb BLAST reports no scientific names and script 05's LCA table comes out empty
-  if [[ -f "$BLAST_DB_ROOT/taxdb.btd" ]]; then echo "  ✅ BLAST taxdb"; else echo "  ❌ BLAST taxdb  ($BLAST_DB_ROOT/taxdb.btd; species tables would be empty)"; dbs_ok=0; fi
+  if [[ -f "$BLAST_DB_ROOT/taxdb.btd" ]]; then add_check blast taxdb 1 ""; else add_check blast taxdb 0 "$BLAST_DB_ROOT/taxdb.btd; species tables would be empty"; fi
+}
+
+json_str() {
+  local s="${1//\\/\\\\}"
+  s="${s//\"/\\\"}"
+  printf '"%s"' "$s"
+}
+
+cmd_check() {
+  local format="${1:-text}" entry group name ok detail tools_ok=1 dbs_ok=1
+  run_checks
+  for entry in "${CHECKS[@]}"; do
+    IFS='|' read -r group name ok detail <<< "$entry"
+    if [[ "$ok" == 0 ]]; then
+      if [[ "$group" == tool ]]; then tools_ok=0; else dbs_ok=0; fi
+    fi
+  done
+
+  local status=ready code=0
+  if [[ $tools_ok -eq 0 ]]; then status=tools_missing; code=1
+  elif [[ $dbs_ok -eq 0 ]]; then status=databases_missing; code=3
+  fi
+
+  if [[ "$format" == "--json" ]]; then
+    local first=1
+    printf '{"status":%s,"database_dir":%s,"databases":%s,"checks":[' "$(json_str "$status")" "$(json_str "$DATABASE_DIR")" "$(json_str "$DATABASES")"
+    for entry in "${CHECKS[@]}"; do
+      IFS='|' read -r group name ok detail <<< "$entry"
+      [[ $first -eq 1 ]] || printf ','
+      first=0
+      printf '{"group":%s,"name":%s,"ok":%s,"detail":%s}' "$(json_str "$group")" "$(json_str "$name")" "$([[ $ok == 1 ]] && echo true || echo false)" "$(json_str "$detail")"
+    done
+    printf ']}\n'
+    exit $code
+  fi
+
+  local last=""
+  for entry in "${CHECKS[@]}"; do
+    IFS='|' read -r group name ok detail <<< "$entry"
+    if [[ "$group" == tool && "$last" != tool ]]; then echo "Tools"; fi
+    if [[ "$group" != tool && "$last" == tool ]]; then echo; echo "Databases ($DATABASE_DIR)"; fi
+    last="$group"
+    local label="$name"
+    [[ "$group" == kraken2 ]] && label="Kraken2 $name"
+    [[ "$group" == blast && "$name" != taxdb ]] && label="BLAST   $name"
+    [[ "$group" == blast && "$name" == taxdb ]] && label="BLAST taxdb"
+    if [[ "$ok" == 1 ]]; then echo "  ✅ $label"; else echo "  ❌ $label  ($detail)"; fi
+  done
 
   echo
-  if [[ $ok -eq 0 ]]; then
-    echo "❌ Some tools are missing."
-    exit 1
-  elif [[ $dbs_ok -eq 0 ]]; then
-    echo "⚠️  Tools OK, but some databases are missing. Mount a database folder at $DATABASE_DIR or run 'decodedna build-db'."
-    exit 3
-  fi
-  echo "✅ Ready."
+  case "$status" in
+    tools_missing)     echo "❌ Some tools are missing." ;;
+    databases_missing) echo "⚠️  Tools OK, but some databases are missing. Mount a database folder at $DATABASE_DIR or run 'decodedna build-db'." ;;
+    ready)             echo "✅ Ready." ;;
+  esac
+  exit $code
 }
 
 cmd_run_all() {
@@ -148,7 +196,7 @@ cmd="${1:-help}"
 if [[ $# -gt 0 ]]; then shift; fi
 case "$cmd" in
   help|-h|--help) usage ;;
-  check)          cmd_check ;;
+  check)          cmd_check "${1:-text}" ;;
   build-db)       bash "$SCRIPTS/01_build_dbs_kraken_blastn.sh" ;;
   qc)             need_args 2 "$@"; run_step 02_quick_look_clean.sh "$1" "$2" ;;
   consensus)      need_args 2 "$@"; run_step 03_consensus_sort.sh "$1" "$2" ;;
@@ -157,5 +205,6 @@ case "$cmd" in
   run-all)        need_args 2 "$@"; cmd_run_all "$1" "$2" ;;
   example)        need_args 1 "$@"; cmd_run_all "$ROOT/workflows/ont_native_barcodes" "$1" ;;
   versions)       tool_versions ;;
+  gui)            exec python3 "$ROOT/gui/server.py" "$@" ;;
   *)              exec "$cmd" "$@" ;;
 esac

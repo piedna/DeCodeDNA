@@ -161,8 +161,10 @@ bash scripts/02_quick_look_clean.sh workflows/custom_cci_barcodes/02_demultiplex
 
 ## 🛠️ Installation
 
-> **Any OS (macOS, Windows, Linux) with Docker:** one image contains every tool.
-> See [`docker/README.md`](docker/README.md), e.g.
+> **Point-and-click app (macOS, Windows, Linux):** install Docker, download the launchers from the
+> latest release and double-click. See [`launchers/README.md`](launchers/README.md).
+>
+> **Command line with Docker:** one image contains every tool; see [`docker/README.md`](docker/README.md), e.g.
 > `docker run --rm -it -v "$PWD":/work -v /path/to/databases:/databases ghcr.io/piedna/decodedna run-all /work/my_fastq /work/results/my_run`
 
 ### Quick Setup (5-10 minutes)
