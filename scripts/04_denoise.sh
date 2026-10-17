@@ -16,9 +16,15 @@ OUTPUT_DIR="$2"
 # Which databases to process
 DATABASES="${DATABASES:-12s coi mitofish}"
 
-# Create log file
-LOG_FILE="04_denoise.log"
+# Create log file inside the output directory
+mkdir -p "$OUTPUT_DIR"
+LOG_FILE="$OUTPUT_DIR/04_denoise.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
+
+# Threads for the vsearch all-pairs alignment
+THREADS="${THREADS:-4}"
+# LULU input cap (teaching default: 1000 OTUs; 0 = no limit)
+LULU_MAX_OTUS="${LULU_MAX_OTUS:-1000}"
 
 echo "Logging to $LOG_FILE"
 echo ""
@@ -47,6 +53,9 @@ echo ""
 # ═══════════════════════════════════════════════════════════════════════════
 # ─── PROCESS EACH DATABASE SEPARATELY ─────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
+
+LULU_SCRIPT="$OUTPUT_DIR_ABS/00_scripts/run_lulu.R"
+curated_tables=0
 
 for DATABASE in $DATABASES; do
     echo "════════════════════════════════════════════════════════════════"
@@ -267,9 +276,9 @@ PYTHON_EOF
     echo "    • Total $DATABASE vsearch OTU sequences: $total_seqs"
     
     if [[ "$total_seqs" -gt 0 ]]; then
-        if [ "$total_seqs" -gt 1000 ]; then
-            echo "    Creating subset for teaching purposes..."
-            seqkit sample -n 1000 "otu_representatives_${DATABASE}_vsearch.fasta" > "otu_representatives_${DATABASE}_vsearch_subset.fasta"
+        if [ "$LULU_MAX_OTUS" -gt 0 ] && [ "$total_seqs" -gt "$LULU_MAX_OTUS" ]; then
+            echo "    Creating subset of $LULU_MAX_OTUS OTUs for teaching purposes (set LULU_MAX_OTUS=0 to use all)..."
+            seqkit sample -n "$LULU_MAX_OTUS" "otu_representatives_${DATABASE}_vsearch.fasta" > "otu_representatives_${DATABASE}_vsearch_subset.fasta"
             INPUT_FILE="otu_representatives_${DATABASE}_vsearch_subset.fasta"
         else
             INPUT_FILE="otu_representatives_${DATABASE}_vsearch.fasta"
@@ -281,7 +290,7 @@ PYTHON_EOF
             --iddef 1 \
             --qmask none \
             --blast6out "otu_self_blast_${DATABASE}_vsearch.out" \
-            --threads 4
+            --threads "$THREADS"
         
         echo "    ✅ Created otu_self_blast_${DATABASE}_vsearch.out"
         
@@ -289,9 +298,9 @@ PYTHON_EOF
         echo "▶ Step 3: Run LULU to curate $DATABASE vsearch OTUs"
         
         # Create R script if needed
-        if [ ! -f "$OUTPUT_DIR_ABS/../scripts/run_lulu.R" ]; then
-            mkdir -p "$OUTPUT_DIR_ABS/../scripts"
-            cat > "$OUTPUT_DIR_ABS/../scripts/run_lulu.R" << 'LULU_EOF'
+        if [ ! -f "$LULU_SCRIPT" ]; then
+            mkdir -p "$(dirname "$LULU_SCRIPT")"
+            cat > "$LULU_SCRIPT" << 'LULU_EOF'
 #!/usr/bin/env Rscript
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -393,12 +402,12 @@ tryCatch({
     cat("    ✅ Fallback completed\n")
 })
 LULU_EOF
-            chmod +x "$OUTPUT_DIR_ABS/../scripts/run_lulu.R"
+            chmod +x "$LULU_SCRIPT"
         fi
         
         # Run LULU
         echo "    • Running LULU curation for $DATABASE vsearch..."
-        if Rscript "$OUTPUT_DIR_ABS/../scripts/run_lulu.R" "otu_table_${DATABASE}_vsearch.csv" "otu_self_blast_${DATABASE}_vsearch.out"; then
+        if Rscript "$LULU_SCRIPT" "otu_table_${DATABASE}_vsearch.csv" "otu_self_blast_${DATABASE}_vsearch.out"; then
             echo "    ✅ LULU step completed for $DATABASE vsearch!"
         else
             echo "    ⚠️  LULU had issues for $DATABASE vsearch"
@@ -423,6 +432,7 @@ LULU_EOF
             mv "otu_table_lulu_curated.csv" "otu_table_${DATABASE}_vsearch_lulu_curated.csv"
             mv "otu_table_lulu_discarded.csv" "otu_table_${DATABASE}_vsearch_lulu_discarded.csv"
             
+            curated_tables=$((curated_tables + 1))
             echo "    ✅ Renamed files with $DATABASE vsearch prefix"
             
             # Show FINAL table
@@ -444,6 +454,11 @@ done
 # ═══════════════════════════════════════════════════════════════════════════
 # ─── FINAL SUMMARY ────────────────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
+
+if [[ $curated_tables -eq 0 ]]; then
+    echo "❌ Error: LULU produced no curated OTU tables (input: $CONSENSUS_DIR_ABS, databases: $DATABASES)"
+    exit 1
+fi
 
 echo "════════════════════════════════════════════════════════════════"
 echo " DENOISING COMPLETED!"

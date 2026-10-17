@@ -11,7 +11,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Create databases directory outside project (keeps git repo clean)
-WORK="${PROJECT_ROOT}/../databases"
+WORK="${DATABASE_DIR:-${PROJECT_ROOT}/../databases}"
+mkdir -p "$WORK"
+WORK="$(cd "$WORK" && pwd)"
 FASTA_ROOT="$WORK/db_fasta"
 FASTA_CLEAN="$WORK/db_fasta_clean"
 TAXID_DIR="$WORK/taxid_maps"
@@ -66,15 +68,15 @@ fi
 
 # Special check for TaxonKit taxonomy database
 echo "   - Checking TaxonKit taxonomy database..."
-if taxonkit list --ids 9606 &>/dev/null; then
+if taxonkit list --ids 9606 </dev/null &>/dev/null; then
   echo "   ✅ TaxonKit taxonomy database found"
 else
   echo "   ❌ TaxonKit taxonomy database not found"
   echo "    Downloading NCBI taxonomy database automatically..."
   
   # Create directory and download taxonomy
-  mkdir -p ~/.taxonkit
-  cd ~/.taxonkit
+  mkdir -p "${TAXONKIT_DB:-$HOME/.taxonkit}"
+  cd "${TAXONKIT_DB:-$HOME/.taxonkit}"
   
   if wget -q ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz; then
     tar -xzf taxdump.tar.gz
@@ -82,7 +84,7 @@ else
     echo "   ✅ TaxonKit taxonomy database downloaded and installed"
     
     # Verify it works now
-    if taxonkit list --ids 9606 &>/dev/null; then
+    if taxonkit list --ids 9606 </dev/null &>/dev/null; then
       echo "   ✅ TaxonKit taxonomy database verification successful"
     else
       echo "   ❌ TaxonKit taxonomy database verification failed"

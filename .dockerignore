@@ -1,0 +1,8 @@
+.git
+**/.DS_Store
+results/
+databases/
+tools/
+workflows/ont_native_barcodes/fast5/
+workflows/ont_native_barcodes/pod5_barcode50/
+workflows/custom_cci_barcodes/00_raw_data/

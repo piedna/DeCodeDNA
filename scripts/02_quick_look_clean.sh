@@ -15,20 +15,27 @@ OUTPUT_DIR="$2"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Source database config if it exists
-if [[ -f ".database_config" ]]; then
+# Source database config if it exists (explicit DB_ROOT from the caller wins)
+if [[ -z "${DB_ROOT:-}" && -f ".database_config" ]]; then
   source .database_config
 fi
 
 # Database locations (created by script 01)
-DB_ROOT="${DB_ROOT:-$PROJECT_ROOT/../databases/kraken2_db}"
+DATABASE_DIR="${DATABASE_DIR:-$PROJECT_ROOT/../databases}"
+DB_ROOT="${DB_ROOT:-$DATABASE_DIR/kraken2_db}"
 
 # ─── WHICH KRAKEN2 DBs ─────────────────────────────────────────────────────
-DBS=(12s coi mitofish)
+read -ra DBS <<< "${DATABASES:-12s coi mitofish}"
 
 # ─── THREADS & CONFIDENCE ─────────────────────────────────────────────────
 THREADS="${THREADS:-8}"
 CONFIDENCE="${CONFIDENCE:-0.05}"
+
+# Read Kraken2 DBs from disk instead of loading them into RAM (for low-memory machines/containers)
+KRAKEN_EXTRA_ARGS=()
+if [[ "${KRAKEN_MEMORY_MAPPING:-false}" == "true" ]]; then
+  KRAKEN_EXTRA_ARGS+=(--memory-mapping)
+fi
 
 # ─── QUALITY & LENGTH FILTERING PARAMETERS ────────────────────────────────
 QUALITY_THRESHOLD="${QUALITY_THRESHOLD:-12}"   # Q12 quality threshold
@@ -52,6 +59,7 @@ echo " Workflow:         $WORKFLOW_TYPE"
 echo " Input dir:        $INPUT_DIR"
 echo " Output dir:       $OUTPUT_DIR"
 echo " Database root:    $DB_ROOT"
+echo " Databases:        ${DBS[*]}"
 echo " Quality filter:   Q≥$QUALITY_THRESHOLD (FASTQ only)"
 echo " Length filter:    ${MIN_LENGTH}-${MAX_LENGTH} bp"
 echo ""
@@ -104,6 +112,21 @@ else
   echo "   - amplicon_sorter in PATH"
   echo "   - $PROJECT_ROOT/../tools/amplicon_sorter/amplicon_sorter.py"
   echo "   - $PROJECT_ROOT/tools/amplicon_sorter/amplicon_sorter.py"
+fi
+
+# ─── CHECK KRAKEN2 DATABASES ───────────────────────────────────────────────
+available_dbs=0
+for db in "${DBS[@]}"; do
+  if [[ -f "$DB_ROOT/$db/taxo.k2d" ]]; then
+    available_dbs=$((available_dbs + 1))
+  else
+    echo "⚠️  Kraken2 database not found: $DB_ROOT/$db (will be skipped)"
+  fi
+done
+if [[ $available_dbs -eq 0 ]]; then
+  echo "❌ Error: none of the requested Kraken2 databases (${DBS[*]}) exist under $DB_ROOT"
+  echo "   Run: source scripts/setup_databases.sh   or set DB_ROOT / DATABASE_DIR"
+  exit 1
 fi
 
 # ─── CHECK INPUT DIRECTORY & AUTO-SETUP ───────────────────────────────────
@@ -207,8 +230,19 @@ if [[ ${#fa_files[@]} -gt 0 ]]; then
   # Save current directory
   ORIGINAL_DIR=$(pwd)
   
-  # Run EFPQ conversion in the input directory
-  cd "$INPUT_DIR"
+  # Work on a copy so the original input folder is never modified
+  EFPQ_DIR="$OUTPUT_DIR/00_efpq_converted"
+  mkdir -p "$EFPQ_DIR"
+  cp "${fa_files[@]}" "$EFPQ_DIR/"
+  EFPQ_DIR="$(cd "$EFPQ_DIR" && pwd)"
+  # Link any other sequence files so they are still picked up below
+  INPUT_DIR_ABS="$(cd "$INPUT_DIR" && pwd)"
+  for other in "$INPUT_DIR_ABS"/*.fastq "$INPUT_DIR_ABS"/*.fastq.gz "$INPUT_DIR_ABS"/*.fq "$INPUT_DIR_ABS"/*.fq.gz "$INPUT_DIR_ABS"/*.fasta "$INPUT_DIR_ABS"/*.fas; do
+    ln -sf "$other" "$EFPQ_DIR/"
+  done
+  
+  # Run EFPQ conversion in the working copy
+  cd "$EFPQ_DIR"
   if bash "$PROJECT_ROOT/scripts/EFPQ_ontbarcoder_convert.sh"; then
     echo "   ✅ EFPQ base conversion completed"
     
@@ -227,6 +261,8 @@ if [[ ${#fa_files[@]} -gt 0 ]]; then
     
     echo "   ✅ File renaming complete ($renamed_count files)"
     
+    rm -f *.fa.bak
+    
     # Verify conversion worked
     fasta_count=$(ls *.fasta 2>/dev/null | wc -l || echo "0")
     echo "    Created $fasta_count .fasta files"
@@ -242,8 +278,9 @@ if [[ ${#fa_files[@]} -gt 0 ]]; then
     exit 1
   fi
   
-  # Return to original directory
+  # Return to original directory and read inputs from the converted copy
   cd "$ORIGINAL_DIR"
+  INPUT_DIR="$EFPQ_DIR"
   echo ""
 fi
 
@@ -371,6 +408,7 @@ for input_file in "${input_files[@]}"; do
     
     # Run Kraken2 without --classified-out (which doesn't work with FASTA)
 kraken2 \
+  ${KRAKEN_EXTRA_ARGS[@]+"${KRAKEN_EXTRA_ARGS[@]}"} \
   --db "$DB_PATH" \
   --threads "$THREADS" \
   --confidence "$CONFIDENCE" \

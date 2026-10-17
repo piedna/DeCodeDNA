@@ -18,9 +18,18 @@ OUTPUT_DIR="$2"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Source database config if it exists (explicit DB_ROOT from the caller wins)
+if [[ -z "${DB_ROOT:-}" && -z "${BLAST_DB_ROOT:-}" && -f ".database_config" ]]; then
+  source .database_config
+fi
+
 # Database locations (created by script 01)
-BLAST_DB_ROOT="${BLAST_DB_ROOT:-$PROJECT_ROOT/../databases/blast_db}"
-KRAKEN_DB_ROOT="${DB_ROOT:-$PROJECT_ROOT/../databases/kraken2_db}"
+DATABASE_DIR="${DATABASE_DIR:-$PROJECT_ROOT/../databases}"
+BLAST_DB_ROOT="${BLAST_DB_ROOT:-$DATABASE_DIR/blast_db}"
+KRAKEN_DB_ROOT="${DB_ROOT:-$DATABASE_DIR/kraken2_db}"
+
+# Which databases to process
+DATABASES="${DATABASES:-12s coi mitofish}"
 
 # Set BLASTDB environment for taxonomy support
 export BLASTDB="$BLAST_DB_ROOT"
@@ -31,6 +40,7 @@ echo " Denoise input:    $DENOISE_DIR"
 echo " Output directory: $OUTPUT_DIR"
 echo " BLAST databases:  $BLAST_DB_ROOT"
 echo " Kraken2 databases: $KRAKEN_DB_ROOT"
+echo " Databases:        $DATABASES"
 echo " BLASTDB environment: $BLASTDB"
 echo ""
 
@@ -63,13 +73,17 @@ echo " Looking for multi-database denoised files..."
 
 # Check for nested directory structure (common issue)
 ACTUAL_DENOISE_DIR="$DENOISE_DIR"
+has_db_dir=0
+for db in $DATABASES; do
+  if [[ -d "$DENOISE_DIR/$db" ]]; then has_db_dir=1; fi
+done
 if [[ -d "$DENOISE_DIR/results" ]] && [[ -d "$DENOISE_DIR/results/04_denoise" ]]; then
   echo "   Detected nested directory structure"
   ACTUAL_DENOISE_DIR="$DENOISE_DIR/results/04_denoise"
   echo "   Using: $ACTUAL_DENOISE_DIR"
-elif [[ ! -d "$DENOISE_DIR/12s" ]] && [[ ! -d "$DENOISE_DIR/coi" ]] && [[ ! -d "$DENOISE_DIR/mitofish" ]]; then
+elif [[ $has_db_dir -eq 0 ]]; then
   echo "❌ Error: No database directories found in $DENOISE_DIR"
-  echo "Expected: $DENOISE_DIR/{12s,coi,mitofish}/"
+  echo "Expected one of: $DENOISE_DIR/{${DATABASES// /,}}/"
   echo "Available:"
   ls -la "$DENOISE_DIR/" || echo "Directory not accessible"
   exit 1
@@ -85,7 +99,7 @@ SAMPLE_HEADER=""
 
 # Find the first available OTU table to get real sample names
 FIRST_OTU_TABLE=""
-for db in 12s coi mitofish; do
+for db in $DATABASES; do
   potential_table="$ACTUAL_DENOISE_DIR/$db/otu_table_${db}_vsearch_lulu_curated.csv"
   if [[ -f "$potential_table" ]]; then
     FIRST_OTU_TABLE="$potential_table"
@@ -136,7 +150,7 @@ echo "$SAMPLE_HEADER" > "$VSEARCH_OTU_TABLE"
 
 databases_found_vsearch=0
 
-for db in 12s coi mitofish; do
+for db in $DATABASES; do
   db_dir="$ACTUAL_DENOISE_DIR/$db"
   if [[ -d "$db_dir" ]]; then
     echo "   Found database directory: $db"
@@ -180,6 +194,12 @@ THREADS="${THREADS:-8}"
 EVALUE="${EVALUE:-1e-40}"
 MAX_HITS="${MAX_HITS:-50}"
 SUBSET_COUNT="${SUBSET_COUNT:-0}"  # Default to 0 (no limit)
+
+# Read Kraken2 DBs from disk instead of loading them into RAM (for low-memory machines/containers)
+KRAKEN_EXTRA_ARGS=()
+if [[ "${KRAKEN_MEMORY_MAPPING:-false}" == "true" ]]; then
+  KRAKEN_EXTRA_ARGS+=(--memory-mapping)
+fi
 
 if [[ "$SUBSET_COUNT" -gt 0 ]]; then
   echo " Subsetting to $SUBSET_COUNT sequences (SUBSET_COUNT=$SUBSET_COUNT)"
@@ -225,7 +245,7 @@ echo "=== Running BLAST against all databases for TaxonKit LCA processing ==="
 
 # Run BLAST against all databases and combine results
 > "$COMBINED_BLAST_OUT"
-for DB in 12s coi mitofish; do
+for DB in $DATABASES; do
   echo "--- BLAST against $DB database ---"
   DB_PATH="$BLAST_DB_ROOT/$DB/$DB"
   
@@ -631,7 +651,7 @@ EOF
   echo ""
   echo "=== Running Kraken2 on per-sample sequences ==="
   
-  for DB in 12s coi mitofish; do
+  for DB in $DATABASES; do
     echo "--- Kraken2 against $DB database ---"
     KRAKEN_DB_PATH="$KRAKEN_DB_ROOT/$DB"
     
@@ -650,7 +670,7 @@ EOF
         KRAKEN_OUT="$KRAKEN_DIR/vsearch_${sample}_${DB}_kraken2_output.txt"
         KRAKEN_REPORT="$KRAKEN_DIR/vsearch_${sample}_${DB}_kraken2_report.txt"
         
-        kraken2 --db "$KRAKEN_DB_PATH" \
+        kraken2 ${KRAKEN_EXTRA_ARGS[@]+"${KRAKEN_EXTRA_ARGS[@]}"} --db "$KRAKEN_DB_PATH" \
                 --threads "$THREADS" \
                 --output "$KRAKEN_OUT" \
                 --report "$KRAKEN_REPORT" \
@@ -1006,7 +1026,7 @@ echo ""
 
 # Show BLAST results
 echo " BLAST Best Hit Results:"
-for db in 12s coi mitofish; do
+for db in $DATABASES; do
   blast_file="$TAXONOMY_DIR/BLAST_vsearch_${db}_classified_species.csv"
   if [[ -f "$blast_file" ]]; then
     species_count=$(tail -n +2 "$blast_file" | wc -l 2>/dev/null || echo "0")
@@ -1018,7 +1038,7 @@ echo ""
 
 # Show KRAKEN2 results
 echo " KRAKEN2 Results:"
-for db in 12s coi mitofish; do
+for db in $DATABASES; do
   kraken_file="$TAXONOMY_DIR/Kraken2_vsearch_${db}_classified_species.csv"
   if [[ -f "$kraken_file" ]]; then
     species_count=$(tail -n +2 "$kraken_file" | wc -l 2>/dev/null || echo "0")
@@ -1032,7 +1052,7 @@ echo ""
 echo " Per-Sample Krona Plots:"
 krona_found=false
 for sample in "${REAL_SAMPLE_NAMES[@]}"; do
-  for db in 12s coi mitofish; do
+  for db in $DATABASES; do
     krona_file="$KRONA_DIR/vsearch_sample_${sample}_${db}_krona.html"
     if [[ -f "$krona_file" ]]; then
       echo "   • Sample ${sample} ${db}: vsearch_sample_${sample}_${db}_krona.html"
