@@ -17,6 +17,17 @@ The old behaviour can still be selected where it changes results.
   quick classroom runs, e.g. `LULU_MAX_OTUS=1000`.
 - The all-against-all OTU comparison before LULU now uses `THREADS` instead of a fixed 4 threads.
 
+### Fixed
+- **LULU never removed any OTU.** The match list was made with `vsearch --allpairs_global`, which lists
+  each pair of OTUs once. Because OTUs were sorted by abundance, the larger OTU was always listed first,
+  and LULU (which looks up each OTU as a possible error of a larger one) never found a match. The match
+  list now comes from `vsearch --usearch_global --self` (query, target, % identity, both directions),
+  as recommended by the LULU authors. This affected all 0.1 results: LULU curation had no effect.
+- `otu_table_<db>_vsearch_lulu_discarded.csv` was always empty because the script read an output LULU
+  does not produce. It now lists the discarded OTUs, and `otu_lulu_map.csv` records which OTU each
+  discarded OTU was merged into.
+- The LULU R script is rewritten on every run, so a re-run never uses an older copy.
+
 ### Added
 - **`MIN_OTU_READS` (default 10):** OTUs with fewer reads than this across all samples are dropped as
   likely errors. `0` keeps everything.
@@ -24,7 +35,7 @@ The old behaviour can still be selected where it changes results.
 - **`Read_assignment_summary.csv` (Script 05):** the share of reads in the OTU table that TaxonKit LCA
   assigned at species, genus, family or higher level, all against the same denominator.
 - **`run_info.txt` (Scripts 04 and 05):** date, DeCodeDNA version (git commit), tool versions, the settings
-  that affect results, and the reference databases used (location, size, date, index checksum).
+  that affect results, and the reference databases used (location, size, date, checksum of a small index file).
 - GUI: settings for OTU building (`OTU_MODE`, `MIN_OTU_READS`); LULU default shown as 0 (all OTUs).
 - README: note on matching `DATABASES` to the marker (e.g. `DATABASES=coi` for COI runs).
 
