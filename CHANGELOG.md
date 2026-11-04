@@ -27,6 +27,8 @@ The old behaviour can still be selected where it changes results.
   does not produce. It now lists the discarded OTUs, and `otu_lulu_map.csv` records which OTU each
   discarded OTU was merged into.
 - The LULU R script is rewritten on every run, so a re-run never uses an older copy.
+- Script 05 stopped with "sample_names_str: unbound variable" when run with `SKIP_KRAKEN=true`; the sample
+  list is now set before the Kraken2 section.
 
 ### Added
 - **`MIN_OTU_READS` (default 10):** OTUs with fewer reads than this across all samples are dropped as

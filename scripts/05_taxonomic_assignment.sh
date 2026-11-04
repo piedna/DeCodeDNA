@@ -540,6 +540,9 @@ else
   SKIP_KRONA=true
 fi
 
+# Sample list used by Kraken2 and by the final processing step (needed even when Kraken2 is skipped)
+sample_names_str=$(IFS=','; echo "${REAL_SAMPLE_NAMES[*]}")
+
 if [[ "${SKIP_KRAKEN:-false}" != "true" ]]; then
   echo ""
   echo " Creating per-sample FASTA files for Kraken2..."
@@ -739,7 +742,7 @@ KRONA_EOF
     done
   done
 else
-  echo "⚠️  Skipping Kraken2 analysis - kraken2 not found"
+  echo "⚠️  Skipping Kraken2 analysis (SKIP_KRAKEN=true, or kraken2 not found)"
 fi
 
 echo ""
