@@ -521,12 +521,16 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 - **Timing:** ~5-8 minutes
 - **Pre-computed results:** Available in `workflows/ont_native_barcodes/precomputed/` for Workflow A
 
-### Script 04: LULU Denoising
-**`04_denoise.sh`** - Error correction and artifact removal
-- **Purpose:** Remove sequencing errors and PCR artifacts using LULU algorithm
-- **What it does:** Self-BLAST alignment using vsearch, co-occurrence analysis, OTU curation
-- **Input:** Consensus sequences from Script 03  
-- **Output:** Curated OTU tables, cleaned representative sequences
+### Script 04: Shared OTUs and LULU Denoising
+**`04_denoise.sh`** - Builds one OTU table for all samples, then removes errors
+- **Purpose:** Turn each sample's clusters into OTUs that mean the same thing in every sample, then remove sequencing errors and PCR artifacts with LULU
+- **What it does:**
+  - pools the clusters from every sample (keeping their read counts), clusters them once at `OTU_SIMILARITY`, and counts each sample's reads against those shared OTUs
+  - drops OTUs with fewer than `MIN_OTU_READS` reads in total (default 10)
+  - all-against-all comparison of the OTUs with vsearch, then LULU co-occurrence curation on **all** OTUs
+- **Input:** Per-sample clusters from Script 03
+- **Output:** Curated OTU table (read counts), OTU sequences, `otu_build_summary_<db>.tsv` (reads and OTUs kept at each stage), `run_info.txt`
+- **Settings:** `OTU_MODE` (`shared`, default; `per_sample` repeats the v0.1 behaviour), `OTU_SIMILARITY` (default: same as `VSEARCH_SIMILARITY`), `MIN_OTU_READS` (default 10), `LULU_MAX_OTUS` (default 0 = all OTUs; e.g. 1000 for a quick classroom run)
 - **Timing:** ~3-7 minutes
 
 ### Script 05: Taxonomic Assignment
@@ -538,7 +542,7 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
   - **Kraken2:** K-mer based classification  
   - **Krona plots:** Interactive taxonomic visualizations
 - **Input:** Denoised sequences from Script 04
-- **Output:** Species abundance tables, comparison matrices, Krona plots
+- **Output:** Species abundance tables, comparison matrices, Krona plots, `Read_assignment_summary.csv` (share of the OTU-table reads assigned at species, genus, family and higher; one denominator throughout), `run_info.txt` (DeCodeDNA version, tool versions, settings and the reference databases used)
 - **Timing:** ~5-10 minutes
 - **Environment variables:** `SUBSET_COUNT` (default: 0 = no limit, set to 500-1000 for classroom demos)
 
@@ -600,6 +604,12 @@ results/
 | `SUBSET_COUNT` | Max sequences for taxonomy (Script 05) | 0 (no limit) | 1000 (classroom demo) |
 | `CONFIDENCE` | Kraken2 confidence threshold | 0.05 | 0.1 (conservative) |
 | `VSEARCH_SIMILARITY` | Clustering similarity threshold | 0.97 | 0.95 (looser clustering) |
+| `OTU_MODE` | How Script 04 builds OTUs: `shared` across samples, or `per_sample` (v0.1) | shared | per_sample |
+| `OTU_SIMILARITY` | Similarity for the shared OTUs (Script 04) | same as `VSEARCH_SIMILARITY` | 0.98 |
+| `MIN_OTU_READS` | Drop OTUs with fewer reads than this across all samples (Script 04) | 10 | 0 (keep all) |
+| `LULU_MAX_OTUS` | Max OTUs given to LULU (Script 04); 0 = all | 0 | 1000 (classroom demo) |
+
+> **Pick the databases that match your marker.** Steps 02 and 05 use every database in `DATABASES`. For a COI run use `DATABASES=coi`; for 12S use `DATABASES="12s mitofish"` (or just `12s`). Searching the wrong marker's database is slower and can produce odd hits.
 
 ### Example Configurations
 
