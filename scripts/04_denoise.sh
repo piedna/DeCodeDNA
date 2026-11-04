@@ -370,12 +370,20 @@ PYTHON_EOF
             INPUT_FILE="otu_representatives_${DATABASE}_vsearch.fasta"
         fi
         
-        echo "    • Running vsearch all-pairs alignment..."
-        vsearch --allpairs_global "$INPUT_FILE" \
+        echo "    • Matching OTUs against each other for LULU (vsearch --usearch_global --self)..."
+        # Match list for LULU: every OTU against every other OTU, in both directions
+        # (as recommended by the LULU authors). Columns: query, target, % identity.
+        vsearch --usearch_global "$INPUT_FILE" \
+            --db "$INPUT_FILE" \
+            --self \
             --id 0.84 \
             --iddef 1 \
             --qmask none \
-            --blast6out "otu_self_blast_${DATABASE}_vsearch.out" \
+            --userout "otu_self_blast_${DATABASE}_vsearch.out" \
+            --userfields query+target+id \
+            --maxaccepts 0 \
+            --query_cov 0.9 \
+            --maxhits 10 \
             --threads "$THREADS"
         
         echo "    ✅ Created otu_self_blast_${DATABASE}_vsearch.out"
@@ -384,7 +392,8 @@ PYTHON_EOF
         echo "▶ Step 3: Run LULU to curate $DATABASE vsearch OTUs"
         
         # Create R script if needed
-        if [ ! -f "$LULU_SCRIPT" ]; then
+        # Always write a fresh copy, so a re-run into the same folder never uses an older version
+        if true; then
             mkdir -p "$(dirname "$LULU_SCRIPT")"
             cat > "$LULU_SCRIPT" << 'LULU_EOF'
 #!/usr/bin/env Rscript
@@ -450,7 +459,9 @@ if (nrow(blast_results) == 0) {
     quit(status = 0)
 }
 
-colnames(blast_results) <- c("query", "subject", "identity", "alignment_length", "mismatches", "gap_opens", "q_start", "q_end", "s_start", "s_end", "evalue", "bit_score")
+# LULU needs three columns: query OTU, matched OTU, % identity
+blast_results <- blast_results[, 1:3]
+colnames(blast_results) <- c("query", "subject", "identity")
 
 cat(" BLAST results:", nrow(blast_results), "alignments\n")
 
@@ -463,12 +474,14 @@ tryCatch({
                        minimum_relative_cooccurence = 0.95)
     
     write.csv(lulu_result$curated_table, "otu_table_lulu_curated.csv")
-    write.csv(lulu_result$discarded_table, "otu_table_lulu_discarded.csv")
+    discarded_table <- otu_table[row.names(otu_table) %in% lulu_result$discarded_otus, , drop = FALSE]
+    write.csv(discarded_table, "otu_table_lulu_discarded.csv")
+    if (!is.null(lulu_result$otu_map)) write.csv(lulu_result$otu_map, "otu_lulu_map.csv")
     
     cat("\n LULU Results Summary:\n")
     cat("    • Original OTUs:", nrow(otu_table), "\n")
     cat("    • Curated OTUs:", nrow(lulu_result$curated_table), "\n")
-    cat("    • Discarded OTUs:", nrow(lulu_result$discarded_table), "\n")
+    cat("    • Discarded OTUs:", length(lulu_result$discarded_otus), "\n")
     reduction <- round((1 - nrow(lulu_result$curated_table)/nrow(otu_table)) * 100, 1)
     cat("    • Reduction:", reduction, "%\n")
     
