@@ -131,17 +131,31 @@
 
     <!-- 4. Denoise -->
     <section class="screen" id="screen-denoise" hidden>
-      <h1>Denoise with LULU</h1>
-      <p class="lead">Removes OTUs that are most likely sequencing or PCR errors of a more abundant, co-occurring "parent" OTU.</p>
+      <h1>Build OTUs and denoise with LULU</h1>
+      <p class="lead">Groups the clusters from every sample into shared OTUs, drops very rare OTUs, then removes OTUs that are most likely sequencing or PCR errors of a more abundant, co-occurring "parent" OTU.</p>
       <div class="card">
         <h2>Run</h2>
         <div class="run-select" data-step="denoise"></div>
       </div>
       <div class="card">
+        <h2>OTUs</h2>
+        <label class="field">How OTUs are built
+          <select id="otu_mode" data-param="otu_mode">
+            <option value="shared" selected>Shared across samples (recommended)</option>
+            <option value="per_sample">One per sample cluster (v0.1 behaviour)</option>
+          </select>
+          <small>Shared OTUs mean the same thing in every sample, so samples can be compared directly.</small>
+        </label>
+        <label class="field">Min. reads per OTU
+          <input type="number" id="min_otu_reads" min="0" value="10" data-param="min_otu_reads">
+          <small>OTUs with fewer reads than this across all samples are dropped as likely errors. <b>0</b> keeps everything.</small>
+        </label>
+      </div>
+      <div class="card">
         <h2>LULU</h2>
         <label class="field">Max. OTUs compared
-          <input type="number" id="lulu_max_otus" min="0" value="1000" data-param="lulu_max_otus">
-          <small>Speeds up teaching runs by comparing a random subset. Set to <b>0</b> to use all OTUs (recommended for research results).</small>
+          <input type="number" id="lulu_max_otus" min="0" value="0" data-param="lulu_max_otus">
+          <small><b>0</b> compares all OTUs (use this for research results). A number such as 1000 compares a random subset, which is faster for classroom runs.</small>
         </label>
       </div>
       <div class="actions"><button class="primary" data-run-step="denoise">Denoise</button></div>

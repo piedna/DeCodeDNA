@@ -39,7 +39,8 @@ Any other command is executed as-is (e.g. 'decodedna bash').
 Settings (environment variables, defaults in brackets):
   DATABASE_DIR [$DATABASE_DIR]  DATABASES [$DATABASES]  THREADS [$THREADS]
   QUALITY_THRESHOLD [12]  MIN_LENGTH [100]  MAX_LENGTH [500]  CONFIDENCE [0.05]
-  VSEARCH_SIMILARITY [0.97]  LULU_MAX_OTUS [1000, 0 = all]
+  VSEARCH_SIMILARITY [0.97]  OTU_MODE [shared | per_sample]  OTU_SIMILARITY [= VSEARCH_SIMILARITY]
+  MIN_OTU_READS [10, 0 = keep all]  LULU_MAX_OTUS [0 = all OTUs]
   EVALUE [1e-40]  MAX_HITS [50]  SUBSET_COUNT [0 = all]  SKIP_KRAKEN [false]  SKIP_KRONA [false]
   KRAKEN_MEMORY_MAPPING [false]  read Kraken2 DBs from disk instead of RAM
 EOF
@@ -72,7 +73,7 @@ write_run_info() {
     echo "databases:          $DATABASES"
     echo "database_dir:       $DATABASE_DIR"
     echo "threads:            $THREADS"
-    for v in QUALITY_THRESHOLD MIN_LENGTH MAX_LENGTH CONFIDENCE VSEARCH_SIMILARITY LULU_MAX_OTUS EVALUE MAX_HITS SUBSET_COUNT SKIP_KRAKEN SKIP_KRONA KRAKEN_MEMORY_MAPPING; do
+    for v in QUALITY_THRESHOLD MIN_LENGTH MAX_LENGTH CONFIDENCE VSEARCH_SIMILARITY OTU_MODE OTU_SIMILARITY MIN_OTU_READS LULU_MAX_OTUS EVALUE MAX_HITS SUBSET_COUNT SKIP_KRAKEN SKIP_KRONA KRAKEN_MEMORY_MAPPING; do
       printf '%-19s %s\n' "$(echo "$v" | tr 'A-Z' 'a-z'):" "${!v:-default}"
     done
     if [[ -f "${TAXONKIT_DB:-/nonexistent}/SNAPSHOT_DATE" ]]; then

@@ -74,6 +74,8 @@ PARAMS = {
     "max_length":       ("MAX_LENGTH",         int,   1, 100000),
     "confidence":       ("CONFIDENCE",         float, 0, 1),
     "similarity":       ("VSEARCH_SIMILARITY", float, 0.5, 1),
+    "otu_mode":         ("OTU_MODE",           ("shared", "per_sample"), None, None),
+    "min_otu_reads":    ("MIN_OTU_READS",      int,   0, 10_000_000),
     "lulu_max_otus":    ("LULU_MAX_OTUS",      int,   0, 10_000_000),
     "evalue":           ("EVALUE",             float, 0, 10),
     "max_hits":         ("MAX_HITS",           int,   1, 10000),
@@ -297,6 +299,11 @@ def job_env(params):
         var, typ, lo, hi = PARAMS[key]
         if typ is bool:
             env[var] = "true" if value else "false"
+            continue
+        if isinstance(typ, tuple):
+            if value not in typ:
+                raise ApiError(f"{key.replace('_', ' ')} must be one of: {', '.join(typ)}.")
+            env[var] = value
             continue
         try:
             v = typ(value)
