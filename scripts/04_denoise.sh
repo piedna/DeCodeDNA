@@ -33,6 +33,11 @@ OTU_SIMILARITY="${OTU_SIMILARITY:-${VSEARCH_SIMILARITY:-0.97}}"
 MIN_OTU_READS="${MIN_OTU_READS:-10}"
 # LULU input cap: 0 = use all OTUs (default). Set e.g. 1000 for a fast classroom run.
 LULU_MAX_OTUS="${LULU_MAX_OTUS:-0}"
+# Minimum % identity for LULU to treat an OTU as an error copy of a more abundant co-occurring OTU.
+# 97 (default) merges only near-identical OTUs. LULU's own default is 84; with the cleaner consensus
+# sequences from step 03 that also merged distinct, co-occurring species in our tests (FHL MFU subset:
+# 589 of 850 OTUs merged and 32 low-read taxa lost at 84, against 2 OTUs merged at 97).
+export LULU_MIN_MATCH="${LULU_MIN_MATCH:-97}"
 
 echo "Logging to $LOG_FILE"
 echo ""
@@ -40,7 +45,7 @@ echo " Consensus input:  $CONSENSUS_DIR"
 echo " Output directory: $OUTPUT_DIR"
 echo " Processing databases: $DATABASES"
 echo " OTU mode:         $OTU_MODE (similarity $OTU_SIMILARITY, min reads per OTU $MIN_OTU_READS)"
-echo " LULU OTU cap:     $LULU_MAX_OTUS (0 = all OTUs)"
+echo " LULU OTU cap:     $LULU_MAX_OTUS (0 = all OTUs), min. match $LULU_MIN_MATCH%"
 echo ""
 case "$OTU_MODE" in shared|per_sample) ;; *) echo "❌ OTU_MODE must be 'shared' or 'per_sample' (got '$OTU_MODE')"; exit 1;; esac
 
@@ -470,7 +475,7 @@ tryCatch({
     lulu_result <- lulu(otu_table, blast_results, 
                        minimum_ratio_type = "min", 
                        minimum_ratio = 1, 
-                       minimum_match = 84, 
+                       minimum_match = as.numeric(Sys.getenv("LULU_MIN_MATCH", "97")), 
                        minimum_relative_cooccurence = 0.95)
     
     write.csv(lulu_result$curated_table, "otu_table_lulu_curated.csv")

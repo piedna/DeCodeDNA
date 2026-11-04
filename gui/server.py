@@ -79,6 +79,7 @@ PARAMS = {
     "otu_mode":         ("OTU_MODE",           ("shared", "per_sample"), None, None),
     "min_otu_reads":    ("MIN_OTU_READS",      int,   0, 10_000_000),
     "lulu_max_otus":    ("LULU_MAX_OTUS",      int,   0, 10_000_000),
+    "lulu_min_match":   ("LULU_MIN_MATCH",     float, 50, 100),
     "evalue":           ("EVALUE",             float, 0, 10),
     "max_hits":         ("MAX_HITS",           int,   1, 10000),
     "subset_count":     ("SUBSET_COUNT",       int,   0, 10_000_000),

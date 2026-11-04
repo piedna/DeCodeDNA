@@ -535,7 +535,7 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
   - all-against-all comparison of the OTUs with vsearch, then LULU co-occurrence curation on **all** OTUs
 - **Input:** Per-sample clusters from Script 03
 - **Output:** Curated OTU table (read counts), OTU sequences, `otu_build_summary_<db>.tsv` (reads and OTUs kept at each stage), `run_info.txt`
-- **Settings:** `OTU_MODE` (`shared`, default; `per_sample` repeats the v0.1 behaviour), `OTU_SIMILARITY` (default: same as `VSEARCH_SIMILARITY`), `MIN_OTU_READS` (default 10), `LULU_MAX_OTUS` (default 0 = all OTUs; e.g. 1000 for a quick classroom run)
+- **Settings:** `OTU_MODE` (`shared`, default; `per_sample` repeats the v0.1 behaviour), `OTU_SIMILARITY` (default: same as `VSEARCH_SIMILARITY`), `MIN_OTU_READS` (default 10), `LULU_MAX_OTUS` (default 0 = all OTUs; e.g. 1000 for a quick classroom run), `LULU_MIN_MATCH` (default 97)
 - **Timing:** ~3-7 minutes
 
 ### Script 05: Taxonomic Assignment
@@ -617,6 +617,7 @@ results/
 | `OTU_SIMILARITY` | Similarity for the shared OTUs (Script 04) | same as `VSEARCH_SIMILARITY` | 0.98 |
 | `MIN_OTU_READS` | Drop OTUs with fewer reads than this across all samples (Script 04) | 10 | 0 (keep all) |
 | `LULU_MAX_OTUS` | Max OTUs given to LULU (Script 04); 0 = all | 0 | 1000 (classroom demo) |
+| `LULU_MIN_MATCH` | Min. % identity for LULU to merge an OTU into a more abundant co-occurring one (Script 04) | 97 | 84 (LULU's own default; more aggressive) |
 
 > **Pick the databases that match your marker.** Steps 02 and 05 use every database in `DATABASES`. For a COI run use `DATABASES=coi`; for 12S use `DATABASES="12s mitofish"` (or just `12s`). Searching the wrong marker's database is slower and can produce odd hits.
 

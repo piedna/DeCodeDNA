@@ -34,6 +34,10 @@ The old behaviour can still be selected where it changes results.
 - **LULU now uses all OTUs by default (`LULU_MAX_OTUS=0`).** In 0.1 the default was a random subset of
   1,000 OTUs, which on real data meant LULU removed almost nothing. A subset is still available for
   quick classroom runs, e.g. `LULU_MAX_OTUS=1000`.
+- **LULU merges only near-identical OTUs by default (`LULU_MIN_MATCH=97`).** 0.1 used LULU's own default of
+  84%. With the consensus sequences from Script 03, 84% also merged distinct species that occur together
+  (on the FHL MFU 2M-read subset: 589 of 850 OTUs merged and 32 low-read taxa lost, against 2 OTUs merged at
+  97%). `LULU_MIN_MATCH=84` gives the 0.1 setting.
 - The all-against-all OTU comparison before LULU now uses `THREADS` instead of a fixed 4 threads.
 - **Script 01 builds much smaller Kraken2 databases.** Each database used to keep its own copy of the NCBI
   taxonomy download (about 47 GB, mostly accession-to-taxid tables), although classification only uses the

@@ -166,6 +166,10 @@
           <input type="number" id="lulu_max_otus" min="0" value="0" data-param="lulu_max_otus">
           <small><b>0</b> compares all OTUs (use this for research results). A number such as 1000 compares a random subset, which is faster for classroom runs.</small>
         </label>
+        <label class="field">Min. match (%)
+          <input type="number" id="lulu_min_match" min="50" max="100" step="1" value="97" data-param="lulu_min_match">
+          <small>How similar an OTU must be to a more abundant, co-occurring OTU to be merged into it. <b>97</b> merges only near-identical OTUs; LULU's own default of 84 can also merge closely related species.</small>
+        </label>
       </div>
       <div class="actions"><button class="primary" data-run-step="denoise">Denoise</button></div>
     </section>

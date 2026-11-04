@@ -40,7 +40,7 @@ Settings (environment variables, defaults in brackets):
   QUALITY_THRESHOLD [12]  MIN_LENGTH [100]  MAX_LENGTH [500]  CONFIDENCE [0.05]
   VSEARCH_SIMILARITY [0.97]  REPRESENTATIVE [consensus | centroid]  KEEP_INTERMEDIATES [false]
   OTU_MODE [shared | per_sample]  OTU_SIMILARITY [= VSEARCH_SIMILARITY]
-  MIN_OTU_READS [10, 0 = keep all]  LULU_MAX_OTUS [0 = all OTUs]
+  MIN_OTU_READS [10, 0 = keep all]  LULU_MAX_OTUS [0 = all OTUs]  LULU_MIN_MATCH [97]
   EVALUE [1e-40]  MAX_HITS [50]  SUBSET_COUNT [0 = all]  SKIP_KRAKEN [false]  SKIP_KRONA [false]
   KRAKEN_MEMORY_MAPPING [auto]  read a Kraken2 DB from disk instead of RAM when it would not fit (true/false to force)
 EOF
