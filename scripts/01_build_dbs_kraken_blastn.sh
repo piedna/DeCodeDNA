@@ -20,8 +20,8 @@ TAXID_DIR="$WORK/taxid_maps"
 KRAKEN_DB="$WORK/kraken2_db"
 BLAST_DB="$WORK/blast_db"
 
-# Default number of threads
-THREADS="${THREADS:-8}"
+# Threads ("auto" by default: all cores but one, see resources.sh)
+source "$SCRIPT_DIR/resources.sh"
 
 echo "DeCodeDNA Database Builder"
 echo "═══════════════════════════════════════════════════════"
@@ -633,7 +633,14 @@ echo "────────────────────────�
 
 if command -v kraken2-build >/dev/null 2>&1; then
   echo "   ✅ kraken2-build found"
-  
+
+  # The NCBI taxonomy download (~47 GB, mostly accession2taxid tables) is only needed while building.
+  # It is downloaded once and shared by the three databases, and removed at the end unless
+  # KEEP_KRAKEN_TAXONOMY=true. The finished databases only need their *.k2d files (tens to a few
+  # hundred MB each).
+  SHARED_TAX="$KRAKEN_DB/.shared_taxonomy_download"
+  KEEP_KRAKEN_TAXONOMY="${KEEP_KRAKEN_TAXONOMY:-false}"
+
   for DB in 12s coi mitofish; do
     TARGET="$KRAKEN_DB/$DB"
     echo ""
@@ -647,9 +654,13 @@ if command -v kraken2-build >/dev/null 2>&1; then
     # Create database directory
     mkdir -p "$TARGET"
     
-    # Download NCBI taxonomy for this database
-    echo "   - Downloading NCBI taxonomy..."
-    kraken2-build --download-taxonomy --db "$TARGET"
+    # NCBI taxonomy: download once, share between the databases
+    if [[ ! -f "$SHARED_TAX/taxonomy/nodes.dmp" ]]; then
+      echo "   - Downloading NCBI taxonomy (once for all databases, ~47 GB while building)..."
+      mkdir -p "$SHARED_TAX"
+      kraken2-build --download-taxonomy --db "$SHARED_TAX"
+    fi
+    [[ -e "$TARGET/taxonomy" ]] || ln -s "$SHARED_TAX/taxonomy" "$TARGET/taxonomy"
     
     # Map database name to FASTA file
     case "$DB" in
@@ -664,13 +675,23 @@ if command -v kraken2-build >/dev/null 2>&1; then
       
       echo "   - Building database (this may take 5-15 minutes)..."
       kraken2-build --build --db "$TARGET" --threads "$THREADS" --no-masking
+
+      # keep only what classification needs (*.k2d); removes library/ and the taxonomy link
+      echo "   - Removing build-only files..."
+      kraken2-build --clean --db "$TARGET" >/dev/null 2>&1 || rm -rf "$TARGET/library" "$TARGET/taxonomy" "$TARGET/seqid2taxid.map"
+      [[ -L "$TARGET/taxonomy" ]] && rm -f "$TARGET/taxonomy"
       
-      echo "   ✅ Kraken2 DB built for $DB"
+      echo "   ✅ Kraken2 DB built for $DB ($(du -sh "$TARGET" | cut -f1))"
     else
       echo "   ❌ FASTA file not found: $FASTA_FILE"
     fi
   done
   
+  if [[ "$KEEP_KRAKEN_TAXONOMY" != "true" ]] && [[ -d "$SHARED_TAX" ]]; then
+    echo "   - Removing the shared NCBI taxonomy download (KEEP_KRAKEN_TAXONOMY=true keeps it)"
+    rm -rf "$SHARED_TAX"
+  fi
+
   echo ""
   echo "✅ All Kraken2 DBs completed"
   

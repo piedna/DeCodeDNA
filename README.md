@@ -190,7 +190,7 @@ bash scripts/install_external_tools.sh      # Downloads amplicon_sorter & ONTbar
 # Option A: Use pre-built databases (classroom - recommended)
 source scripts/setup_databases.sh
 
-# Option B: Build databases from scratch (1-2 hours, ~200GB disk space)
+# Option B: Build databases from scratch (1-2 hours, ~60GB free while building, a few GB when done)
 bash scripts/01_build_dbs_kraken_blastn.sh
 ```
 
@@ -210,12 +210,12 @@ bash scripts/01_build_dbs_kraken_blastn.sh
 
 **For FHL Students:**
 - **Try Option B first** (build your own) - great learning experience
-- **Fallback to Option A** if you lack disk space (~200GB needed)
+- **Fallback to Option A** if you lack disk space (~60GB needed while building)
 - **Pre-loaded USB drives available** - we'll pass these around class
 - Building databases yourself helps understand the reference data structure
 
 **Database Requirements:**
-- **Disk Space**: ~200GB for complete local setup
+- **Disk Space**: ~60GB free while building (mostly the NCBI taxonomy download, removed at the end); the finished databases take a few GB
 - **Time**: 1-2 hours for initial build
 - **Internet**: Required for downloading reference sequences
 - **Alternative**: Use shared USB drives (no local storage needed)
@@ -466,7 +466,7 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 - **OS:** macOS or Linux (Windows via WSL2)
 - **RAM:** 8GB minimum, 16GB+ recommended (large Kraken2 databases are read from disk automatically when memory is short)
 - **CPU:** any; DeCodeDNA uses all cores but one by default and clusters several samples at once on bigger machines
-- **Storage:** 10GB+ free space for results (large intermediate files are cleaned up as the run goes), 200GB for local databases
+- **Storage:** 10GB+ free space for results (large intermediate files are cleaned up as the run goes), ~60GB while building local databases (a few GB once built)
 - **Dependencies:** Managed via conda (see `environment.yml`)
 
 ## 🛠️ Core Dependencies
@@ -652,7 +652,8 @@ export SUBSET_COUNT=0 CONFIDENCE=0.1
 - **MIDORI 12S**: GenBank release 265 (2025-03-08), ~2.3M sequences
 - **MIDORI COI**: GenBank release 265 (2025-03-08), ~8.1M sequences  
 - **MitoFish**: Complete & partial mitogenomes (July 2025), ~85K sequences
-- **Total size**: ~200GB (Kraken2: 120GB, BLAST: 80GB)
+- **Size once built**: a few GB. Each Kraken2 database only keeps its `*.k2d` index files (for the FHL 2025 builds: 12S 49 MB, COI 161 MB); the ~47 GB NCBI taxonomy download is needed only while building and is shared by the three databases.
+- **Databases built with DeCodeDNA 0.1** still hold that download in every Kraken2 database (`taxonomy/`, about 47 GB each). It is not used for classification and can be removed: `kraken2-build --clean --db <path to the database>`.
 
 ### Setup Options for Classrooms
 

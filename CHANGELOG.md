@@ -35,6 +35,11 @@ The old behaviour can still be selected where it changes results.
   1,000 OTUs, which on real data meant LULU removed almost nothing. A subset is still available for
   quick classroom runs, e.g. `LULU_MAX_OTUS=1000`.
 - The all-against-all OTU comparison before LULU now uses `THREADS` instead of a fixed 4 threads.
+- **Script 01 builds much smaller Kraken2 databases.** Each database used to keep its own copy of the NCBI
+  taxonomy download (about 47 GB, mostly accession-to-taxid tables), although classification only uses the
+  `*.k2d` files (for the FHL 2025 builds: 12S 49 MB, COI 161 MB). The download is now made once, shared by the
+  three databases and removed at the end (`KEEP_KRAKEN_TAXONOMY=true` keeps it), and each database is cleaned
+  with `kraken2-build --clean`. Existing databases can be cleaned the same way.
 
 ### Fixed
 - **LULU never removed any OTU.** The match list was made with `vsearch --allpairs_global`, which lists

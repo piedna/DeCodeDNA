@@ -23,7 +23,7 @@ Usage: decodedna <command> [args]
 Commands:
   gui                            Start the browser interface (port 8080)
   check [--json]                 Check tools and reference databases
-  build-db                       Build Kraken2 + BLAST databases into \$DATABASE_DIR (script 01, 1-2 h, ~200 GB)
+  build-db                       Build Kraken2 + BLAST databases into \$DATABASE_DIR (script 01, 1-2 h, ~60 GB while building)
   qc         <input> <out>       Quality filter + Kraken2 quick look   (script 02)
   consensus  <02_dir> <out>      vsearch consensus clustering          (script 03)
   denoise    <03_dir> <out>      LULU denoising                        (script 04)
