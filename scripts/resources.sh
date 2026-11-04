@@ -69,6 +69,7 @@ _decodedna_mem_gb() {
 DECODEDNA_CPUS=$(_decodedna_cpus)
 DECODEDNA_MEM_GB=$(_decodedna_mem_gb)
 [ "$DECODEDNA_MEM_GB" -lt 1 ] 2>/dev/null && DECODEDNA_MEM_GB=1
+export DECODEDNA_CPUS DECODEDNA_MEM_GB
 
 # ---- THREADS ----
 _threads_note="set by you"
