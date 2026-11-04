@@ -3,7 +3,7 @@
 #
 # Writes run_info.txt into a step's output folder: when it ran, which DeCodeDNA version (git commit),
 # tool versions, the settings that change results, and which reference databases were used.
-# Called at the end of steps 04 and 05, so every results folder says exactly how it was made.
+# Called at the end of steps 03, 04 and 05, so every results folder says exactly how it was made.
 #
 # Usage: bash scripts/write_run_info.sh <output_dir> <step_name>
 
@@ -19,16 +19,18 @@ ver() { "$@" 2>&1 | head -1 | tr -d '\r'; }
 {
   echo "DeCodeDNA run info: $STEP"
   echo "date:            $(date '+%Y-%m-%d %H:%M:%S %Z')"
-  echo "host:            $(uname -sm)"
+  echo "host:            $(uname -sm), ${DECODEDNA_CPUS:-?} cores, ~${DECODEDNA_MEM_GB:-?} GB free memory"
   if git -C "$PROJECT_ROOT" rev-parse --short HEAD >/dev/null 2>&1; then
     echo "decodedna:       $(git -C "$PROJECT_ROOT" describe --tags --always --dirty 2>/dev/null) ($(git -C "$PROJECT_ROOT" log -1 --format=%cd --date=short))"
+  elif [ -f "$PROJECT_ROOT/VERSION" ]; then
+    echo "decodedna:       $(head -1 "$PROJECT_ROOT/VERSION")"
   else
     echo "decodedna:       (not a git checkout)"
   fi
   echo
   echo "## Settings"
-  for v in DATABASES THREADS QUALITY_THRESHOLD MIN_LENGTH MAX_LENGTH CONFIDENCE VSEARCH_SIMILARITY \
-           OTU_MODE OTU_SIMILARITY MIN_OTU_READS LULU_MAX_OTUS SUBSET_COUNT DB_ROOT BLAST_DB_ROOT DATABASE_DIR; do
+  for v in DATABASES THREADS PARALLEL_SAMPLES QUALITY_THRESHOLD MIN_LENGTH MAX_LENGTH CONFIDENCE VSEARCH_SIMILARITY \
+           REPRESENTATIVE KEEP_INTERMEDIATES OTU_MODE OTU_SIMILARITY MIN_OTU_READS LULU_MAX_OTUS SUBSET_COUNT DB_ROOT BLAST_DB_ROOT DATABASE_DIR; do
     printf "%-19s %s\n" "$v:" "${!v:-(default)}"
   done
   echo

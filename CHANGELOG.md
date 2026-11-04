@@ -6,6 +6,25 @@ Changes found while benchmarking DeCodeDNA against DECONA on the FHL 2025 worksh
 The old behaviour can still be selected where it changes results.
 
 ### Changed
+- **Script 03 keeps a consensus for each cluster (`REPRESENTATIVE=consensus`, new default).**
+  In 0.1 each cluster was represented by its seed read (`vsearch --centroids`), which is one raw nanopore
+  read with its sequencing errors, so fewer clusters matched reference sequences closely and more reads stopped
+  at genus or family. Script 03 now writes the consensus of all reads in the cluster (`vsearch --consout`).
+  `REPRESENTATIVE=centroid` gives the 0.1 behaviour.
+- **Script 03 no longer writes one file per cluster.** `--clusters` produced a separate file for every
+  cluster (millions of small files on real runs), and no later step used them. `WRITE_CLUSTER_MAP=true`
+  writes the same information as one `.uc` table per sample instead.
+- **Threads are worked out automatically (`THREADS=auto`, new default):** all CPU cores but one, within any
+  Docker or cgroup limit. A number still sets it exactly. Defaults were fixed at 4 or 8 before.
+- **Script 03 clusters several samples at the same time (`PARALLEL_SAMPLES=auto`)** when there are enough
+  cores and free memory, splitting the threads between them. `PARALLEL_SAMPLES=1` runs one at a time.
+- **Kraken2 memory mapping is decided automatically (`KRAKEN_MEMORY_MAPPING=auto`, new default):** a
+  database is read from disk only when it would use more than about 60% of the free memory.
+- **Large intermediate files are cleaned up as the run goes (`KEEP_INTERMEDIATES=false`, new default).**
+  Script 02 removes the filtered reads and the EFPQ-converted copies once the classified reads are written,
+  and gzip-compresses the Kraken2 per-read output and the unclassified reads; Script 03 removes the
+  dereplicated reads after clustering. On the FHL COI run, Script 02 output had been about 3.7 times the
+  size of the input reads. `KEEP_INTERMEDIATES=true` keeps everything as before.
 - **Script 04 builds shared OTUs across samples (`OTU_MODE=shared`, new default).**
   In 0.1, every unique per-sample cluster sequence became its own OTU, so the same organism had a
   different OTU in each sample and real datasets produced hundreds of thousands of OTUs
@@ -36,9 +55,11 @@ The old behaviour can still be selected where it changes results.
 - **`otu_build_summary_<db>.tsv` (Script 04):** reads and OTUs at each stage of OTU building.
 - **`Read_assignment_summary.csv` (Script 05):** the share of reads in the OTU table that TaxonKit LCA
   assigned at species, genus, family or higher level, all against the same denominator.
-- **`run_info.txt` (Scripts 04 and 05):** date, DeCodeDNA version (git commit), tool versions, the settings
+- **`run_info.txt` (Scripts 03, 04 and 05):** date, computer (cores, free memory), DeCodeDNA version (git commit), tool versions, the settings
   that affect results, and the reference databases used (location, size, date, checksum of a small index file).
-- GUI: settings for OTU building (`OTU_MODE`, `MIN_OTU_READS`); LULU default shown as 0 (all OTUs).
+- GUI: settings for OTU building (`OTU_MODE`, `MIN_OTU_READS`), the cluster sequence (`REPRESENTATIVE`)
+  and keeping intermediate files; LULU default shown as 0 (all OTUs).
+- `scripts/resources.sh`: detects CPU cores and free memory on Linux, macOS and in Docker, used by Scripts 02-05.
 - README: note on matching `DATABASES` to the marker (e.g. `DATABASES=coi` for COI runs).
 
 ## 0.1.0

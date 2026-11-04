@@ -74,6 +74,8 @@ PARAMS = {
     "max_length":       ("MAX_LENGTH",         int,   1, 100000),
     "confidence":       ("CONFIDENCE",         float, 0, 1),
     "similarity":       ("VSEARCH_SIMILARITY", float, 0.5, 1),
+    "representative":   ("REPRESENTATIVE",     ("consensus", "centroid"), None, None),
+    "keep_intermediates": ("KEEP_INTERMEDIATES", bool, None, None),
     "otu_mode":         ("OTU_MODE",           ("shared", "per_sample"), None, None),
     "min_otu_reads":    ("MIN_OTU_READS",      int,   0, 10_000_000),
     "lulu_max_otus":    ("LULU_MAX_OTUS",      int,   0, 10_000_000),

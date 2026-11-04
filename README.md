@@ -334,8 +334,8 @@ export MAX_LENGTH=350              # Default: 500
 # Database selection  
 export DATABASES="12s coi mitofish" # Default: all three
 
-# Performance tuning
-export THREADS=16                  # Default: 8
+# Performance tuning (the defaults work out cores and memory by themselves)
+export THREADS=4                   # Default: auto (all cores but one)
 export SUBSET_COUNT=1000           # Default: 0 (no limit) - for Script 05 taxonomic assignment
 
 # Custom CCI workflow
@@ -464,8 +464,9 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 ## 💻 System Requirements
 
 - **OS:** macOS or Linux (Windows via WSL2)
-- **RAM:** 8GB minimum, 16GB+ recommended
-- **Storage:** 10GB+ free space for results, 200GB for local databases
+- **RAM:** 8GB minimum, 16GB+ recommended (large Kraken2 databases are read from disk automatically when memory is short)
+- **CPU:** any; DeCodeDNA uses all cores but one by default and clusters several samples at once on bigger machines
+- **Storage:** 10GB+ free space for results (large intermediate files are cleaned up as the run goes), 200GB for local databases
 - **Dependencies:** Managed via conda (see `environment.yml`)
 
 ## 🛠️ Core Dependencies
@@ -507,17 +508,21 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 - **Purpose:** Clean sequences and get first taxonomic overview
 - **What it does:** Quality filtering, length filtering, initial Kraken2 classification
 - **Input:** Raw FASTQ files (from basecalling or mock data)
-- **Output:** Filtered sequences, classification reports, length distributions
+- **Output:** Classified reads per database (used by Script 03), Kraken2 reports, Krona plots, length distributions
+- **Disk space:** the filtered reads are removed and the Kraken2 per-read output and unclassified reads are gzip-compressed once the classified reads are written. Set `KEEP_INTERMEDIATES=true` to keep them as they are.
+- **Memory:** a Kraken2 database is read from disk instead of loaded into memory when it would not fit comfortably (`KRAKEN_MEMORY_MAPPING=auto`)
 - **Timing:** ~3-5 minutes
 
 ### Script 03: Consensus Building
-**`03_consensus_sort.sh`** - Dual clustering approach demonstration
-- **Purpose:** Compare two clustering methods for consensus generation
-- **What it does:** 
-  - **vsearch:** Fast local clustering (runs automatically)
-  - **amplicon_sorter:** Advanced clustering (demo command provided, pre-computed results available)
+**`03_consensus_sort.sh`** - Clusters each sample's reads and builds one sequence per cluster
+- **Purpose:** Turn thousands of noisy nanopore reads into a much smaller set of cluster sequences, keeping how many reads each one stands for
+- **What it does:** dereplicates each sample's classified reads, clusters them with vsearch at `VSEARCH_SIMILARITY` (default 0.97) and writes one sequence per cluster with its read count (`size=`)
+  - **`REPRESENTATIVE=consensus`** (default): the consensus of all reads in the cluster (`vsearch --consout`), which averages out random sequencing errors
+  - **`REPRESENTATIVE=centroid`**: the cluster's seed read, as in v0.1
+- **Speed:** several samples are clustered at the same time when the computer has the cores and memory for it (`PARALLEL_SAMPLES=auto`)
 - **Input:** Classified (clean of off-targets) sequences from Script 02
-- **Output:** Consensus sequences from both methods
+- **Output:** One cluster file per sample (`*_vsearch_consensus.fasta`), abundance summaries, `run_info.txt`. The dereplicated reads are removed after clustering unless `KEEP_INTERMEDIATES=true`; `WRITE_CLUSTER_MAP=true` also writes which read went to which cluster (`.uc`)
+- **amplicon_sorter:** an alternative clustering method shown in class (pre-computed results available)
 - **Timing:** ~5-8 minutes
 - **Pre-computed results:** Available in `workflows/ont_native_barcodes/precomputed/` for Workflow A
 
@@ -600,10 +605,14 @@ results/
 | `MIN_LENGTH` | Minimum sequence length (bp) | 100 | 150 (eDNA common) |
 | `MAX_LENGTH` | Maximum sequence length (bp) | 500 | 350 (12S specific) |
 | `DATABASES` | Which reference databases to use | "12s coi mitofish" | "mitofish" (fish only) |
-| `THREADS` | CPU cores for parallel processing | 8 | 16 (high-end machine) |
+| `THREADS` | CPU threads to use; `auto` = all cores but one (respects Docker limits) | auto | 4 (leave room for other work) |
+| `PARALLEL_SAMPLES` | Samples clustered at the same time in Script 03; `auto` decides from cores and free memory | auto | 1 (one at a time) |
+| `KEEP_INTERMEDIATES` | Keep large per-read files from Scripts 02 and 03 | false | true (troubleshooting) |
+| `KRAKEN_MEMORY_MAPPING` | Read Kraken2 databases from disk instead of memory; `auto` does this only when a database would not fit | auto | true (low-memory laptop) |
 | `SUBSET_COUNT` | Max sequences for taxonomy (Script 05) | 0 (no limit) | 1000 (classroom demo) |
 | `CONFIDENCE` | Kraken2 confidence threshold | 0.05 | 0.1 (conservative) |
 | `VSEARCH_SIMILARITY` | Clustering similarity threshold | 0.97 | 0.95 (looser clustering) |
+| `REPRESENTATIVE` | Sequence kept per cluster in Script 03: `consensus` of its reads, or the `centroid` seed read (v0.1) | consensus | centroid |
 | `OTU_MODE` | How Script 04 builds OTUs: `shared` across samples, or `per_sample` (v0.1) | shared | per_sample |
 | `OTU_SIMILARITY` | Similarity for the shared OTUs (Script 04) | same as `VSEARCH_SIMILARITY` | 0.98 |
 | `MIN_OTU_READS` | Drop OTUs with fewer reads than this across all samples (Script 04) | 10 | 0 (keep all) |
@@ -633,8 +642,8 @@ export QUALITY_THRESHOLD=18 MIN_LENGTH=15000 MAX_LENGTH=18000 DATABASES="mitofis
 
 **⚙️ High-Performance Server:**
 ```bash
-export THREADS=32 SUBSET_COUNT=0 CONFIDENCE=0.1
-# Maximum performance with no sequence limit, conservative classification
+export SUBSET_COUNT=0 CONFIDENCE=0.1
+# THREADS and PARALLEL_SAMPLES are worked out automatically; no sequence limit, conservative classification
 ```
 
 ## 🗄️ Database Information

@@ -103,6 +103,7 @@
           <label class="field">Kraken2 confidence<input type="number" id="confidence" min="0" max="1" step="0.01" data-param="confidence"></label>
         </div>
         <p class="muted small">FASTA input (e.g. Custom CCI demultiplexed files) is not quality/length filtered; it was filtered before demultiplexing.</p>
+        <label class="check"><input type="checkbox" id="keep_intermediates_qc" data-param="keep_intermediates"> Keep large intermediate files (filtered reads, Kraken2 per-read output). Off saves a lot of disk space.</label>
       </div>
 
       <div class="actions">
@@ -125,6 +126,14 @@
           <input type="range" id="similarity" min="0.90" max="0.99" step="0.01" value="0.97" data-param="similarity">
           <small>Reads at least this similar are merged into one OTU. 0.97 is the usual default.</small>
         </label>
+        <label class="field">Sequence kept for each cluster
+          <select id="representative" data-param="representative">
+            <option value="consensus" selected>Consensus of the cluster's reads (recommended)</option>
+            <option value="centroid">The cluster's seed read (v0.1 behaviour)</option>
+          </select>
+          <small>A consensus averages out nanopore sequencing errors, so more clusters match reference sequences closely.</small>
+        </label>
+        <label class="check"><input type="checkbox" id="keep_intermediates_cons" data-param="keep_intermediates"> Keep the dereplicated reads (large, not needed later)</label>
       </div>
       <div class="actions"><button class="primary" data-run-step="consensus">Build consensus</button></div>
     </section>
