@@ -28,14 +28,14 @@ DB_ROOT="${DB_ROOT:-$DATABASE_DIR/kraken2_db}"
 read -ra DBS <<< "${DATABASES:-12s coi mitofish}"
 
 # ─── THREADS & CONFIDENCE ─────────────────────────────────────────────────
-THREADS="${THREADS:-8}"
+# THREADS defaults to "auto" (all cores but one); KRAKEN_MEMORY_MAPPING defaults to "auto" (read the
+# Kraken2 database from disk only when it would not fit comfortably in memory). See resources.sh.
+source "$SCRIPT_DIR/resources.sh"
 CONFIDENCE="${CONFIDENCE:-0.05}"
 
-# Read Kraken2 DBs from disk instead of loading them into RAM (for low-memory machines/containers)
-KRAKEN_EXTRA_ARGS=()
-if [[ "${KRAKEN_MEMORY_MAPPING:-false}" == "true" ]]; then
-  KRAKEN_EXTRA_ARGS+=(--memory-mapping)
-fi
+# Large per-read files (filtered reads, Kraken2 per-read output, unclassified reads) are removed or
+# compressed once the classified reads have been written, unless KEEP_INTERMEDIATES=true.
+KEEP_INTERMEDIATES="${KEEP_INTERMEDIATES:-false}"
 
 # ─── QUALITY & LENGTH FILTERING PARAMETERS ────────────────────────────────
 QUALITY_THRESHOLD="${QUALITY_THRESHOLD:-12}"   # Q12 quality threshold
@@ -406,6 +406,11 @@ for input_file in "${input_files[@]}"; do
       continue
     fi
     
+    KRAKEN_EXTRA_ARGS=()
+    if [[ "$(decodedna_kraken_mmap "$DB_PATH")" == "true" ]]; then
+      KRAKEN_EXTRA_ARGS+=(--memory-mapping)
+      echo "    (reading the database from disk: it is large compared with the free memory)"
+    fi
     # Run Kraken2 without --classified-out (which doesn't work with FASTA)
 kraken2 \
   ${KRAKEN_EXTRA_ARGS[@]+"${KRAKEN_EXTRA_ARGS[@]}"} \
@@ -615,6 +620,14 @@ rm -f "$OUT_DIR/${sample}_${db}_classified_ids.txt" "$OUT_DIR/${sample}_${db}_un
       fi
     fi
 
+    # ─── Tidy up large per-read files (KEEP_INTERMEDIATES=true keeps them as they are) ───
+    if [[ "$KEEP_INTERMEDIATES" != "true" ]]; then
+      rm -f "$OUT_DIR/${sample}_${db}_classified.fasta.bak"
+      for big in "$OUT_DIR/${sample}_${db}.output.txt" "$OUT_DIR/${sample}_${db}_unclassified.fasta"; do
+        [[ -s "$big" ]] && gzip -f "$big"
+      done
+    fi
+
     # ─── STEP 3: Generate Krona Charts ────────────────────────────────────
     if [[ "$USE_KRONA" -eq 1 ]]; then
       echo "    • Generating Krona chart for $db…"
@@ -639,14 +652,26 @@ rm -f "$OUT_DIR/${sample}_${db}_classified_ids.txt" "$OUT_DIR/${sample}_${db}_un
       echo "      ✓ Krona HTML: $OUTPUT_FILE"
     fi
   done
+  # the filtered reads are only needed for the Kraken2 step above
+  if [[ "$KEEP_INTERMEDIATES" != "true" ]]; then rm -f "$filtered_file"; fi
 done
+
+# copies of the input made for the EFPQ base conversion are no longer needed
+if [[ "$KEEP_INTERMEDIATES" != "true" ]] && [[ -n "${EFPQ_DIR:-}" ]] && [[ -d "$EFPQ_DIR" ]]; then
+  rm -rf "$EFPQ_DIR"
+fi
 
 echo
 echo "✅ Quality control and classification complete!"
 echo
 echo " Results summary:"
 echo " • Processed input:           $INPUT_TYPE files"
-echo " • Filtered sequences         → $FILTERED_DIR/"
+if [[ "$KEEP_INTERMEDIATES" == "true" ]]; then
+  echo " • Filtered sequences         → $FILTERED_DIR/"
+else
+  echo " • Filtered reads removed after classification (KEEP_INTERMEDIATES=true keeps them);"
+  echo "   Kraken2 per-read output and unclassified reads are gzip-compressed"
+fi
 if [[ "$USE_AMPLICON_SORTER" -eq 1 ]]; then
   echo " • Length distribution PDFs   → $FILTERED_DIR/<sample>_length_dist/"
 fi

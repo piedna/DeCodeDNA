@@ -21,8 +21,8 @@ mkdir -p "$OUTPUT_DIR"
 LOG_FILE="$OUTPUT_DIR/04_denoise.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-# Threads for the vsearch all-pairs alignment
-THREADS="${THREADS:-4}"
+# Threads ("auto" by default: all cores but one, see resources.sh)
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resources.sh"
 # How OTUs are built from the per-sample clusters made in step 03:
 #   shared     (default) pool every sample's clusters, cluster them once, then count each sample's
 #              reads against the shared OTUs. One OTU = the same sequence group in every sample.

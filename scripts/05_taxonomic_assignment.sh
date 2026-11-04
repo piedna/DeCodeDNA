@@ -190,7 +190,8 @@ fi
 echo ""
 
 # ─── SUBSET OPTION - LIMIT SEQUENCES IF REQUESTED ─────────────────────────
-THREADS="${THREADS:-8}"
+# Threads ("auto" by default: all cores but one, see resources.sh)
+source "$SCRIPT_DIR/resources.sh"
 EVALUE="${EVALUE:-1e-40}"
 MAX_HITS="${MAX_HITS:-50}"
 SUBSET_COUNT="${SUBSET_COUNT:-0}"  # Default to 0 (no limit)
