@@ -50,7 +50,8 @@ ver() { "$@" 2>&1 | head -1 | tr -d '\r'; }
       n=$(find "$p" -maxdepth 1 -type f | wc -l | tr -d ' ')
       sz=$(du -sh "$p" 2>/dev/null | cut -f1)
       newest=$(find "$p" -maxdepth 1 -type f -exec ls -l --time-style=+%Y-%m-%d {} + 2>/dev/null | awk '{print $6}' | sort | tail -1)
-      idx=$(ls "$p"/*.nin "$p"/*.nal "$p"/hash.k2d 2>/dev/null | head -1)
+      # checksum a small index file only (never the large Kraken2 hash or BLAST sequence files)
+      idx=$(ls "$p"/*.nal "$p"/*.nin "$p"/taxo.k2d "$p"/opts.k2d 2>/dev/null | head -1)
       sum=""; [ -n "$idx" ] && sum=" md5($(basename "$idx"))=$( (md5sum "$idx" 2>/dev/null || md5 -q "$idx") | cut -c1-32)"
       echo "$d  $p  $n files  $sz  $newest$sum"
     done
