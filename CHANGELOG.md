@@ -23,8 +23,11 @@ The old behaviour can still be selected where it changes results.
 - **Large intermediate files are cleaned up as the run goes (`KEEP_INTERMEDIATES=false`, new default).**
   Script 02 removes the filtered reads and the EFPQ-converted copies once the classified reads are written,
   and gzip-compresses the Kraken2 per-read output and the unclassified reads; Script 03 removes the
-  dereplicated reads after clustering. On the FHL COI run, Script 02 output had been about 3.7 times the
-  size of the input reads. `KEEP_INTERMEDIATES=true` keeps everything as before.
+  dereplicated reads after clustering. Script 02 also gzip-compresses the classified reads it hands to
+  Script 03 (which reads `.fasta.gz` directly), Script 04 compresses its shared-OTU working files (pooled
+  clusters, the OTU table before the read filter and its sequences), and Script 05 removes its per-sample
+  sequence copies and compresses other large temporary files. On the FHL COI run, Script 02 output had been
+  about 3.7 times the size of the input reads. `KEEP_INTERMEDIATES=true` keeps everything as before.
 - **Script 04 builds shared OTUs across samples (`OTU_MODE=shared`, new default).**
   In 0.1, every unique per-sample cluster sequence became its own OTU, so the same organism had a
   different OTU in each sample and real datasets produced hundreds of thousands of OTUs

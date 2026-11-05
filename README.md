@@ -509,7 +509,7 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 - **What it does:** Quality filtering, length filtering, initial Kraken2 classification
 - **Input:** Raw FASTQ files (from basecalling or mock data)
 - **Output:** Classified reads per database (used by Script 03), Kraken2 reports, Krona plots, length distributions
-- **Disk space:** the filtered reads are removed and the Kraken2 per-read output and unclassified reads are gzip-compressed once the classified reads are written. Set `KEEP_INTERMEDIATES=true` to keep them as they are.
+- **Disk space:** the filtered reads are removed, and the classified reads (Script 03's input), the Kraken2 per-read output and the unclassified reads are gzip-compressed. Scripts 04 and 05 likewise compress or remove their large working files. Set `KEEP_INTERMEDIATES=true` to keep everything as it is.
 - **Memory:** a Kraken2 database is read from disk instead of loaded into memory when it would not fit comfortably (`KRAKEN_MEMORY_MAPPING=auto`)
 - **Timing:** ~3-5 minutes
 

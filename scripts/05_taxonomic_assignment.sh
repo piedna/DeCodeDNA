@@ -1029,6 +1029,14 @@ print(f"   • Reads assigned to a taxon (any rank): {assigned:,.0f} of {all_rea
       f"({100 * assigned / all_reads if all_reads else 0:.1f}%) -> Read_assignment_summary.csv")
 PYCODE
 fi
+# Temporary files: the per-sample sequence copies (vsearch_<sample>_sequences.fasta) are only used for the
+# per-sample Kraken2/Krona step above, so they are removed; other large temporary files are compressed.
+# KEEP_INTERMEDIATES=true keeps them all.
+if [[ "${KEEP_INTERMEDIATES:-false}" != "true" ]]; then
+  rm -f "$TEMP_DIR"/vsearch_*_sequences.fasta
+  find "$TEMP_DIR" -type f -size +5M ! -name '*.gz' -exec gzip -f {} + 2>/dev/null || true
+fi
+export KEEP_INTERMEDIATES="${KEEP_INTERMEDIATES:-false}"
 bash "$SCRIPT_DIR/write_run_info.sh" "$OUTPUT_DIR" "05_taxonomic_assignment" || true
 echo ""
 
@@ -1040,7 +1048,7 @@ echo "    BLAST results      → $BLAST_DIR"
 echo "    Kraken2 results    → $KRAKEN_DIR"
 echo "    Final taxonomy     → $TAXONOMY_DIR" 
 echo "    Krona plots        → $KRONA_DIR"
-echo "    Temp files         → $TEMP_DIR"
+echo "    Temp files         → $TEMP_DIR (per-sample copies removed, large files compressed, unless KEEP_INTERMEDIATES=true)"
 echo ""
 
 echo " Key output files with REAL sample names (${REAL_SAMPLE_NAMES[*]}):"

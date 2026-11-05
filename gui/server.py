@@ -382,7 +382,7 @@ def step_done(run_dir):
     def any_glob(pattern):
         return any(run_dir.glob(pattern))
     return {
-        "qc": any_glob("02_quicklook/*/*_classified.fasta"),
+        "qc": any_glob("02_quicklook/*/*_classified.fasta") or any_glob("02_quicklook/*/*_classified.fasta.gz"),
         "consensus": any_glob("03_consensus/vsearch_clustering/*/*_vsearch_consensus.fasta"),
         "denoise": any_glob("04_denoise/*/otu_table_*_lulu_curated.csv"),
         "taxonomy": (run_dir / "05_taxonomy/03_final_taxonomy/TaxonKit_LCA_species_abundance.csv").exists(),

@@ -611,4 +611,13 @@ else
 fi
 echo ""
 
+# Compress the large working files of the shared-OTU build (pooled clusters, all OTUs before the read
+# filter, their sequences). The final tables and OTU sequences stay as they are. KEEP_INTERMEDIATES=true keeps all.
+if [[ "${KEEP_INTERMEDIATES:-false}" != "true" ]]; then
+    for f in "$OUTPUT_DIR_ABS"/*/pooled_*_sample_clusters.fasta "$OUTPUT_DIR_ABS"/*/otutab_*_all.tsv \
+             "$OUTPUT_DIR_ABS"/*/otu_centroids_*_all.fasta "$OUTPUT_DIR_ABS"/*/unmatched_*.fasta; do
+        [[ -s "$f" ]] && gzip -f "$f"
+    done
+fi
+export KEEP_INTERMEDIATES="${KEEP_INTERMEDIATES:-false}"
 bash "$(dirname "${BASH_SOURCE[0]}")/write_run_info.sh" "$OUTPUT_DIR_ABS" "04_denoise" || true

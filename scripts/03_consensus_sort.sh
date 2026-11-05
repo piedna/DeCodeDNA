@@ -47,7 +47,11 @@ extract_abundance() {
 count_sequences() {
     local fasta_file="$1"
     if [[ ! -f "$fasta_file" ]]; then echo "0"; return; fi
-    grep -c "^>" "$fasta_file" 2>/dev/null || echo "0"
+    if [[ "$fasta_file" == *.gz ]]; then
+        gzip -cd "$fasta_file" | grep -c "^>" 2>/dev/null || echo "0"
+    else
+        grep -c "^>" "$fasta_file" 2>/dev/null || echo "0"
+    fi
 }
 
 ### ── SANITY CHECKS ──────────────────────────────────────────────────────
@@ -93,7 +97,8 @@ for DATABASE in $DATABASES; do
     ### ── FIND CLASSIFIED FASTA FILES ─────────────────────────────────────
     echo "▶ Finding $DATABASE-classified sequences..."
     shopt -s nullglob
-    classified_files=("$KRAKEN_DB_DIR"/*_classified.fasta)
+    # Script 02 compresses the classified reads (.fasta.gz) unless KEEP_INTERMEDIATES=true
+    classified_files=("$KRAKEN_DB_DIR"/*_classified.fasta "$KRAKEN_DB_DIR"/*_classified.fasta.gz)
 
     if [[ ${#classified_files[@]} -eq 0 ]]; then
         echo "⚠️  No classified .fasta files found in $KRAKEN_DB_DIR"
@@ -211,7 +216,7 @@ EOF
     pids=(); pid_samples=()
     for classified_file in "${classified_files[@]}"; do
         sample=$(basename "$classified_file")
-        sample="${sample%_${DATABASE}_classified.fasta}"
+        sample="${sample%.gz}"; sample="${sample%_${DATABASE}_classified.fasta}"
         if [[ "$JOBS" -gt 1 ]]; then
             mkdir -p "$LOG_DIR"
             decodedna_wait_for_slot "$JOBS"

@@ -651,6 +651,10 @@ rm -f "$OUT_DIR/${sample}_${db}_classified_ids.txt" "$OUT_DIR/${sample}_${db}_un
       
       echo "      ✓ Krona HTML: $OUTPUT_FILE"
     fi
+    # Classified reads are Script 03's input; keep them, compressed (vsearch reads .gz directly)
+    if [[ "$KEEP_INTERMEDIATES" != "true" ]] && [[ -s "$OUT_DIR/${sample}_${db}_classified.fasta" ]]; then
+      gzip -f "$OUT_DIR/${sample}_${db}_classified.fasta"
+    fi
   done
   # the filtered reads are only needed for the Kraken2 step above
   if [[ "$KEEP_INTERMEDIATES" != "true" ]]; then rm -f "$filtered_file"; fi
@@ -670,7 +674,7 @@ if [[ "$KEEP_INTERMEDIATES" == "true" ]]; then
   echo " • Filtered sequences         → $FILTERED_DIR/"
 else
   echo " • Filtered reads removed after classification (KEEP_INTERMEDIATES=true keeps them);"
-  echo "   Kraken2 per-read output and unclassified reads are gzip-compressed"
+  echo "   classified reads, Kraken2 per-read output and unclassified reads are gzip-compressed"
 fi
 if [[ "$USE_AMPLICON_SORTER" -eq 1 ]]; then
   echo " • Length distribution PDFs   → $FILTERED_DIR/<sample>_length_dist/"
