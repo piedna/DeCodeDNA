@@ -11,10 +11,8 @@ export DATABASE_DIR="${DATABASE_DIR:-/databases}"
 export DB_ROOT="${DB_ROOT:-$DATABASE_DIR/kraken2_db}"
 export BLAST_DB_ROOT="${BLAST_DB_ROOT:-$DATABASE_DIR/blast_db}"
 export DATABASES="${DATABASES:-12s coi mitofish}"
-if [[ -z "${THREADS:-}" ]]; then
-  THREADS="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
-fi
-export THREADS
+# "auto": the scripts use all CPU cores the container may use, but one (see scripts/resources.sh)
+export THREADS="${THREADS:-auto}"
 
 usage() {
   cat <<EOF
@@ -25,7 +23,7 @@ Usage: decodedna <command> [args]
 Commands:
   gui                            Start the browser interface (port 8080)
   check [--json]                 Check tools and reference databases
-  build-db                       Build Kraken2 + BLAST databases into \$DATABASE_DIR (script 01, 1-2 h, ~200 GB)
+  build-db                       Build Kraken2 + BLAST databases into \$DATABASE_DIR (script 01, 1-2 h, ~60 GB while building)
   qc         <input> <out>       Quality filter + Kraken2 quick look   (script 02)
   consensus  <02_dir> <out>      vsearch consensus clustering          (script 03)
   denoise    <03_dir> <out>      LULU denoising                        (script 04)
@@ -37,11 +35,14 @@ Commands:
 Any other command is executed as-is (e.g. 'decodedna bash').
 
 Settings (environment variables, defaults in brackets):
-  DATABASE_DIR [$DATABASE_DIR]  DATABASES [$DATABASES]  THREADS [$THREADS]
+  DATABASE_DIR [$DATABASE_DIR]  DATABASES [$DATABASES]
+  THREADS [auto = all cores but one]  PARALLEL_SAMPLES [auto, samples clustered at once in step 03]
   QUALITY_THRESHOLD [12]  MIN_LENGTH [100]  MAX_LENGTH [500]  CONFIDENCE [0.05]
-  VSEARCH_SIMILARITY [0.97]  LULU_MAX_OTUS [1000, 0 = all]
+  VSEARCH_SIMILARITY [0.97]  REPRESENTATIVE [consensus | centroid]  KEEP_INTERMEDIATES [false]
+  OTU_MODE [shared | per_sample]  OTU_SIMILARITY [= VSEARCH_SIMILARITY]
+  MIN_OTU_READS [10, 0 = keep all]  LULU_MAX_OTUS [0 = all OTUs]  LULU_MIN_MATCH [97]
   EVALUE [1e-40]  MAX_HITS [50]  SUBSET_COUNT [0 = all]  SKIP_KRAKEN [false]  SKIP_KRONA [false]
-  KRAKEN_MEMORY_MAPPING [false]  read Kraken2 DBs from disk instead of RAM
+  KRAKEN_MEMORY_MAPPING [auto]  read a Kraken2 DB from disk instead of RAM when it would not fit (true/false to force)
 EOF
 }
 
@@ -72,7 +73,7 @@ write_run_info() {
     echo "databases:          $DATABASES"
     echo "database_dir:       $DATABASE_DIR"
     echo "threads:            $THREADS"
-    for v in QUALITY_THRESHOLD MIN_LENGTH MAX_LENGTH CONFIDENCE VSEARCH_SIMILARITY LULU_MAX_OTUS EVALUE MAX_HITS SUBSET_COUNT SKIP_KRAKEN SKIP_KRONA KRAKEN_MEMORY_MAPPING; do
+    for v in QUALITY_THRESHOLD MIN_LENGTH MAX_LENGTH CONFIDENCE VSEARCH_SIMILARITY OTU_MODE OTU_SIMILARITY MIN_OTU_READS LULU_MAX_OTUS EVALUE MAX_HITS SUBSET_COUNT SKIP_KRAKEN SKIP_KRONA KRAKEN_MEMORY_MAPPING; do
       printf '%-19s %s\n' "$(echo "$v" | tr 'A-Z' 'a-z'):" "${!v:-default}"
     done
     if [[ -f "${TAXONKIT_DB:-/nonexistent}/SNAPSHOT_DATE" ]]; then

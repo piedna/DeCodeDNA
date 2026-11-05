@@ -15,7 +15,20 @@ DATABASES="${DATABASES:-12s coi mitofish}"
 
 # Clustering parameters
 VSEARCH_SIMILARITY="${VSEARCH_SIMILARITY:-0.97}"
-VSEARCH_THREADS="${VSEARCH_THREADS:-${THREADS:-8}}"
+# What represents each cluster: "consensus" (default) = consensus of all reads in the cluster
+# (vsearch --consout), which averages out nanopore sequencing errors; "centroid" = the cluster's
+# seed read (vsearch --centroids), the behaviour of DeCodeDNA 0.1.
+REPRESENTATIVE="${REPRESENTATIVE:-consensus}"
+case "$REPRESENTATIVE" in consensus|centroid) ;; *) echo "❌ REPRESENTATIVE must be 'consensus' or 'centroid' (got '$REPRESENTATIVE')"; exit 1;; esac
+# Write which read went to which cluster (one .uc table per sample). Off by default: large, and not
+# used by later steps.
+WRITE_CLUSTER_MAP="${WRITE_CLUSTER_MAP:-false}"
+# Keep the dereplicated reads after clustering (large; not used by later steps)
+KEEP_INTERMEDIATES="${KEEP_INTERMEDIATES:-false}"
+
+# Threads, and how many samples to cluster at the same time (see resources.sh)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/resources.sh"
 
 # Directories - MATCH ORIGINAL 03 STRUCTURE
 VSEARCH_DIR="$OUTPUT_DIR/vsearch_clustering"
@@ -34,7 +47,11 @@ extract_abundance() {
 count_sequences() {
     local fasta_file="$1"
     if [[ ! -f "$fasta_file" ]]; then echo "0"; return; fi
-    grep -c "^>" "$fasta_file" 2>/dev/null || echo "0"
+    if [[ "$fasta_file" == *.gz ]]; then
+        gzip -cd "$fasta_file" | grep -c "^>" 2>/dev/null || echo "0"
+    else
+        grep -c "^>" "$fasta_file" 2>/dev/null || echo "0"
+    fi
 }
 
 ### ── SANITY CHECKS ──────────────────────────────────────────────────────
@@ -53,6 +70,7 @@ echo
 echo "Kraken2 results:    $KRAKEN_RESULTS_DIR"
 echo "Processing databases: $DATABASES"
 echo "vsearch similarity: $VSEARCH_SIMILARITY"
+echo "Cluster sequence:   $REPRESENTATIVE"
 echo "Output directory:   $OUTPUT_DIR"
 echo "Abundance tracking:  $ABUNDANCE_DIR"
 echo
@@ -79,7 +97,8 @@ for DATABASE in $DATABASES; do
     ### ── FIND CLASSIFIED FASTA FILES ─────────────────────────────────────
     echo "▶ Finding $DATABASE-classified sequences..."
     shopt -s nullglob
-    classified_files=("$KRAKEN_DB_DIR"/*_classified.fasta)
+    # Script 02 compresses the classified reads (.fasta.gz) unless KEEP_INTERMEDIATES=true
+    classified_files=("$KRAKEN_DB_DIR"/*_classified.fasta "$KRAKEN_DB_DIR"/*_classified.fasta.gz)
 
     if [[ ${#classified_files[@]} -eq 0 ]]; then
         echo "⚠️  No classified .fasta files found in $KRAKEN_DB_DIR"
@@ -96,17 +115,16 @@ for DATABASE in $DATABASES; do
     echo "vsearch Clustering for $DATABASE (With Abundance Tracking)"
     echo
 
-    for classified_file in "${classified_files[@]}"; do
-        # Extract sample name - MATCH ORIGINAL 03 LOGIC
-        sample=$(basename "$classified_file")
-        sample="${sample%_${DATABASE}_classified.fasta}"
-        
+    # cluster_one_sample FILE SAMPLE : dereplicate, cluster, write abundance summary
+    cluster_one_sample() {
+        local classified_file=$1 sample=$2
+        local derep_file vsearch_consensus summary_file classified_count derep_seq_count derep_read_count
+        local consensus_seq_count consensus_read_count read_retention rep_opt uc_opt
         echo "▶ vsearch clustering: $sample ($DATABASE)"
-        
         # Check for empty classified files
 if [[ ! -s "$classified_file" ]]; then
     echo "  ⚠️  Skipping empty classified file: $(basename "$classified_file")"
-    continue
+    return 0
 fi
         
         # Step 1: Dereplicate sequences (PRESERVE abundance with --sizeout)
@@ -117,26 +135,29 @@ fi
           --output "$derep_file" \
           --sizeout \
           --minuniquesize 1 \
-          --threads "$VSEARCH_THREADS"
+          --threads "$JOB_THREADS"
           
           # Check if dereplication produced any sequences
 if [[ ! -s "$derep_file" ]]; then
     echo "  ⚠️  No sequences after dereplication, skipping clustering for $sample"
-    continue
+    return 0
 fi
         
         # Step 2: Cluster sequences - CREATE EXACT FILES SCRIPT 04 EXPECTS
         # Script 04 looks for: "*_${DATABASE}_vsearch_consensus.fasta"
         vsearch_consensus="$DB_VSEARCH_DIR/${sample}_${DATABASE}_vsearch_consensus.fasta"
-        echo "  • Clustering at ${VSEARCH_SIMILARITY} similarity..."
+        echo "  • Clustering at ${VSEARCH_SIMILARITY} similarity (keeping the cluster $REPRESENTATIVE)..."
+        if [[ "$REPRESENTATIVE" == "consensus" ]]; then rep_opt=(--consout "$vsearch_consensus"); else rep_opt=(--centroids "$vsearch_consensus"); fi
+        uc_opt=()
+        [[ "$WRITE_CLUSTER_MAP" == "true" ]] && uc_opt=(--uc "$DB_VSEARCH_DIR/${sample}_${DATABASE}_clusters.uc")
         vsearch \
           --cluster_fast "$derep_file" \
           --id "$VSEARCH_SIMILARITY" \
-          --centroids "$vsearch_consensus" \
-          --clusters "$DB_VSEARCH_DIR/${sample}_${DATABASE}_clusters" \
+          "${rep_opt[@]}" \
+          ${uc_opt[@]+"${uc_opt[@]}"} \
           --sizein \
           --sizeout \
-          --threads "$VSEARCH_THREADS"
+          --threads "$JOB_THREADS"
         
         # Step 3: CREATE ABUNDANCE SUMMARY
         summary_file="$DB_ABUNDANCE_DIR/${sample}_${DATABASE}_abundance_summary.txt"
@@ -168,11 +189,10 @@ consensus_reads: $consensus_read_count
 
 ## Files
 classified_file: $classified_file
-dereplicated_file: $derep_file
+dereplicated_file: $derep_file (removed after clustering unless KEEP_INTERMEDIATES=true)
 consensus_file: $vsearch_consensus
 EOF
         
-        consensus_built=$((consensus_built + 1))
         echo "  vsearch consensus: $vsearch_consensus"
         echo "  abundance summary: $summary_file"
         
@@ -186,6 +206,38 @@ EOF
           echo "      Read retention:  ${read_retention}%"
         fi
         echo
+        if [[ "$KEEP_INTERMEDIATES" != "true" ]]; then rm -f "$derep_file"; fi
+    }
+
+    decodedna_plan_parallel ${#classified_files[@]} 4 2
+    echo "Clustering ${#classified_files[@]} sample(s), $JOBS at a time, $JOB_THREADS thread(s) each"
+    echo
+    LOG_DIR="$DB_ABUNDANCE_DIR/logs"
+    pids=(); pid_samples=()
+    for classified_file in "${classified_files[@]}"; do
+        sample=$(basename "$classified_file")
+        sample="${sample%.gz}"; sample="${sample%_${DATABASE}_classified.fasta}"
+        if [[ "$JOBS" -gt 1 ]]; then
+            mkdir -p "$LOG_DIR"
+            decodedna_wait_for_slot "$JOBS"
+            cluster_one_sample "$classified_file" "$sample" > "$LOG_DIR/${sample}.log" 2>&1 &
+            pids+=($!); pid_samples+=("$sample")
+        else
+            cluster_one_sample "$classified_file" "$sample"
+        fi
+    done
+    failed=0; i=0
+    while [[ $i -lt ${#pids[@]} ]]; do
+        if wait "${pids[$i]}"; then
+            cat "$LOG_DIR/${pid_samples[$i]}.log"
+        else
+            echo "❌ Clustering failed for ${pid_samples[$i]}:"; cat "$LOG_DIR/${pid_samples[$i]}.log"; failed=1
+        fi
+        i=$((i + 1))
+    done
+    [[ $failed -eq 0 ]] || { echo "❌ Step 03 stopped: clustering failed for at least one sample (see above)"; exit 1; }
+    for f in "$DB_VSEARCH_DIR"/*_"${DATABASE}"_vsearch_consensus.fasta; do
+        [[ -s "$f" ]] && consensus_built=$((consensus_built + 1))
     done
 
     echo "Database $DATABASE processing complete!"
@@ -196,6 +248,9 @@ if [[ $consensus_built -eq 0 ]]; then
     echo "❌ Error: no consensus sequences were built (no classified reads found in $KRAKEN_RESULTS_DIR for: $DATABASES)"
     exit 1
 fi
+
+export REPRESENTATIVE VSEARCH_SIMILARITY KEEP_INTERMEDIATES
+bash "$SCRIPT_DIR/write_run_info.sh" "$OUTPUT_DIR" "03_consensus" || true
 
 ### ── FINAL SUMMARY & NEXT STEPS ────────────────────────────────────────
 echo "CLUSTERING WITH ABUNDANCE TRACKING COMPLETE"

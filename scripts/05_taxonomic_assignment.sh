@@ -190,7 +190,8 @@ fi
 echo ""
 
 # ─── SUBSET OPTION - LIMIT SEQUENCES IF REQUESTED ─────────────────────────
-THREADS="${THREADS:-8}"
+# Threads ("auto" by default: all cores but one, see resources.sh)
+source "$SCRIPT_DIR/resources.sh"
 EVALUE="${EVALUE:-1e-40}"
 MAX_HITS="${MAX_HITS:-50}"
 SUBSET_COUNT="${SUBSET_COUNT:-0}"  # Default to 0 (no limit)
@@ -540,6 +541,9 @@ else
   SKIP_KRONA=true
 fi
 
+# Sample list used by Kraken2 and by the final processing step (needed even when Kraken2 is skipped)
+sample_names_str=$(IFS=','; echo "${REAL_SAMPLE_NAMES[*]}")
+
 if [[ "${SKIP_KRAKEN:-false}" != "true" ]]; then
   echo ""
   echo " Creating per-sample FASTA files for Kraken2..."
@@ -739,7 +743,7 @@ KRONA_EOF
     done
   done
 else
-  echo "⚠️  Skipping Kraken2 analysis - kraken2 not found"
+  echo "⚠️  Skipping Kraken2 analysis (SKIP_KRAKEN=true, or kraken2 not found)"
 fi
 
 echo ""
@@ -991,6 +995,51 @@ echo ""
 # ─── FINAL SUMMARY AND RESULTS ────────────────────────────────────────────
 # ═══════════════════════════════════════════════════════════════════════════
 
+# ─── READ ASSIGNMENT SUMMARY (one clearly defined rate) ─────────────────
+# Denominator: all reads in the curated OTU table that went into taxonomy (all samples, all databases).
+# Assigned:    reads in OTUs that TaxonKit LCA placed at any rank. Also split by the rank reached.
+if [[ -f "$TAXONOMY_DIR/TaxonKit_LCA_species_abundance.csv" ]]; then
+  python3 - "$TAXONOMY_DIR/TaxonKit_LCA_species_abundance.csv" "$TAXONOMY_DIR/Read_assignment_summary.csv" <<'PYCODE' || true
+import sys, csv, re
+src, out = sys.argv[1], sys.argv[2]
+def rank(name):
+    n = name.strip().lower()
+    if n in ("", "unclassified", "unassigned", "no hit", "nan"): return "unassigned"
+    m = re.search(r"\b(family|order|class|phylum|kingdom|superfamily)$", n)
+    if m: return m.group(1)
+    w = name.split()
+    if len(w) >= 2 and w[1] in ("sp.", "spp.", "cf.", "aff."): return "genus"
+    return "species" if len(w) >= 2 else "genus"
+tot = {}
+with open(src) as fh:
+    r = csv.reader(fh); head = next(r)
+    for row in r:
+        k = rank(row[0]); tot[k] = tot.get(k, 0) + sum(float(x or 0) for x in row[1:])
+all_reads = sum(tot.values())
+order = ["species", "genus", "family", "superfamily", "order", "class", "phylum", "kingdom", "unassigned"]
+with open(out, "w", newline="") as fh:
+    w = csv.writer(fh)
+    w.writerow(["level_reached", "reads", "percent_of_reads_in_otu_table"])
+    for k in order:
+        if k in tot: w.writerow([k, int(tot[k]), round(100 * tot[k] / all_reads, 2) if all_reads else 0])
+    assigned = all_reads - tot.get("unassigned", 0)
+    w.writerow(["ANY_RANK_ASSIGNED", int(assigned), round(100 * assigned / all_reads, 2) if all_reads else 0])
+    w.writerow(["TOTAL_READS_IN_OTU_TABLE", int(all_reads), 100.0])
+print(f"   • Reads assigned to a taxon (any rank): {assigned:,.0f} of {all_reads:,.0f} reads in the OTU table "
+      f"({100 * assigned / all_reads if all_reads else 0:.1f}%) -> Read_assignment_summary.csv")
+PYCODE
+fi
+# Temporary files: the per-sample sequence copies (vsearch_<sample>_sequences.fasta) are only used for the
+# per-sample Kraken2/Krona step above, so they are removed; other large temporary files are compressed.
+# KEEP_INTERMEDIATES=true keeps them all.
+if [[ "${KEEP_INTERMEDIATES:-false}" != "true" ]]; then
+  rm -f "$TEMP_DIR"/vsearch_*_sequences.fasta
+  find "$TEMP_DIR" -type f -size +5M ! -name '*.gz' -exec gzip -f {} + 2>/dev/null || true
+fi
+export KEEP_INTERMEDIATES="${KEEP_INTERMEDIATES:-false}"
+bash "$SCRIPT_DIR/write_run_info.sh" "$OUTPUT_DIR" "05_taxonomic_assignment" || true
+echo ""
+
 echo " COMPREHENSIVE TAXONOMIC ASSIGNMENT COMPLETE!"
 echo "════════════════════════════════════════════════════════════════════════"
 echo ""
@@ -999,7 +1048,7 @@ echo "    BLAST results      → $BLAST_DIR"
 echo "    Kraken2 results    → $KRAKEN_DIR"
 echo "    Final taxonomy     → $TAXONOMY_DIR" 
 echo "    Krona plots        → $KRONA_DIR"
-echo "    Temp files         → $TEMP_DIR"
+echo "    Temp files         → $TEMP_DIR (per-sample copies removed, large files compressed, unless KEEP_INTERMEDIATES=true)"
 echo ""
 
 echo " Key output files with REAL sample names (${REAL_SAMPLE_NAMES[*]}):"

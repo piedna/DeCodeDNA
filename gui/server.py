@@ -74,7 +74,12 @@ PARAMS = {
     "max_length":       ("MAX_LENGTH",         int,   1, 100000),
     "confidence":       ("CONFIDENCE",         float, 0, 1),
     "similarity":       ("VSEARCH_SIMILARITY", float, 0.5, 1),
+    "representative":   ("REPRESENTATIVE",     ("consensus", "centroid"), None, None),
+    "keep_intermediates": ("KEEP_INTERMEDIATES", bool, None, None),
+    "otu_mode":         ("OTU_MODE",           ("shared", "per_sample"), None, None),
+    "min_otu_reads":    ("MIN_OTU_READS",      int,   0, 10_000_000),
     "lulu_max_otus":    ("LULU_MAX_OTUS",      int,   0, 10_000_000),
+    "lulu_min_match":   ("LULU_MIN_MATCH",     float, 50, 100),
     "evalue":           ("EVALUE",             float, 0, 10),
     "max_hits":         ("MAX_HITS",           int,   1, 10000),
     "subset_count":     ("SUBSET_COUNT",       int,   0, 10_000_000),
@@ -298,6 +303,11 @@ def job_env(params):
         if typ is bool:
             env[var] = "true" if value else "false"
             continue
+        if isinstance(typ, tuple):
+            if value not in typ:
+                raise ApiError(f"{key.replace('_', ' ')} must be one of: {', '.join(typ)}.")
+            env[var] = value
+            continue
         try:
             v = typ(value)
         except (TypeError, ValueError):
@@ -372,7 +382,7 @@ def step_done(run_dir):
     def any_glob(pattern):
         return any(run_dir.glob(pattern))
     return {
-        "qc": any_glob("02_quicklook/*/*_classified.fasta"),
+        "qc": any_glob("02_quicklook/*/*_classified.fasta") or any_glob("02_quicklook/*/*_classified.fasta.gz"),
         "consensus": any_glob("03_consensus/vsearch_clustering/*/*_vsearch_consensus.fasta"),
         "denoise": any_glob("04_denoise/*/otu_table_*_lulu_curated.csv"),
         "taxonomy": (run_dir / "05_taxonomy/03_final_taxonomy/TaxonKit_LCA_species_abundance.csv").exists(),

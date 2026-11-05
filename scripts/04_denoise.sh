@@ -21,17 +21,33 @@ mkdir -p "$OUTPUT_DIR"
 LOG_FILE="$OUTPUT_DIR/04_denoise.log"
 exec > >(tee -a "$LOG_FILE") 2>&1
 
-# Threads for the vsearch all-pairs alignment
-THREADS="${THREADS:-4}"
-# LULU input cap (teaching default: 1000 OTUs; 0 = no limit)
-LULU_MAX_OTUS="${LULU_MAX_OTUS:-1000}"
+# Threads ("auto" by default: all cores but one, see resources.sh)
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/resources.sh"
+# How OTUs are built from the per-sample clusters made in step 03:
+#   shared     (default) pool every sample's clusters, cluster them once, then count each sample's
+#              reads against the shared OTUs. One OTU = the same sequence group in every sample.
+#   per_sample (old behaviour, v0.1) every unique per-sample cluster sequence becomes its own OTU.
+OTU_MODE="${OTU_MODE:-shared}"
+OTU_SIMILARITY="${OTU_SIMILARITY:-${VSEARCH_SIMILARITY:-0.97}}"
+# Drop OTUs with fewer reads than this across all samples (0 = keep everything)
+MIN_OTU_READS="${MIN_OTU_READS:-10}"
+# LULU input cap: 0 = use all OTUs (default). Set e.g. 1000 for a fast classroom run.
+LULU_MAX_OTUS="${LULU_MAX_OTUS:-0}"
+# Minimum % identity for LULU to treat an OTU as an error copy of a more abundant co-occurring OTU.
+# 97 (default) merges only near-identical OTUs. LULU's own default is 84; with the cleaner consensus
+# sequences from step 03 that also merged distinct, co-occurring species in our tests (FHL MFU subset:
+# 589 of 850 OTUs merged and 32 low-read taxa lost at 84, against 2 OTUs merged at 97).
+export LULU_MIN_MATCH="${LULU_MIN_MATCH:-97}"
 
 echo "Logging to $LOG_FILE"
 echo ""
 echo " Consensus input:  $CONSENSUS_DIR"
 echo " Output directory: $OUTPUT_DIR"
 echo " Processing databases: $DATABASES"
+echo " OTU mode:         $OTU_MODE (similarity $OTU_SIMILARITY, min reads per OTU $MIN_OTU_READS)"
+echo " LULU OTU cap:     $LULU_MAX_OTUS (0 = all OTUs), min. match $LULU_MIN_MATCH%"
 echo ""
+case "$OTU_MODE" in shared|per_sample) ;; *) echo "❌ OTU_MODE must be 'shared' or 'per_sample' (got '$OTU_MODE')"; exit 1;; esac
 
 # Store absolute paths
 CONSENSUS_DIR_ABS=$(cd "$CONSENSUS_DIR" && pwd)
@@ -115,6 +131,81 @@ for DATABASE in $DATABASES; do
     echo "$HEADER" > "otu_table_${DATABASE}_vsearch.csv"
     echo "    ✅ Created header: $HEADER"
     
+    sample_names_str=$(IFS=','; echo "${SAMPLE_NAMES[*]}")
+
+    if [[ "$OTU_MODE" == "shared" ]]; then
+        # ── Shared OTUs across samples ───────────────────────────────────
+        # 1. pool every sample's clusters, keeping their read counts (size=) and sample name
+        POOLED="pooled_${DATABASE}_sample_clusters.fasta"
+        > "$POOLED"
+        for idx in "${!consensus_files[@]}"; do
+            awk -v s="${SAMPLE_NAMES[$idx]}" '
+                /^>/ { n++; size = 1; if (match($0, /size=[0-9]+/)) size = substr($0, RSTART + 5, RLENGTH - 5)
+                       print ">" s "." n ";size=" size ";sample=" s ";"; next }
+                { print }' "${consensus_files[$idx]}" >> "$POOLED"
+        done
+        pooled_seqs=$(grep -c "^>" "$POOLED" || echo 0)
+        pooled_reads=$(grep "^>" "$POOLED" | sed 's/.*;size=\([0-9]*\);.*/\1/' | awk '{s+=$1} END {print s+0}')
+        echo "    Pooled $pooled_seqs per-sample clusters representing $pooled_reads reads"
+
+        # 2. cluster once across all samples (largest clusters seed first)
+        vsearch --cluster_size "$POOLED" \
+            --id "$OTU_SIMILARITY" \
+            --sizein --sizeout \
+            --relabel OTU_ \
+            --centroids "otu_centroids_${DATABASE}_all.fasta" \
+            --threads "$THREADS" --quiet
+
+        # 3. count each sample's reads against the shared OTUs
+        vsearch --usearch_global "$POOLED" \
+            --db "otu_centroids_${DATABASE}_all.fasta" \
+            --id "$OTU_SIMILARITY" \
+            --sizein \
+            --otutabout "otutab_${DATABASE}_all.tsv" \
+            --notmatched "unmatched_${DATABASE}.fasta" \
+            --threads "$THREADS" --quiet
+
+        # 4. drop OTUs below MIN_OTU_READS and write the files steps 04-05 use
+        python3 - "$DATABASE" "$MIN_OTU_READS" "$sample_names_str" "$pooled_reads" << 'PYTHON_EOF'
+import sys, csv
+db, min_reads, samples, pooled_reads = sys.argv[1], int(sys.argv[2]), sys.argv[3].split(","), int(sys.argv[4])
+rows = {}
+with open(f"otutab_{db}_all.tsv") as fh:
+    r = csv.reader(fh, delimiter="\t")
+    head = next(r)[1:]
+    for line in r:
+        rows[line[0]] = dict(zip(head, map(int, line[1:])))
+seqs, name = {}, None
+with open(f"otu_centroids_{db}_all.fasta") as fh:
+    for line in fh:
+        line = line.strip()
+        if line.startswith(">"):
+            name = line[1:].split(";")[0]; seqs[name] = []
+        elif name:
+            seqs[name].append(line)
+order = sorted(rows, key=lambda k: (-sum(rows[k].values()), int(k.split("_")[-1])))
+kept = [k for k in order if sum(rows[k].values()) >= min_reads]
+reads_all = sum(sum(v.values()) for v in rows.values())
+reads_kept = sum(sum(rows[k].values()) for k in kept)
+with open(f"otu_table_{db}_vsearch.csv", "w") as fh:
+    fh.write("OTU_ID," + ",".join(samples) + "\n")
+    for k in kept:
+        fh.write(k + "," + ",".join(str(rows[k].get(s, 0)) for s in samples) + "\n")
+for fn in (f"otu_representatives_{db}_vsearch.fasta", f"combined_{db}_vsearch_consensus.fasta"):
+    with open(fn, "w") as fh:
+        for k in kept:
+            fh.write(f">{k}\n{''.join(seqs[k])}\n")
+with open(f"otu_build_summary_{db}.tsv", "w") as fh:
+    fh.write("step\totus\treads\n")
+    fh.write(f"reads entering step 04 (from step 03 clusters)\t\t{pooled_reads}\n")
+    fh.write(f"shared OTUs, all\t{len(rows)}\t{reads_all}\n")
+    fh.write(f"shared OTUs with >= {min_reads} reads\t{len(kept)}\t{reads_kept}\n")
+print(f"    {len(rows)} shared OTUs ({reads_all} reads); kept {len(kept)} with >= {min_reads} reads ({reads_kept} reads)")
+if pooled_reads > reads_all:
+    print(f"    {pooled_reads - reads_all} reads did not match any OTU at the chosen similarity (see unmatched_{db}.fasta)")
+PYTHON_EOF
+    else
+        # ── Legacy route (v0.1): one OTU per unique per-sample cluster sequence ──
     # Combine all consensus sequences and create representatives
     COMBINED_CONSENSUS="combined_${DATABASE}_vsearch_consensus.fasta"
     > "$COMBINED_CONSENSUS"
@@ -245,11 +336,11 @@ if __name__ == "__main__":
 PYTHON_EOF
     
     # Prepare arguments for Python script
-    sample_names_str=$(IFS=','; echo "${SAMPLE_NAMES[*]}")
     consensus_files_str=$(IFS='|'; echo "${consensus_files[*]}")
     
     # Run Python script
     python3 create_abundance_table.py "$DATABASE" "$sample_names_str" "$consensus_files_str"
+    fi
     
     echo "    ✅ Created otu_table_${DATABASE}_vsearch.csv with real sample-specific abundance"
     echo "    ✅ Created otu_representatives_${DATABASE}_vsearch.fasta"
@@ -284,12 +375,20 @@ PYTHON_EOF
             INPUT_FILE="otu_representatives_${DATABASE}_vsearch.fasta"
         fi
         
-        echo "    • Running vsearch all-pairs alignment..."
-        vsearch --allpairs_global "$INPUT_FILE" \
+        echo "    • Matching OTUs against each other for LULU (vsearch --usearch_global --self)..."
+        # Match list for LULU: every OTU against every other OTU, in both directions
+        # (as recommended by the LULU authors). Columns: query, target, % identity.
+        vsearch --usearch_global "$INPUT_FILE" \
+            --db "$INPUT_FILE" \
+            --self \
             --id 0.84 \
             --iddef 1 \
             --qmask none \
-            --blast6out "otu_self_blast_${DATABASE}_vsearch.out" \
+            --userout "otu_self_blast_${DATABASE}_vsearch.out" \
+            --userfields query+target+id \
+            --maxaccepts 0 \
+            --query_cov 0.9 \
+            --maxhits 10 \
             --threads "$THREADS"
         
         echo "    ✅ Created otu_self_blast_${DATABASE}_vsearch.out"
@@ -298,7 +397,8 @@ PYTHON_EOF
         echo "▶ Step 3: Run LULU to curate $DATABASE vsearch OTUs"
         
         # Create R script if needed
-        if [ ! -f "$LULU_SCRIPT" ]; then
+        # Always write a fresh copy, so a re-run into the same folder never uses an older version
+        if true; then
             mkdir -p "$(dirname "$LULU_SCRIPT")"
             cat > "$LULU_SCRIPT" << 'LULU_EOF'
 #!/usr/bin/env Rscript
@@ -364,7 +464,9 @@ if (nrow(blast_results) == 0) {
     quit(status = 0)
 }
 
-colnames(blast_results) <- c("query", "subject", "identity", "alignment_length", "mismatches", "gap_opens", "q_start", "q_end", "s_start", "s_end", "evalue", "bit_score")
+# LULU needs three columns: query OTU, matched OTU, % identity
+blast_results <- blast_results[, 1:3]
+colnames(blast_results) <- c("query", "subject", "identity")
 
 cat(" BLAST results:", nrow(blast_results), "alignments\n")
 
@@ -373,16 +475,18 @@ tryCatch({
     lulu_result <- lulu(otu_table, blast_results, 
                        minimum_ratio_type = "min", 
                        minimum_ratio = 1, 
-                       minimum_match = 84, 
+                       minimum_match = as.numeric(Sys.getenv("LULU_MIN_MATCH", "97")), 
                        minimum_relative_cooccurence = 0.95)
     
     write.csv(lulu_result$curated_table, "otu_table_lulu_curated.csv")
-    write.csv(lulu_result$discarded_table, "otu_table_lulu_discarded.csv")
+    discarded_table <- otu_table[row.names(otu_table) %in% lulu_result$discarded_otus, , drop = FALSE]
+    write.csv(discarded_table, "otu_table_lulu_discarded.csv")
+    if (!is.null(lulu_result$otu_map)) write.csv(lulu_result$otu_map, "otu_lulu_map.csv")
     
     cat("\n LULU Results Summary:\n")
     cat("    • Original OTUs:", nrow(otu_table), "\n")
     cat("    • Curated OTUs:", nrow(lulu_result$curated_table), "\n")
-    cat("    • Discarded OTUs:", nrow(lulu_result$discarded_table), "\n")
+    cat("    • Discarded OTUs:", length(lulu_result$discarded_otus), "\n")
     reduction <- round((1 - nrow(lulu_result$curated_table)/nrow(otu_table)) * 100, 1)
     cat("    • Reduction:", reduction, "%\n")
     
@@ -506,3 +610,14 @@ else
   echo " bash scripts/05_taxonomic_assignment.sh $OUTPUT_DIR_ABS results/05_taxonomy"
 fi
 echo ""
+
+# Compress the large working files of the shared-OTU build (pooled clusters, all OTUs before the read
+# filter, their sequences). The final tables and OTU sequences stay as they are. KEEP_INTERMEDIATES=true keeps all.
+if [[ "${KEEP_INTERMEDIATES:-false}" != "true" ]]; then
+    for f in "$OUTPUT_DIR_ABS"/*/pooled_*_sample_clusters.fasta "$OUTPUT_DIR_ABS"/*/otutab_*_all.tsv \
+             "$OUTPUT_DIR_ABS"/*/otu_centroids_*_all.fasta "$OUTPUT_DIR_ABS"/*/unmatched_*.fasta; do
+        [[ -s "$f" ]] && gzip -f "$f"
+    done
+fi
+export KEEP_INTERMEDIATES="${KEEP_INTERMEDIATES:-false}"
+bash "$(dirname "${BASH_SOURCE[0]}")/write_run_info.sh" "$OUTPUT_DIR_ABS" "04_denoise" || true
