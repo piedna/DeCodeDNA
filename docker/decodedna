@@ -107,6 +107,7 @@ run_checks() {
     if command -v "$t" >/dev/null 2>&1; then add_check tool "$t" 1 ""; else add_check tool "$t" 0 "missing"; fi
   done
   if Rscript -e 'library(lulu)' >/dev/null 2>&1; then add_check tool "R package lulu" 1 ""; else add_check tool "R package lulu" 0 "missing"; fi
+  if python3 -c 'import pandas' >/dev/null 2>&1; then add_check tool "Python pandas" 1 ""; else add_check tool "Python pandas" 0 "missing (python3 -m pip install pandas)"; fi
   # </dev/null: taxonkit reads stdin when it is a pipe and fails on an empty one
   if taxonkit list --ids 9606 </dev/null >/dev/null 2>&1; then add_check tool "TaxonKit taxonomy" 1 ""; else add_check tool "TaxonKit taxonomy" 0 "missing (TAXONKIT_DB=${TAXONKIT_DB:-~/.taxonkit})"; fi
 

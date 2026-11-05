@@ -137,60 +137,53 @@ echo "────────────────────────�
 
 cd "$FASTA_ROOT"
 
-# Download MIDORI 12S
-if [[ ! -f "midori_12s.fasta" ]]; then
-  echo "   - Downloading MIDORI 12S rRNA sequences..."
-  curl -sL -o midori_12s.zip \
-    "https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta.zip"
-  
-  if [[ -f "midori_12s.zip" ]]; then
-    unzip -q midori_12s.zip
-    mv MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta midori_12s.fasta
-    rm midori_12s.zip
-    echo "     ✅ MIDORI 12S downloaded"
-  else
-    echo "     ❌ Failed to download MIDORI 12S"
-  fi
-else
-  echo "   ✅ MIDORI 12S already exists"
-fi
+# Where each reference file comes from. These links change when the providers publish a new release
+# (MIDORI2 replaces its release about every two months), so each can be set to a current direct link:
+#   MIDORI_12S_URL, MIDORI_COI_URL, MITOFISH_URL
+# A file already saved in the db_fasta folder under the name below is used as it is, without downloading:
+#   midori_12s.fasta, midori_coi.fasta, mifish.fasta (unzipped FASTA)
+MIDORI_12S_URL="${MIDORI_12S_URL:-https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta.zip}"
+MIDORI_COI_URL="${MIDORI_COI_URL:-https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta.zip}"
+MITOFISH_URL="${MITOFISH_URL:-https://mitofish.aori.u-tokyo.ac.jp/species/detail/download/?filename=download%2F/complete_partial_mitogenomes.zip}"
+DOWNLOAD_FAILED=()
 
-# Download MIDORI COI
-if [[ ! -f "midori_coi.fasta" ]]; then
-  echo "   - Downloading MIDORI COI sequences..."
-  curl -sL -o midori_coi.zip \
-    "https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta.zip"
-  
-  if [[ -f "midori_coi.zip" ]]; then
-    unzip -q midori_coi.zip
-    mv MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta midori_coi.fasta
-    rm midori_coi.zip
-    echo "     ✅ MIDORI COI downloaded"
-  else
-    echo "     ❌ Failed to download MIDORI COI"
+# fetch_fasta OUT_NAME URL LABEL WHERE_TO_GET_IT URL_VARIABLE
+fetch_fasta() {
+  local out="$1" url="$2" label="$3" page="$4" var="$5"
+  if [[ -s "$out" ]]; then echo "   ✅ $label already exists ($out)"; return 0; fi
+  echo "   - Downloading $label..."
+  local tmp="${out%.fasta}.download" dir="${out%.fasta}_unzip" f=""
+  rm -rf "$tmp" "$dir"
+  if curl -sfL -o "$tmp" "$url" && unzip -tq "$tmp" >/dev/null 2>&1; then
+    mkdir -p "$dir" && unzip -q "$tmp" -d "$dir"
+    f=$(find "$dir" -type f \( -name '*.fasta' -o -name '*.fa' -o -name '*.fas' -o -name '*.fna' \) 2>/dev/null | head -1 || true)
+    [[ -z "$f" ]] && f=$(find "$dir" -type f -size +1M 2>/dev/null | head -1 || true)
+    if [[ -n "$f" ]] && grep -q '^>' "$f"; then
+      mv "$f" "$out"; rm -rf "$tmp" "$dir"
+      echo "     ✅ $label downloaded ($(grep -c '^>' "$out") sequences)"
+      return 0
+    fi
   fi
-else
-  echo "   ✅ MIDORI COI already exists"
-fi
+  rm -rf "$tmp" "$dir"
+  echo "     ❌ Could not download $label from:"
+  echo "        $url"
+  echo "        The provider may have moved or replaced the file. To fix it, either:"
+  echo "          • download it from $page, unzip it and save the FASTA as"
+  echo "            $FASTA_ROOT/$out , or"
+  echo "          • set $var to a working direct link,"
+  echo "        then run this script again (finished parts are kept)."
+  DOWNLOAD_FAILED+=("$label")
+  return 0
+}
 
-# Download MitoFish
-if [[ ! -f "mifish.fasta" ]]; then
-  echo "   - Downloading MitoFish mitogenomes..."
-  curl -sL -o mifish.zip \
-    "https://mitofish.aori.u-tokyo.ac.jp/species/detail/download/?filename=download%2F/complete_partial_mitogenomes.zip"
-  
-  if [[ -f "mifish.zip" ]]; then
-    unzip -q mifish.zip
-    mv complete_partial_mitogenomes.fasta mifish.fasta 2>/dev/null || \
-    mv mito-all mifish.fasta 2>/dev/null || \
-    find . -name "*.fasta" -not -name "midori*" -not -name "mifish*" | head -1 | xargs -I {} mv {} mifish.fasta
-    rm mifish.zip
-    echo "     ✅ MitoFish downloaded"
-  else
-    echo "     ❌ Failed to download MitoFish"
-  fi
-else
-  echo "   ✅ MitoFish already exists"
+fetch_fasta midori_12s.fasta "$MIDORI_12S_URL" "MIDORI2 12S (srRNA)" "https://www.reference-midori.info/download.html (BLAST, uniq, srRNA)" MIDORI_12S_URL
+fetch_fasta midori_coi.fasta "$MIDORI_COI_URL" "MIDORI2 COI (CO1)" "https://www.reference-midori.info/download.html (BLAST, uniq, CO1)" MIDORI_COI_URL
+fetch_fasta mifish.fasta "$MITOFISH_URL" "MitoFish mitogenomes" "https://mitofish.aori.u-tokyo.ac.jp/download/ (complete and partial mitogenomes)" MITOFISH_URL
+
+if [[ ${#DOWNLOAD_FAILED[@]} -gt 0 ]]; then
+  echo ""
+  echo "❌ Stopped: ${#DOWNLOAD_FAILED[@]} reference file(s) could not be downloaded (see above)."
+  exit 1
 fi
 
 # Show download summary

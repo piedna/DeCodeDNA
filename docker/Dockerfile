@@ -6,7 +6,7 @@
 # Build from the repository root:
 #   docker build -f docker/Dockerfile -t decodedna .
 #
-# Reference databases (~200 GB) are NOT baked in; mount them at /databases.
+# Reference databases (a few GB once built) are NOT baked in; mount them at /databases.
 
 FROM mambaorg/micromamba:1.5.10
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.3.0 (RELEASE_DATE)
 
 Changes found while benchmarking DeCodeDNA against DECONA on the FHL 2025 workshop data.
 The old behaviour can still be selected where it changes results.
@@ -60,6 +60,13 @@ The old behaviour can still be selected where it changes results.
 - The LULU R script is rewritten on every run, so a re-run never uses an older copy.
 - Script 05 stopped with "sample_names_str: unbound variable" when run with `SKIP_KRAKEN=true`; the sample
   list is now set before the Kraken2 section.
+- **Script 01 reference downloads.** The MIDORI2 and MitoFish download links in 0.1 and 0.2 no longer work
+  (MIDORI2 replaces its release about every two months; MitoFish moved to a new site), and a failed download
+  stopped the script with an unzip error. Downloads are now checked, each link can be set
+  (`MIDORI_12S_URL`, `MIDORI_COI_URL`, `MITOFISH_URL`), a FASTA already saved in `db_fasta/` is used as it
+  is, and a failed download ends with clear instructions on where to get the file.
+- Script 05 checks for Python's pandas before starting, instead of failing after BLAST; `decodedna check`
+  lists it too.
 
 ### Added
 - **`MIN_OTU_READS` (default 10):** OTUs with fewer reads than this across all samples are dropped as
@@ -69,10 +76,17 @@ The old behaviour can still be selected where it changes results.
   assigned at species, genus, family or higher level, all against the same denominator.
 - **`run_info.txt` (Scripts 03, 04 and 05):** date, computer (cores, free memory), DeCodeDNA version (git commit), tool versions, the settings
   that affect results, and the reference databases used (location, size, date, checksum of a small index file).
-- GUI: settings for OTU building (`OTU_MODE`, `MIN_OTU_READS`), the cluster sequence (`REPRESENTATIVE`)
-  and keeping intermediate files; LULU default shown as 0 (all OTUs).
+- GUI: settings for OTU building (`OTU_MODE`, `MIN_OTU_READS`), the cluster sequence (`REPRESENTATIVE`),
+  LULU's minimum match and keeping intermediate files; LULU default shown as 0 (all OTUs). The GUI's
+  default thread count now leaves one core free, like the scripts.
 - `scripts/resources.sh`: detects CPU cores and free memory on Linux, macOS and in Docker, used by Scripts 02-05.
 - README: note on matching `DATABASES` to the marker (e.g. `DATABASES=coi` for COI runs).
+
+## 0.2.0 (2026-10-17)
+
+- Docker image (`ghcr.io/piedna/decodedna`) and a single `decodedna` command for every step.
+- Browser interface and double-click launchers for macOS, Windows and Linux.
+- Scripts made safe to drive from the interface; TaxonKit no longer fails on an empty input.
 
 ## 0.1.0
 

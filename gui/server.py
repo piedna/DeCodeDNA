@@ -79,7 +79,7 @@ PARAMS = {
     "otu_mode":         ("OTU_MODE",           ("shared", "per_sample"), None, None),
     "min_otu_reads":    ("MIN_OTU_READS",      int,   0, 10_000_000),
     "lulu_max_otus":    ("LULU_MAX_OTUS",      int,   0, 10_000_000),
-    "lulu_min_match":   ("LULU_MIN_MATCH",     float, 50, 100),
+    "lulu_min_match":   ("LULU_MIN_MATCH",     int,   50, 100),
     "evalue":           ("EVALUE",             float, 0, 10),
     "max_hits":         ("MAX_HITS",           int,   1, 10000),
     "subset_count":     ("SUBSET_COUNT",       int,   0, 10_000_000),
@@ -165,7 +165,8 @@ def kraken_db_gb(databases):
 
 
 def default_settings():
-    return {"databases": list(ALL_DATABASES), "threads": cpu_count(), "memory_mapping": None}
+    # all cores but one, so the computer stays usable (same rule as the scripts' THREADS=auto)
+    return {"databases": list(ALL_DATABASES), "threads": max(1, cpu_count() - 1), "memory_mapping": None}
 
 
 def load_settings():

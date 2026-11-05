@@ -19,7 +19,7 @@ If you use DeCodeDNA in your research, teaching, or any derived work, please cit
 
 **Plain text (APA-ish):**
 
-> Ip, Y. C. A. (2025). *DeCodeDNA: an end-to-end eDNA metabarcoding analysis pipeline that can be run on everyday laptops* (Version 0.1.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20453273
+> Ip, Y. C. A. (2026). *DeCodeDNA: an end-to-end eDNA metabarcoding analysis pipeline that can be run on everyday laptops* (Version 0.3.0) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.20453273
 
 **BibTeX:**
 
@@ -27,8 +27,8 @@ If you use DeCodeDNA in your research, teaching, or any derived work, please cit
 @software{decodedna2025,
   author       = {Ip, Yin Cheong Aden},
   title        = {{DeCodeDNA: an end-to-end eDNA metabarcoding analysis pipeline that can be run on everyday laptops}},
-  year         = {2025},
-  version      = {0.1.0},
+  year         = {2026},
+  version      = {0.3.0},
   doi          = {10.5281/zenodo.20453273},
   url          = {https://doi.org/10.5281/zenodo.20453273},
   publisher    = {Zenodo},
@@ -427,14 +427,7 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 - **Bug reports**: [GitHub Issues](https://github.com/piedna/DeCodeDNA/issues)
 
 ### Citation
-```bibtex
-@software{decodedna2025,
-  title={DeCodeDNA: Oxford Nanopore eDNA Metabarcoding Pipeline},
-  author={Ip, Y.C.A. and The eDNA Collaborative},
-  year={2025},
-  url={https://github.com/piedna/DeCodeDNA}
-}
-```
+See [How to Cite](#-how-to-cite) at the top of this page, or use GitHub's **"Cite this repository"** button. DOI: [10.5281/zenodo.20453273](https://doi.org/10.5281/zenodo.20453273)
 
 ---
 
@@ -501,6 +494,7 @@ bash scripts/02_quick_look_clean.sh workflows/ont_native_barcodes results/class_
 - **What it does:** Downloads MIDORI and MitoFish sequences, builds BLAST and Kraken2 databases
 - **When to use:** Once before running quick look (Script 02) and taxonomic assignment (Script 05)
 - **Output:** Ready-to-use databases in `../databases/`
+- **Reference downloads:** MIDORI2 publishes a new release about every two months and removes the old one, so the built-in link can stop working. If a download fails, the script says which file and where to get it: download it, unzip it and save the FASTA in `../databases/db_fasta/` as `midori_12s.fasta`, `midori_coi.fasta` or `mifish.fasta` (a file already there is used as it is), or set `MIDORI_12S_URL`, `MIDORI_COI_URL` or `MITOFISH_URL` to a working link.
 - **Timing:** ~1-2 hours (one-time setup)
 
 ### Script 02: Quality Control & Classification
