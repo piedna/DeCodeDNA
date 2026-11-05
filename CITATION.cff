@@ -6,7 +6,7 @@ type: software
 authors:
   - given-names: "Yin Cheong Aden"
     family-names: "Ip"
-    # orcid: "https://orcid.org/0000-0000-0000-0000"   # uncomment and fill if you have an ORCID
+    orcid: "https://orcid.org/0000-0002-9472-1161"
 repository-code: "https://github.com/piedna/DeCodeDNA"
 url: "https://github.com/piedna/DeCodeDNA"
 doi: 10.5281/zenodo.20453273
@@ -18,8 +18,8 @@ identifiers:
     value: 10.5281/zenodo.20453274
     description: "Version DOI for v0.1.0"
 license: MIT
-version: "0.1.0"
-date-released: "2025-08-01"
+version: "0.3.0"
+date-released: "RELEASE_DATE"
 keywords:
   - environmental DNA
   - eDNA

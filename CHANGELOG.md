@@ -65,6 +65,10 @@ The old behaviour can still be selected where it changes results.
   stopped the script with an unzip error. Downloads are now checked, each link can be set
   (`MIDORI_12S_URL`, `MIDORI_COI_URL`, `MITOFISH_URL`), a FASTA already saved in `db_fasta/` is used as it
   is, and a failed download ends with clear instructions on where to get the file.
+- **Script 01 NCBI taxonomy download.** `kraken2-build --download-taxonomy` uses rsync, and NCBI's rsync
+  server now refuses connections (FTP and rsync are also often blocked on university networks), so building
+  the Kraken2 databases stopped. The taxonomy is now downloaded over HTTPS and checked against NCBI's md5
+  files, with `kraken2-build` (rsync, then FTP) only as a fallback. `NCBI_TAXONOMY_URL` can point to a mirror.
 - Script 05 checks for Python's pandas before starting, instead of failing after BLAST; `decodedna check`
   lists it too.
 

@@ -633,6 +633,44 @@ if command -v kraken2-build >/dev/null 2>&1; then
   # hundred MB each).
   SHARED_TAX="$KRAKEN_DB/.shared_taxonomy_download"
   KEEP_KRAKEN_TAXONOMY="${KEEP_KRAKEN_TAXONOMY:-false}"
+  NCBI_TAXONOMY_URL="${NCBI_TAXONOMY_URL:-https://ftp.ncbi.nlm.nih.gov/pub/taxonomy}"
+
+  # kraken2-build downloads the taxonomy with rsync (port 873) or FTP, which many university and
+  # company networks block. Download it over HTTPS first (checked against NCBI's md5 files) and
+  # leave the files the way kraken2-build expects them; fall back to kraken2-build if that fails.
+  download_ncbi_taxonomy() {   # DB_DIR
+    local tdir="$1/taxonomy"
+    mkdir -p "$tdir"
+    if (
+      # (set -e does not work inside an "if ( ... )", so every step checks itself)
+      cd "$tdir" || exit 1
+      for f in accession2taxid/nucl_gb.accession2taxid.gz accession2taxid/nucl_wgs.accession2taxid.gz taxdump.tar.gz; do
+        b=$(basename "$f")
+        if [[ -e "$b" || ( "$b" != taxdump.tar.gz && -e "${b%.gz}" ) ]]; then continue; fi
+        echo "     $b"
+        curl -sSfL --retry 5 --retry-delay 10 -C - -o "$b.part" "$NCBI_TAXONOMY_URL/$f" || exit 1
+        if curl -sSfL --retry 3 -o "$b.md5" "$NCBI_TAXONOMY_URL/$f.md5"; then
+          want=$(awk '{print $1}' "$b.md5")
+          have=$( { md5sum "$b.part" 2>/dev/null || md5 -r "$b.part"; } | awk '{print $1}')
+          rm -f "$b.md5"
+          if [[ "$want" != "$have" ]]; then echo "     checksum mismatch for $b, removing it"; rm -f "$b.part"; exit 1; fi
+        fi
+        mv "$b.part" "$b" || exit 1
+      done
+      touch accmap.dlflag taxdump.dlflag || exit 1
+      for b in nucl_gb.accession2taxid.gz nucl_wgs.accession2taxid.gz; do
+        if [[ -e "$b" ]]; then gunzip -f "$b" || exit 1; fi
+      done
+      if [[ ! -e taxdump.untarflag ]]; then tar zxf taxdump.tar.gz || exit 1; touch taxdump.untarflag; fi
+      [[ -s nodes.dmp && -s names.dmp ]] || exit 1
+    ); then
+      return 0
+    fi
+    echo "     HTTPS download did not work, trying kraken2-build (rsync, then FTP)..."
+    kraken2-build --download-taxonomy --db "$1" && return 0
+    kraken2-build --download-taxonomy --use-ftp --db "$1" && return 0
+    return 1
+  }
 
   for DB in 12s coi mitofish; do
     TARGET="$KRAKEN_DB/$DB"
@@ -651,7 +689,14 @@ if command -v kraken2-build >/dev/null 2>&1; then
     if [[ ! -f "$SHARED_TAX/taxonomy/nodes.dmp" ]]; then
       echo "   - Downloading NCBI taxonomy (once for all databases, ~47 GB while building)..."
       mkdir -p "$SHARED_TAX"
-      kraken2-build --download-taxonomy --db "$SHARED_TAX"
+      if ! download_ncbi_taxonomy "$SHARED_TAX"; then
+        echo "     ❌ Could not download the NCBI taxonomy over HTTPS, rsync or FTP."
+        echo "        Check the internet connection, or download these files by hand from"
+        echo "        $NCBI_TAXONOMY_URL :"
+        echo "          taxdump.tar.gz, accession2taxid/nucl_gb.accession2taxid.gz, accession2taxid/nucl_wgs.accession2taxid.gz"
+        echo "        put them in $SHARED_TAX/taxonomy/ and run this script again (finished parts are kept)."
+        exit 1
+      fi
     fi
     [[ -e "$TARGET/taxonomy" ]] || ln -s "$SHARED_TAX/taxonomy" "$TARGET/taxonomy"
     
