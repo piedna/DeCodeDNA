@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (RELEASE_DATE)
+## 0.3.0 (2026-11-05)
 
 Changes found while benchmarking DeCodeDNA against DECONA on the FHL 2025 workshop data.
 The old behaviour can still be selected where it changes results.

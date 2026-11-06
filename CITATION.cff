@@ -19,7 +19,7 @@ identifiers:
     description: "Version DOI for v0.1.0"
 license: MIT
 version: "0.3.0"
-date-released: "RELEASE_DATE"
+date-released: "2026-11-05"
 keywords:
   - environmental DNA
   - eDNA
