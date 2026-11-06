@@ -714,10 +714,11 @@ if command -v kraken2-build >/dev/null 2>&1; then
       echo "   - Building database (this may take 5-15 minutes)..."
       kraken2-build --build --db "$TARGET" --threads "$THREADS" --no-masking
 
-      # keep only what classification needs (*.k2d); removes library/ and the taxonomy link
+      # keep only what classification needs (*.k2d). Remove the taxonomy link first: kraken2-build --clean
+      # runs "rm -rf taxonomy/", which through a link would empty the shared download used by the next database.
       echo "   - Removing build-only files..."
-      kraken2-build --clean --db "$TARGET" >/dev/null 2>&1 || rm -rf "$TARGET/library" "$TARGET/taxonomy" "$TARGET/seqid2taxid.map"
-      [[ -L "$TARGET/taxonomy" ]] && rm -f "$TARGET/taxonomy"
+      if [[ -L "$TARGET/taxonomy" ]]; then rm -f "$TARGET/taxonomy"; fi
+      kraken2-build --clean --db "$TARGET" >/dev/null 2>&1 || rm -rf "$TARGET/library" "$TARGET/seqid2taxid.map"
       
       echo "   ✅ Kraken2 DB built for $DB ($(du -sh "$TARGET" | cut -f1))"
     else
