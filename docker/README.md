@@ -8,7 +8,7 @@ TaxonKit, SeqKit, Krona, R + LULU, amplicon_sorter), the NCBI taxonomy used by
 Krona/TaxonKit, and the example data. It runs the same on Intel and
 Apple Silicon / ARM machines.
 
-The reference databases (~200 GB) are **not** inside the image. You keep them in
+The reference databases (a few GB once built; about 60 GB free space is needed while building) are **not** inside the image. You keep them in
 a folder on your computer (or USB drive) and mount it at `/databases`.
 
 ## 1. Install Docker
@@ -67,7 +67,7 @@ On Linux, add `--user "$(id -u):$(id -g)"` so result files are owned by you.
 ```text
 decodedna gui                           Browser interface on port 8080 (add -p 127.0.0.1:8080:8080)
 decodedna check                         Check tools and reference databases
-decodedna build-db                      Build databases into /databases (1-2 h, ~200 GB)
+decodedna build-db                      Build databases into /databases (1-2 h, ~60 GB while building)
 decodedna qc         <input> <out>      Script 02: quality filter + Kraken2 quick look
 decodedna consensus  <02_dir> <out>     Script 03: vsearch consensus
 decodedna denoise    <03_dir> <out>     Script 04: LULU denoising

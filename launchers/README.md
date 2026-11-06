@@ -52,5 +52,5 @@ Each run keeps `run_info.txt` (all settings and tool versions) and `gui_history.
 - **"Docker is not running"**: start Docker Desktop and wait for it to finish starting, then try again.
 - **Docker asks to share a folder**: allow it. DeCodeDNA can only see the two folders you chose.
 - **Slow Kraken2 / out of memory**: give Docker more memory, or leave *Low-memory mode* on *Automatic* in step 1.
-- **Use another image or version**: set `DECODEDNA_IMAGE`, e.g. `DECODEDNA_IMAGE=ghcr.io/piedna/decodedna:0.2.0 ./DeCodeDNA.sh`.
+- **Use another image or version**: set `DECODEDNA_IMAGE`, e.g. `DECODEDNA_IMAGE=ghcr.io/piedna/decodedna:0.3.0 ./DeCodeDNA.sh`.
 - **Stop from a terminal**: `./DeCodeDNA.sh --stop` (Windows: `DeCodeDNA.bat -Stop`).

@@ -137,60 +137,53 @@ echo "────────────────────────�
 
 cd "$FASTA_ROOT"
 
-# Download MIDORI 12S
-if [[ ! -f "midori_12s.fasta" ]]; then
-  echo "   - Downloading MIDORI 12S rRNA sequences..."
-  curl -sL -o midori_12s.zip \
-    "https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta.zip"
-  
-  if [[ -f "midori_12s.zip" ]]; then
-    unzip -q midori_12s.zip
-    mv MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta midori_12s.fasta
-    rm midori_12s.zip
-    echo "     ✅ MIDORI 12S downloaded"
-  else
-    echo "     ❌ Failed to download MIDORI 12S"
-  fi
-else
-  echo "   ✅ MIDORI 12S already exists"
-fi
+# Where each reference file comes from. These links change when the providers publish a new release
+# (MIDORI2 replaces its release about every two months), so each can be set to a current direct link:
+#   MIDORI_12S_URL, MIDORI_COI_URL, MITOFISH_URL
+# A file already saved in the db_fasta folder under the name below is used as it is, without downloading:
+#   midori_12s.fasta, midori_coi.fasta, mifish.fasta (unzipped FASTA)
+MIDORI_12S_URL="${MIDORI_12S_URL:-https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_srRNA_BLAST.fasta.zip}"
+MIDORI_COI_URL="${MIDORI_COI_URL:-https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta.zip}"
+MITOFISH_URL="${MITOFISH_URL:-https://mitofish.aori.u-tokyo.ac.jp/species/detail/download/?filename=download%2F/complete_partial_mitogenomes.zip}"
+DOWNLOAD_FAILED=()
 
-# Download MIDORI COI
-if [[ ! -f "midori_coi.fasta" ]]; then
-  echo "   - Downloading MIDORI COI sequences..."
-  curl -sL -o midori_coi.zip \
-    "https://www.reference-midori.info/download/Databases/GenBank265_2025-03-08/BLAST/uniq/fasta/MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta.zip"
-  
-  if [[ -f "midori_coi.zip" ]]; then
-    unzip -q midori_coi.zip
-    mv MIDORI2_UNIQ_NUC_GB265_CO1_BLAST.fasta midori_coi.fasta
-    rm midori_coi.zip
-    echo "     ✅ MIDORI COI downloaded"
-  else
-    echo "     ❌ Failed to download MIDORI COI"
+# fetch_fasta OUT_NAME URL LABEL WHERE_TO_GET_IT URL_VARIABLE
+fetch_fasta() {
+  local out="$1" url="$2" label="$3" page="$4" var="$5"
+  if [[ -s "$out" ]]; then echo "   ✅ $label already exists ($out)"; return 0; fi
+  echo "   - Downloading $label..."
+  local tmp="${out%.fasta}.download" dir="${out%.fasta}_unzip" f=""
+  rm -rf "$tmp" "$dir"
+  if curl -sfL -o "$tmp" "$url" && unzip -tq "$tmp" >/dev/null 2>&1; then
+    mkdir -p "$dir" && unzip -q "$tmp" -d "$dir"
+    f=$(find "$dir" -type f \( -name '*.fasta' -o -name '*.fa' -o -name '*.fas' -o -name '*.fna' \) 2>/dev/null | head -1 || true)
+    [[ -z "$f" ]] && f=$(find "$dir" -type f -size +1M 2>/dev/null | head -1 || true)
+    if [[ -n "$f" ]] && grep -q '^>' "$f"; then
+      mv "$f" "$out"; rm -rf "$tmp" "$dir"
+      echo "     ✅ $label downloaded ($(grep -c '^>' "$out") sequences)"
+      return 0
+    fi
   fi
-else
-  echo "   ✅ MIDORI COI already exists"
-fi
+  rm -rf "$tmp" "$dir"
+  echo "     ❌ Could not download $label from:"
+  echo "        $url"
+  echo "        The provider may have moved or replaced the file. To fix it, either:"
+  echo "          • download it from $page, unzip it and save the FASTA as"
+  echo "            $FASTA_ROOT/$out , or"
+  echo "          • set $var to a working direct link,"
+  echo "        then run this script again (finished parts are kept)."
+  DOWNLOAD_FAILED+=("$label")
+  return 0
+}
 
-# Download MitoFish
-if [[ ! -f "mifish.fasta" ]]; then
-  echo "   - Downloading MitoFish mitogenomes..."
-  curl -sL -o mifish.zip \
-    "https://mitofish.aori.u-tokyo.ac.jp/species/detail/download/?filename=download%2F/complete_partial_mitogenomes.zip"
-  
-  if [[ -f "mifish.zip" ]]; then
-    unzip -q mifish.zip
-    mv complete_partial_mitogenomes.fasta mifish.fasta 2>/dev/null || \
-    mv mito-all mifish.fasta 2>/dev/null || \
-    find . -name "*.fasta" -not -name "midori*" -not -name "mifish*" | head -1 | xargs -I {} mv {} mifish.fasta
-    rm mifish.zip
-    echo "     ✅ MitoFish downloaded"
-  else
-    echo "     ❌ Failed to download MitoFish"
-  fi
-else
-  echo "   ✅ MitoFish already exists"
+fetch_fasta midori_12s.fasta "$MIDORI_12S_URL" "MIDORI2 12S (srRNA)" "https://www.reference-midori.info/download.html (BLAST, uniq, srRNA)" MIDORI_12S_URL
+fetch_fasta midori_coi.fasta "$MIDORI_COI_URL" "MIDORI2 COI (CO1)" "https://www.reference-midori.info/download.html (BLAST, uniq, CO1)" MIDORI_COI_URL
+fetch_fasta mifish.fasta "$MITOFISH_URL" "MitoFish mitogenomes" "https://mitofish.aori.u-tokyo.ac.jp/download/ (complete and partial mitogenomes)" MITOFISH_URL
+
+if [[ ${#DOWNLOAD_FAILED[@]} -gt 0 ]]; then
+  echo ""
+  echo "❌ Stopped: ${#DOWNLOAD_FAILED[@]} reference file(s) could not be downloaded (see above)."
+  exit 1
 fi
 
 # Show download summary
@@ -640,6 +633,44 @@ if command -v kraken2-build >/dev/null 2>&1; then
   # hundred MB each).
   SHARED_TAX="$KRAKEN_DB/.shared_taxonomy_download"
   KEEP_KRAKEN_TAXONOMY="${KEEP_KRAKEN_TAXONOMY:-false}"
+  NCBI_TAXONOMY_URL="${NCBI_TAXONOMY_URL:-https://ftp.ncbi.nlm.nih.gov/pub/taxonomy}"
+
+  # kraken2-build downloads the taxonomy with rsync (port 873) or FTP, which many university and
+  # company networks block. Download it over HTTPS first (checked against NCBI's md5 files) and
+  # leave the files the way kraken2-build expects them; fall back to kraken2-build if that fails.
+  download_ncbi_taxonomy() {   # DB_DIR
+    local tdir="$1/taxonomy"
+    mkdir -p "$tdir"
+    if (
+      # (set -e does not work inside an "if ( ... )", so every step checks itself)
+      cd "$tdir" || exit 1
+      for f in accession2taxid/nucl_gb.accession2taxid.gz accession2taxid/nucl_wgs.accession2taxid.gz taxdump.tar.gz; do
+        b=$(basename "$f")
+        if [[ -e "$b" || ( "$b" != taxdump.tar.gz && -e "${b%.gz}" ) ]]; then continue; fi
+        echo "     $b"
+        curl -sSfL --retry 5 --retry-delay 10 -C - -o "$b.part" "$NCBI_TAXONOMY_URL/$f" || exit 1
+        if curl -sSfL --retry 3 -o "$b.md5" "$NCBI_TAXONOMY_URL/$f.md5"; then
+          want=$(awk '{print $1}' "$b.md5")
+          have=$( { md5sum "$b.part" 2>/dev/null || md5 -r "$b.part"; } | awk '{print $1}')
+          rm -f "$b.md5"
+          if [[ "$want" != "$have" ]]; then echo "     checksum mismatch for $b, removing it"; rm -f "$b.part"; exit 1; fi
+        fi
+        mv "$b.part" "$b" || exit 1
+      done
+      touch accmap.dlflag taxdump.dlflag || exit 1
+      for b in nucl_gb.accession2taxid.gz nucl_wgs.accession2taxid.gz; do
+        if [[ -e "$b" ]]; then gunzip -f "$b" || exit 1; fi
+      done
+      if [[ ! -e taxdump.untarflag ]]; then tar zxf taxdump.tar.gz || exit 1; touch taxdump.untarflag; fi
+      [[ -s nodes.dmp && -s names.dmp ]] || exit 1
+    ); then
+      return 0
+    fi
+    echo "     HTTPS download did not work, trying kraken2-build (rsync, then FTP)..."
+    kraken2-build --download-taxonomy --db "$1" && return 0
+    kraken2-build --download-taxonomy --use-ftp --db "$1" && return 0
+    return 1
+  }
 
   for DB in 12s coi mitofish; do
     TARGET="$KRAKEN_DB/$DB"
@@ -658,7 +689,14 @@ if command -v kraken2-build >/dev/null 2>&1; then
     if [[ ! -f "$SHARED_TAX/taxonomy/nodes.dmp" ]]; then
       echo "   - Downloading NCBI taxonomy (once for all databases, ~47 GB while building)..."
       mkdir -p "$SHARED_TAX"
-      kraken2-build --download-taxonomy --db "$SHARED_TAX"
+      if ! download_ncbi_taxonomy "$SHARED_TAX"; then
+        echo "     ❌ Could not download the NCBI taxonomy over HTTPS, rsync or FTP."
+        echo "        Check the internet connection, or download these files by hand from"
+        echo "        $NCBI_TAXONOMY_URL :"
+        echo "          taxdump.tar.gz, accession2taxid/nucl_gb.accession2taxid.gz, accession2taxid/nucl_wgs.accession2taxid.gz"
+        echo "        put them in $SHARED_TAX/taxonomy/ and run this script again (finished parts are kept)."
+        exit 1
+      fi
     fi
     [[ -e "$TARGET/taxonomy" ]] || ln -s "$SHARED_TAX/taxonomy" "$TARGET/taxonomy"
     
@@ -676,10 +714,11 @@ if command -v kraken2-build >/dev/null 2>&1; then
       echo "   - Building database (this may take 5-15 minutes)..."
       kraken2-build --build --db "$TARGET" --threads "$THREADS" --no-masking
 
-      # keep only what classification needs (*.k2d); removes library/ and the taxonomy link
+      # keep only what classification needs (*.k2d). Remove the taxonomy link first: kraken2-build --clean
+      # runs "rm -rf taxonomy/", which through a link would empty the shared download used by the next database.
       echo "   - Removing build-only files..."
-      kraken2-build --clean --db "$TARGET" >/dev/null 2>&1 || rm -rf "$TARGET/library" "$TARGET/taxonomy" "$TARGET/seqid2taxid.map"
-      [[ -L "$TARGET/taxonomy" ]] && rm -f "$TARGET/taxonomy"
+      if [[ -L "$TARGET/taxonomy" ]]; then rm -f "$TARGET/taxonomy"; fi
+      kraken2-build --clean --db "$TARGET" >/dev/null 2>&1 || rm -rf "$TARGET/library" "$TARGET/seqid2taxid.map"
       
       echo "   ✅ Kraken2 DB built for $DB ($(du -sh "$TARGET" | cut -f1))"
     else

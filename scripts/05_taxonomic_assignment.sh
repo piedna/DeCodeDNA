@@ -49,6 +49,12 @@ if [[ ! -d "$DENOISE_DIR" ]]; then
   echo "❌ Error: DENOISE_DIR not found: $DENOISE_DIR"
   exit 1
 fi
+# The taxonomy tables are built with Python's pandas: check now rather than fail after BLAST
+if ! python3 -c "import pandas" >/dev/null 2>&1; then
+  echo "❌ Error: the Python package 'pandas' is not installed for $(command -v python3)"
+  echo "   Install it into the DeCodeDNA environment, e.g.:  python3 -m pip install pandas"
+  exit 1
+fi
 mkdir -p "$OUTPUT_DIR"
 
 # ─── organize output directories ─────────────────────────────────────────
